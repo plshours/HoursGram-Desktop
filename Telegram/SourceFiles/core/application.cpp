@@ -1231,7 +1231,7 @@ bool Application::openInternalUrl(const QString &url, QVariant context) {
 }
 
 QString Application::changelogLink() const {
-	return u"https://github.com/sixseven67123/HoursGram-Desktop/releases"_q;
+	return u"https://github.com/plshours/HoursGram-Desktop/releases"_q;
 }
 
 bool Application::openCustomUrl(

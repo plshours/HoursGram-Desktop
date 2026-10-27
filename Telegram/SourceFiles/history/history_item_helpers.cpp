@@ -1402,7 +1402,7 @@ void CheckPollVoteNotificationSchedule(
 }
 
 [[nodiscard]] TextWithEntities UnsupportedMessageText() {
-	const auto siteLink = u"https://github.com/sixseven67123/HoursGram-Desktop"_q;
+	const auto siteLink = u"https://github.com/plshours/HoursGram-Desktop"_q;
 	auto result = TextWithEntities{
 		tr::lng_message_unsupported(tr::now, lt_link, siteLink).replace("Telegram", "HoursGram")
 	};
@@ -1421,7 +1421,7 @@ HistoryMessageMarkupData UnsupportedMessageMarkup() {
 		Button::Type::Url,
 		tr::lng_update_telegram(tr::now).replace("Telegram", "HoursGram"),
 		Button::Visual(),
-		QByteArray("https://github.com/sixseven67123/HoursGram-Desktop"));
+		QByteArray("https://github.com/plshours/HoursGram-Desktop"));
 	markup.rows.push_back(std::move(row));
 	return markup;
 }

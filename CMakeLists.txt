@@ -20,7 +20,7 @@ project(Telegram
     LANGUAGES C CXX
     VERSION ${desktop_app_version_cmake}
     DESCRIPTION "HoursGram Desktop"
-    HOMEPAGE_URL "https://github.com/sixseven67123/HoursGram-Desktop"
+    HOMEPAGE_URL "https://github.com/plshours/HoursGram-Desktop"
 )
 
 if (APPLE)

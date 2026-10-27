@@ -44,12 +44,32 @@ rpl::producer<TextWithEntities> Text() {
 		lt_gpl_link,
 		rpl::single(Ui::Text::Link(
 			"GNU GPL",
-			"https://github.com/sixseven67123/HoursGram-Desktop/blob/main/LICENSE")),
+			"https://github.com/plshours/HoursGram-Desktop/blob/main/LICENSE")),
 		lt_github_link,
 		rpl::single(Ui::Text::Link(
 			"GitHub",
-			"https://github.com/sixseven67123/HoursGram-Desktop")),
+			"https://github.com/plshours/HoursGram-Desktop")),
 		tr::marked);
+}
+
+// An unofficial client says so, and names the projects it is made from.
+[[nodiscard]] TextWithEntities Origin() {
+	auto result = TextWithEntities{
+		u"Unofficial client, not affiliated with Telegram. Based on "_q
+	};
+	result.append(Ui::Text::Link(
+		u"Telegram Desktop"_q,
+		u"https://github.com/telegramdesktop/tdesktop"_q));
+	result.append(u" and "_q);
+	result.append(Ui::Text::Link(
+		u"AyuGram Desktop"_q,
+		u"https://github.com/AyuGram/AyuGramDesktop"_q));
+	result.append(u". Licensed under GPLv3, see "_q);
+	result.append(Ui::Text::Link(
+		u"NOTICE"_q,
+		u"https://github.com/plshours/HoursGram-Desktop/blob/main/NOTICE.md"_q));
+	result.append(u"."_q);
+	return result;
 }
 
 // The rounded profile sections are taken from mokaGram, whose notice asks
@@ -99,6 +119,7 @@ void AboutBox(not_null<Ui::GenericBox*> box, Window::SessionController*) {
 	};
 
 	addText(Text());
+	addText(rpl::single(Origin()));
 	addText(rpl::single(Credit()));
 
 	box->addButton(tr::lng_close(), [=] { box->closeBox(); });

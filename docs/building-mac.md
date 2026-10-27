@@ -17,7 +17,7 @@ Go to ***BuildPath*** and run
 
     sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-    git clone --recursive https://github.com/sixseven67123/HoursGram-Desktop.git hoursgram
+    git clone --recursive https://github.com/plshours/HoursGram-Desktop.git hoursgram
     ./hoursgram/Telegram/build/prepare/mac.sh
 
 ### Building the project

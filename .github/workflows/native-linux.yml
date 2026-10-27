@@ -79,8 +79,8 @@ jobs:
             "$BUILD_IMAGE" \
             /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
             -D CMAKE_CONFIGURATION_TYPES=Release \
-            -D TDESKTOP_API_ID=2040 \
-            -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 \
+            -D TDESKTOP_API_ID=${{ secrets.TDESKTOP_API_ID || '2040' }} \
+            -D TDESKTOP_API_HASH=${{ secrets.TDESKTOP_API_HASH || 'b18441a1ff607e10a989891a5462e627' }} \
             -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
             -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON \
             2>&1 | tee "$RUNNER_TEMP/build.log"

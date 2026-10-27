@@ -8,7 +8,7 @@ Choose a folder for the future build, for example **/home/user/TBuild**. It will
 
 Install [poetry](https://python-poetry.org), [docker](https://www.docker.com/) and [docker-buildx](https://docs.docker.com/reference/cli/docker/buildx/), go to ***BuildPath*** and run
 
-    git clone --recursive https://github.com/sixseven67123/HoursGram-Desktop.git hoursgram
+    git clone --recursive https://github.com/plshours/HoursGram-Desktop.git hoursgram
     ./hoursgram/Telegram/build/prepare/linux.sh
 
 ### Building the project

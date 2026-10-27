@@ -28,7 +28,7 @@ constexpr auto kMaxResponseSize = 1024 * 1024;
 // key and asks callers to name themselves in the user agent.
 constexpr auto kApiUrl = "https://lrclib.net/api/";
 constexpr auto kUserAgent = "HoursGram Desktop "
-	"(https://github.com/sixseven67123/HoursGram-Desktop)";
+	"(https://github.com/plshours/HoursGram-Desktop)";
 
 [[nodiscard]] QNetworkAccessManager &Manager() {
 	static auto result = QNetworkAccessManager();

@@ -1868,7 +1868,7 @@ void UpdateApplication() {
 			} else if (KSandbox::isSnap()) {
 				return "https://snapcraft.io/telegram-desktop";
 			}
-			return "https://github.com/sixseven67123/HoursGram-Desktop/releases";
+			return "https://github.com/plshours/HoursGram-Desktop/releases";
 #endif // OS_WIN_STORE || OS_MAC_STORE
 		}();
 		UrlClickHandler::Open(url);

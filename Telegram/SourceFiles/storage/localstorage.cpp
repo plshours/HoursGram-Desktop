@@ -547,7 +547,7 @@ QString autoupdatePrefixFile() {
 }
 
 constexpr auto kUpdatePrefix
-	= "https://github.com/sixseven67123/HoursGram-Desktop/releases/";
+	= "https://github.com/plshours/HoursGram-Desktop/releases/";
 
 const QString &readAutoupdatePrefixRaw() {
 	Expects(!Core::UpdaterDisabled());

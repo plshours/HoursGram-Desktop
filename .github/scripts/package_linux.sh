@@ -81,7 +81,7 @@ pkgver=${version}
 pkgrel=1
 pkgdesc='Telegram Desktop client with the HorusGram interface'
 arch=('x86_64')
-url='https://github.com/sixseven67123/HoursGram-Desktop'
+url='https://github.com/plshours/HoursGram-Desktop'
 license=('GPL-3.0-or-later')
 depends=('glibc' 'glib2' 'gtk3' 'libx11' 'libxcb' 'fontconfig' 'freetype2'
          'libglvnd' 'alsa-lib' 'libpulse' 'hicolor-icon-theme')

@@ -44,7 +44,7 @@ Run both `Clone source code and prepare libraries` and `Build the project` secti
 
 In the initialized terminal, go to ***BuildPath*** and run
 
-    git clone --recursive https://github.com/sixseven67123/HoursGram-Desktop.git hoursgram
+    git clone --recursive https://github.com/plshours/HoursGram-Desktop.git hoursgram
     hoursgram\Telegram\build\prepare\win.bat
 
 ## Build the project

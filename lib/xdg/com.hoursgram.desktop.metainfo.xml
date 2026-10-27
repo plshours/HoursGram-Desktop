@@ -13,11 +13,11 @@
         <category>InstantMessaging</category>
     </categories>
     <developer_name>HoursGram</developer_name>
-    <url type="homepage">https://github.com/sixseven67123/HoursGram-Desktop</url>
-    <url type="faq">https://github.com/sixseven67123/HoursGram-Desktop/issues</url>
-    <url type="bugtracker">https://github.com/sixseven67123/HoursGram-Desktop/issues</url>
-    <url type="vcs-browser">https://github.com/sixseven67123/HoursGram-Desktop</url>
-    <url type="contribute">https://github.com/sixseven67123/HoursGram-Desktop</url>
+    <url type="homepage">https://github.com/plshours/HoursGram-Desktop</url>
+    <url type="faq">https://github.com/plshours/HoursGram-Desktop/issues</url>
+    <url type="bugtracker">https://github.com/plshours/HoursGram-Desktop/issues</url>
+    <url type="vcs-browser">https://github.com/plshours/HoursGram-Desktop</url>
+    <url type="contribute">https://github.com/plshours/HoursGram-Desktop</url>
     <screenshots>
       <screenshot type="default">
         <image>https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png</image>

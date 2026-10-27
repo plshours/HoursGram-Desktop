@@ -172,7 +172,7 @@ jobs:
       - name: Configure HorusGram
         shell: cmd
         working-directory: Telegram
-        run: configure.bat x64 -D TDESKTOP_API_ID=2040 -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
+        run: configure.bat x64 -D TDESKTOP_API_ID=${{ secrets.TDESKTOP_API_ID || '2040' }} -D TDESKTOP_API_HASH=${{ secrets.TDESKTOP_API_HASH || 'b18441a1ff607e10a989891a5462e627' }} -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
 
       - name: Build HorusGram
         shell: cmd

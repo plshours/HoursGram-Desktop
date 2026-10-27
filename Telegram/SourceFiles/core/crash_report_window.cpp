@@ -493,7 +493,7 @@ LastCrashedWindow::LastCrashedWindow(
 	connect(&_saveReport, &QPushButton::clicked, [=] { saveReport(); });
 	_getApp.setText(u"VIEW HOURSGRAM SOURCE"_q);
 	connect(&_getApp, &QPushButton::clicked, [=] {
-		QDesktopServices::openUrl(u"https://github.com/sixseven67123/HoursGram-Desktop"_q);
+		QDesktopServices::openUrl(u"https://github.com/plshours/HoursGram-Desktop"_q);
 	});
 
 	_send.setText(u"SEND CRASH REPORT"_q);

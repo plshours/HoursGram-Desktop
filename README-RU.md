@@ -9,7 +9,7 @@ HoursGram Desktop — нативный Telegram-клиент на C++/Qt, осн
 Для локальной сборки следуй [руководству по Windows](docs/building-win.md).
 
 ```powershell
-git clone --recursive https://github.com/sixseven67123/HoursGram-Desktop.git hoursgram
+git clone --recursive https://github.com/plshours/HoursGram-Desktop.git hoursgram
 ```
 
 ## Исходный код и авторство

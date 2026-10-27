@@ -1,7 +1,7 @@
 #define MyAppShortName "HoursGram"
 #define MyAppName "HoursGram Desktop"
 #define MyAppPublisher "HoursGram"
-#define MyAppURL "https://github.com/sixseven67123/HoursGram-Desktop"
+#define MyAppURL "https://github.com/plshours/HoursGram-Desktop"
 #define MyAppExeName "HoursGram.exe"
 #define MyAppId "8DB8830E-2B82-4B9B-8779-410C74849E42"
 #define CurrentYear GetDateTimeString('yyyy','','')
