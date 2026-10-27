@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="/gui/fonts">
+    <file alias="Montserrat-Regular.ttf">../../fonts/Montserrat-Regular.ttf</file>
+    <file alias="Montserrat-Italic.ttf">../../fonts/Montserrat-Italic.ttf</file>
+    <file alias="Montserrat-SemiBold.ttf">../../fonts/Montserrat-SemiBold.ttf</file>
+    <file alias="Montserrat-SemiBoldItalic.ttf">../../fonts/Montserrat-SemiBoldItalic.ttf</file>
+  </qresource>
+</RCC>

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Name=HorusGram Desktop
+Comment=Telegram Desktop client with the HorusGram interface
+TryExec=HoursGram
+Exec=env DESKTOPINTEGRATION=1 HoursGram -- %U
+Icon=com.hoursgram.desktop
+Terminal=false
+StartupWMClass=HoursGram
+Type=Application
+Categories=Chat;Network;InstantMessaging;Qt;
+MimeType=x-scheme-handler/tg;x-scheme-handler/tonsite;
+Keywords=tg;chat;im;messaging;messenger;sms;telegram;tdesktop;
+Actions=quit;
+DBusActivatable=true
+SingleMainWindow=true
+X-GNOME-UsesNotifications=true
+X-GNOME-SingleWindow=true
+
+[Desktop Action quit]
+Exec=HoursGram -quit
+Name=Quit HorusGram
+Icon=application-exit

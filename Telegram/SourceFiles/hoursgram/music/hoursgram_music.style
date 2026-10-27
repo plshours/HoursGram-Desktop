@@ -1,0 +1,168 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+using "ui/basic.style";
+using "ui/widgets/widgets.style";
+
+hoursgramPlayerWidth: 420px;
+hoursgramPlayerPadding: margins(24px, 20px, 24px, 20px);
+
+hoursgramPlayerCoverSize: 176px;
+hoursgramPlayerCoverRadius: 22px;
+hoursgramPlayerCoverSkip: 20px;
+hoursgramPlayerCoverIcon: icon {{ "player/player_mini_full", windowSubTextFg }};
+
+hoursgramPlayerTitle: FlatLabel(defaultFlatLabel) {
+	align: align(top);
+	textFg: windowBoldFg;
+	maxHeight: 44px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(18px semibold);
+	}
+}
+hoursgramPlayerPerformer: FlatLabel(defaultFlatLabel) {
+	align: align(top);
+	textFg: windowSubTextFg;
+	maxHeight: 22px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+	}
+}
+hoursgramPlayerPerformerSkip: 6px;
+
+hoursgramPlayerSliderSkip: 22px;
+hoursgramPlayerSliderHeight: 20px;
+hoursgramPlayerSlider: MediaSlider(defaultContinuousSlider) {
+	width: 4px;
+	activeFg: windowBgActive;
+	activeFgOver: windowBgActive;
+	inactiveFg: windowBgRipple;
+	inactiveFgOver: windowBgRipple;
+	activeFgDisabled: windowBgRipple;
+	inactiveFgDisabled: windowBgRipple;
+	receivedTillFg: windowBgRipple;
+	seekSize: size(12px, 12px);
+}
+hoursgramPlayerTime: FlatLabel(defaultFlatLabel) {
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(12px);
+	}
+}
+hoursgramPlayerTimeSkip: 8px;
+
+hoursgramPlayerControlsSkip: 14px;
+hoursgramPlayerControlsHeight: 60px;
+hoursgramPlayerControlsSpace: 18px;
+hoursgramPlayerPlay: IconButton {
+	width: 56px;
+	height: 56px;
+	icon: icon {{ "media_play", activeButtonFg }};
+	iconOver: icon {{ "media_play", activeButtonFg }};
+	iconPosition: point(20px, 19px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 56px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: activeButtonBgRipple;
+	}
+}
+hoursgramPlayerPauseIcon: icon {{ "media_pause", activeButtonFg }};
+hoursgramPlayerPausePosition: point(20px, 19px);
+hoursgramPlayerSide: IconButton {
+	width: 44px;
+	height: 44px;
+	icon: icon {{ "player/player_forward", windowBoldFg }};
+	iconOver: icon {{ "player/player_forward", windowBoldFg }};
+	iconPosition: point(13px, 14px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 44px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgOver;
+	}
+}
+hoursgramPlayerPrevious: IconButton(hoursgramPlayerSide) {
+	icon: icon {{ "player/player_backward", windowBoldFg }};
+	iconOver: icon {{ "player/player_backward", windowBoldFg }};
+}
+
+hoursgramPlayerWindowSize: size(420px, 820px);
+
+hoursgramPlayerActionsSkip: 18px;
+hoursgramPlayerActionsSpace: 10px;
+hoursgramPlayerAction: RoundButton(defaultActiveButton) {
+	height: 40px;
+	textTop: 11px;
+	radius: 14px;
+	padding: margins(18px, 0px, 18px, 0px);
+}
+hoursgramPlayerActionSecondary: RoundButton(hoursgramPlayerAction) {
+	textFg: windowBoldFg;
+	textFgOver: windowBoldFg;
+	textBg: windowBgOver;
+	textBgOver: windowBgRipple;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+
+hoursgramLyricsSkip: 22px;
+hoursgramLyricsHeight: 220px;
+hoursgramLyricsWindowHeight: 280px;
+hoursgramLyricsMinHeight: 120px;
+hoursgramLyricsLineSkip: 20px;
+hoursgramLyricsPadding: margins(10px, 40px, 10px, 40px);
+hoursgramLyricsActive: TextStyle(defaultTextStyle) {
+	font: font(17px semibold);
+	lineHeight: 25px;
+}
+hoursgramLyricsInactive: TextStyle(defaultTextStyle) {
+	font: font(16px);
+	lineHeight: 24px;
+}
+
+hoursgramPlaylistRowHeight: 56px;
+hoursgramPlaylistRowPadding: margins(18px, 0px, 18px, 0px);
+hoursgramPlaylistCoverSize: 40px;
+hoursgramPlaylistCoverRadius: 12px;
+hoursgramPlaylistNameTop: 9px;
+hoursgramPlaylistStatusTop: 30px;
+hoursgramPlaylistName: TextStyle(defaultTextStyle) {
+	font: font(15px semibold);
+}
+hoursgramPlaylistStatus: TextStyle(defaultTextStyle) {
+	font: font(13px);
+}
+hoursgramPlaylistEmptyPadding: margins(24px, 40px, 24px, 40px);
+
+hoursgramPlaylistCoverSkip: 12px;
+hoursgramPlaylistTileIcon: icon {{ "player/player_mini_full", activeButtonFg }};
+hoursgramPlaylistPlayIcon: icon {{ "media_play", activeButtonFg }};
+hoursgramPlaylistPauseIcon: icon {{ "media_pause", activeButtonFg }};
+hoursgramPlaylistMenuSkip: 6px;
+hoursgramPlaylistMenu: IconButton {
+	width: 34px;
+	height: 34px;
+	icon: icon {{ "title_menu_dots", windowSubTextFg }};
+	iconOver: icon {{ "title_menu_dots", windowBoldFg }};
+	iconPosition: point(-1px, -1px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 34px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+hoursgramPlaylistRipple: RippleAnimation(defaultRippleAnimation) {
+	color: windowBgRipple;
+}
+hoursgramPlaylistMaxHeight: 440px;
+hoursgramPlaylistEmpty: FlatLabel(defaultFlatLabel) {
+	align: align(top);
+	textFg: windowSubTextFg;
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+	}
+}

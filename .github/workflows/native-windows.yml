@@ -1,0 +1,297 @@
+name: HorusGram Desktop Windows Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration for a manual run
+        type: choice
+        options:
+          - Debug
+          - Release
+        default: Release
+        required: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build HorusGram (x64)
+    runs-on: windows-2022
+    timeout-minutes: 360
+    env:
+      BUILD_CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
+
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Apply HorusGram rounded buttons
+        shell: pwsh
+        run: .github/scripts/patch_lib_ui.ps1
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          sdk: 10.0.26100.0
+          toolset: '14.44'
+
+      - name: Enlarge page file
+        uses: al-cheb/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 16GB
+          maximum-size: 32GB
+          disk-root: 'D:'
+
+      - name: Prepare dependency directories
+        shell: pwsh
+        run: |
+          # actions/cache rejects paths containing '..', so resolve them to absolute ones once.
+          $dependencyRoot = [System.IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '..'))
+          $thirdPartyDir = Join-Path $dependencyRoot 'ThirdParty'
+          $librariesDir = Join-Path $dependencyRoot 'Libraries\win64'
+          New-Item -ItemType Directory -Force -Path $thirdPartyDir, $librariesDir | Out-Null
+          "THIRD_PARTY_DIR=$thirdPartyDir" >> $env:GITHUB_ENV
+          "LIBRARIES_DIR=$librariesDir" >> $env:GITHUB_ENV
+
+      - name: Restore third-party build tools
+        id: third-party-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.THIRD_PARTY_DIR }}
+          key: ${{ runner.os }}-hoursgram-x64-third-party-v3-restore
+          restore-keys: |
+            ${{ runner.os }}-hoursgram-x64-third-party-v3-
+
+      - name: Restore native libraries
+        id: native-libraries-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.LIBRARIES_DIR }}
+          key: ${{ runner.os }}-hoursgram-x64-libraries-v3-restore
+          restore-keys: |
+            ${{ runner.os }}-hoursgram-x64-libraries-v3-
+
+      - name: Configure NuGet sources
+        shell: cmd
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages" >nul 2>&1
+          nuget sources Add -Source https://api.nuget.org/v3/index.json >nul 2>&1
+          exit /b 0
+
+      - name: Prepare native dependencies
+        id: prepare-dependencies
+        shell: cmd
+        run: Telegram\build\prepare\win.bat silent
+
+      - name: Fingerprint prepared dependency state
+        id: dependency-cache-key
+        if: always()
+        shell: pwsh
+        run: |
+          $cacheRoots = @{
+            third_party = Join-Path $env:THIRD_PARTY_DIR 'cache_keys'
+            libraries = Join-Path $env:LIBRARIES_DIR 'cache_keys'
+          }
+
+          foreach ($name in $cacheRoots.Keys) {
+            $cacheRoot = $cacheRoots[$name]
+            $files = @()
+            if (Test-Path -LiteralPath $cacheRoot) {
+              $files = @(Get-ChildItem -LiteralPath $cacheRoot -File -Recurse | Sort-Object FullName)
+            }
+
+            $fingerprint = 'empty'
+            if ($files.Count -gt 0) {
+              $manifest = foreach ($file in $files) {
+                $relativePath = [System.IO.Path]::GetRelativePath($cacheRoot, $file.FullName).Replace('\', '/')
+                "$relativePath=$([System.IO.File]::ReadAllText($file.FullName))"
+              }
+              $manifestPath = Join-Path $env:RUNNER_TEMP "hoursgram-$name-cache-manifest.txt"
+              [System.IO.File]::WriteAllText($manifestPath, (($manifest -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))
+              $fingerprint = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+
+            "${name}_hash=$fingerprint" >> $env:GITHUB_OUTPUT
+            "${name}_count=$($files.Count)" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Save third-party build tools
+        if: >-
+          always() &&
+          steps.dependency-cache-key.outcome == 'success' &&
+          steps.dependency-cache-key.outputs.third_party_count != '0' &&
+          steps.third-party-cache.outputs.cache-matched-key != format('{0}-hoursgram-x64-third-party-v3-{1}', runner.os, steps.dependency-cache-key.outputs.third_party_hash)
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: ${{ env.THIRD_PARTY_DIR }}
+          key: ${{ runner.os }}-hoursgram-x64-third-party-v3-${{ steps.dependency-cache-key.outputs.third_party_hash }}
+
+      - name: Save native libraries
+        if: >-
+          always() &&
+          steps.dependency-cache-key.outcome == 'success' &&
+          steps.dependency-cache-key.outputs.libraries_count != '0' &&
+          steps.native-libraries-cache.outputs.cache-matched-key != format('{0}-hoursgram-x64-libraries-v3-{1}', runner.os, steps.dependency-cache-key.outputs.libraries_hash)
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: ${{ env.LIBRARIES_DIR }}
+          key: ${{ runner.os }}-hoursgram-x64-libraries-v3-${{ steps.dependency-cache-key.outputs.libraries_hash }}
+
+      - name: Restore incremental CMake outputs
+        id: cmake-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: out
+          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
+            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-main-
+            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v2-
+
+      - name: Configure HorusGram
+        shell: cmd
+        working-directory: Telegram
+        run: configure.bat x64 -D TDESKTOP_API_ID=2040 -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
+
+      - name: Build HorusGram
+        shell: cmd
+        run: |
+          cmake --build out --config %BUILD_CONFIGURATION% --target Telegram --parallel 2 -- /p:CL_MPCount=4 > "%RUNNER_TEMP%\build.log" 2>&1
+          set BUILD_RESULT=%ERRORLEVEL%
+          type "%RUNNER_TEMP%\build.log"
+          exit /b %BUILD_RESULT%
+
+      - name: Report build errors
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'build.log'
+          if (!(Test-Path -LiteralPath $log)) {
+            return
+          }
+          $pattern = ': error |: fatal error |FAILED: |LNK[0-9]{4}'
+          $found = @(Select-String -LiteralPath $log -Pattern $pattern |
+            Select-Object -ExpandProperty Line -First 40)
+          if ($found.Count -eq 0) {
+            $found = @(Get-Content -LiteralPath $log -Tail 40)
+          }
+          '## Build errors' >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          $found >> $env:GITHUB_STEP_SUMMARY
+          '```' >> $env:GITHUB_STEP_SUMMARY
+          foreach ($line in $found) {
+            Write-Output "::error::$line"
+          }
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: HoursGram-build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Save incremental CMake outputs
+        id: save-cmake-build-cache
+        if: >-
+          !cancelled() &&
+          steps.cmake-build-cache.outputs.cache-matched-key != steps.cmake-build-cache.outputs.cache-primary-key
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: out
+          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+
+      - name: Remove previous incremental CMake caches for this ref
+        if: >-
+          !cancelled() &&
+          (steps.save-cmake-build-cache.outcome == 'success' ||
+          steps.cmake-build-cache.outputs.cache-matched-key == steps.cmake-build-cache.outputs.cache-primary-key)
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_KEY_PREFIX: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
+          CURRENT_CACHE_KEY: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          CACHE_REF: ${{ github.ref }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $encodedRef = [System.Uri]::EscapeDataString($env:CACHE_REF)
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches?ref=$encodedRef&per_page=100"
+          $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop
+          $oldCaches = $response.actions_caches | Where-Object {
+            $_.key.StartsWith($env:CACHE_KEY_PREFIX) -and $_.key -ne $env:CURRENT_CACHE_KEY
+          }
+          foreach ($cache in $oldCaches) {
+            $deleteUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches/$($cache.id)"
+            Invoke-RestMethod -Method Delete -Uri $deleteUri -Headers $headers -ErrorAction Stop | Out-Null
+          }
+
+      - name: Remove superseded dependency caches
+        if: >-
+          !cancelled() &&
+          steps.dependency-cache-key.outcome == 'success' &&
+          steps.dependency-cache-key.outputs.libraries_count != '0' &&
+          steps.dependency-cache-key.outputs.third_party_count != '0'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP_KEYS: ${{ runner.os }}-hoursgram-x64-libraries-v3-${{ steps.dependency-cache-key.outputs.libraries_hash }},${{ runner.os }}-hoursgram-x64-third-party-v3-${{ steps.dependency-cache-key.outputs.third_party_hash }}
+          PRUNE_PREFIXES: ${{ runner.os }}-hoursgram-x64-libraries-v3-,${{ runner.os }}-hoursgram-x64-third-party-v3-
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $keep = $env:KEEP_KEYS -split ','
+          $prefixes = $env:PRUNE_PREFIXES -split ','
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches?per_page=100"
+          $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop
+          $stale = $response.actions_caches | Where-Object {
+            $key = $_.key
+            ($prefixes | Where-Object { $key.StartsWith($_) }) -and ($keep -notcontains $key)
+          }
+          foreach ($cache in $stale) {
+            $size = [math]::Round($cache.size_in_bytes / 1GB, 2)
+            Write-Output "Removing $($cache.key) ($size GB)"
+            $deleteUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches/$($cache.id)"
+            Invoke-RestMethod -Method Delete -Uri $deleteUri -Headers $headers -ErrorAction Stop | Out-Null
+          }
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v7
+        with:
+          name: HorusGram-Windows-x64-${{ env.BUILD_CONFIGURATION }}
+          path: out/${{ env.BUILD_CONFIGURATION }}/
+          if-no-files-found: error
+          retention-days: 7
+

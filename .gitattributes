@@ -1,0 +1,16 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# Ensure diffs have LF endings
+*.diff text eol=lf
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Ensure lottie animations are treated as binary files
+*.lottie binary
+
+# Ensure fonts are treated as binary files
+*.ttf binary
+
+# Ensure packed caches are treated as binary files
+*.cache binary

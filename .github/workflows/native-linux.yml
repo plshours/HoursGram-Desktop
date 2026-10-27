@@ -1,0 +1,129 @@
+name: HorusGram Desktop Linux Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build HorusGram (x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      BASE_IMAGE: ghcr.io/telegramdesktop/tdesktop/centos_env:latest
+      BUILD_IMAGE: hoursgram/centos_env:local
+
+    steps:
+      - name: Free up disk space
+        run: |
+          # The runner ships with toolchains we never touch, and the build
+          # environment image alone is larger than what they leave behind.
+          # PowerShell stays: the lib_ui patch below runs on it.
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/lib/node_modules \
+            "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}"
+          df -h /
+
+      - name: Move Docker onto the large disk
+        run: |
+          # / has around 20 GB free, /mnt has around 70 GB. The image and
+          # everything unpacked from it goes to the roomier one.
+          sudo systemctl stop docker docker.socket
+          sudo mkdir -p /mnt/docker
+          echo '{ "data-root": "/mnt/docker" }' | sudo tee /etc/docker/daemon.json
+          sudo systemctl start docker
+          docker info --format 'Docker root: {{.DockerRootDir}}'
+          df -h / /mnt
+
+      - name: Check out source and submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Apply HorusGram rounded buttons
+        shell: pwsh
+        run: .github/scripts/patch_lib_ui.ps1
+
+      - name: Build the environment
+        run: |
+          # The shipped image is missing one library this fork still needs,
+          # so it gets one extra layer on top of it.
+          docker pull "$BASE_IMAGE"
+          docker build .github/docker \
+            --build-arg "BASE=$BASE_IMAGE" \
+            --tag "$BUILD_IMAGE"
+          df -h / /mnt
+
+      - name: Build HorusGram
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -u "$(id -u)" \
+            -v "$PWD:/usr/src/tdesktop" \
+            -e CONFIG=Release \
+            "$BUILD_IMAGE" \
+            /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
+            -D CMAKE_CONFIGURATION_TYPES=Release \
+            -D TDESKTOP_API_ID=2040 \
+            -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 \
+            -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
+            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON \
+            2>&1 | tee "$RUNNER_TEMP/build.log"
+          df -h / /mnt
+
+      - name: Package for Arch, Manjaro and the rest
+        run: |
+          chmod +x .github/scripts/package_linux.sh
+          .github/scripts/package_linux.sh
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v7
+        with:
+          name: HorusGram-linux-x86_64
+          path: ${{ env.PACKAGE_NAME }}.tar.xz
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          # Workflow logs need a token to read back, annotations do not, so
+          # whatever went wrong is repeated here as annotations.
+          log="$RUNNER_TEMP/build.log"
+          if [ ! -f "$log" ]; then
+            echo "::error::The build produced no log at all."
+            exit 0
+          fi
+          pattern='error:|Error:|CMake Error|FAILED:|No such file|undefined reference|cannot find|No space left'
+          picked="$(grep -nE "$pattern" "$log" | head -25 || true)"
+          if [ -z "$picked" ]; then
+            picked="$(tail -25 "$log")"
+          fi
+          printf '%s\n' "$picked" | tr -d '\r' | while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              echo "::error::${line}"
+            fi
+          done
+          {
+            echo '## Linux build failed'
+            echo
+            echo '```'
+            printf '%s\n' "$picked"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          df -h / /mnt || true
