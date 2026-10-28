@@ -827,15 +827,6 @@ rpl::producer<> ChatTheme::repaintBackgroundRequests() const {
 
 void ChatTheme::rotateComplexGradientBackground() {
 	// HorusGram: the background stays as it is when a message is sent.
-	return;
-	if (!_backgroundFade.animating() && !_backgroundNext.image.isNull()) {
-		if (_mutableBackground.gradientForFill.size()
-			== _backgroundNext.gradient.size()) {
-			_mutableBackground.gradientForFill
-				= std::move(_backgroundNext.gradient);
-		}
-		setCachedBackground(base::take(_backgroundNext));
-	}
 }
 
 ChatBackgroundRects ComputeChatBackgroundRects(
