@@ -119,7 +119,8 @@ namespace {
 // shipped, so the closest one the system has is taken, and the default of the
 // system when there is none.
 [[nodiscard]] QString MacThemeFont() {
-	const auto available = QFontDatabase::families();
+	const auto database = QFontDatabase();
+	const auto available = database.families();
 	for (const auto &name : {
 		u"SF Pro Text"_q,
 		u"SF Pro Display"_q,
