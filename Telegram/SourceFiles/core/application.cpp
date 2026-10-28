@@ -301,24 +301,18 @@ void Application::run() {
 
 	startLocalStorage();
 
-	// Without a list to fall back on, Qt searches every installed font for
-	// each character Montserrat does not have (emoji, CJK, symbols), and on
-	// Windows that search stalls the window while typing.
-	QFont::insertSubstitutions(u"Montserrat"_q, {
-		u"Segoe UI"_q,
-		u"Segoe UI Emoji"_q,
-		u"Segoe UI Symbol"_q,
-		u"Microsoft YaHei UI"_q,
-		u"Yu Gothic UI"_q,
-		u"Malgun Gothic"_q,
-		u"Arial"_q,
-	});
 	const auto customFont = settings().customFontFamily();
 	style::SetCustomFont(!customFont.isEmpty()
 		? customFont
 		: (AyuSettings::getInstance().clientTheme() >= 2)
 		? MacThemeFont()
+#ifdef Q_OS_WIN
+		// Montserrat stalls the window while typing and sending on Windows,
+		// so the system font is the default there; it can still be chosen.
+		: MacThemeFont());
+#else // Q_OS_WIN
 		: u"Montserrat"_q);
+#endif // Q_OS_WIN
 	style::internal::StartFonts();
 
 	Test::ApplyStartupOverrides();
