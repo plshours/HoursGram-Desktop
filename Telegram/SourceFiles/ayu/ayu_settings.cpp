@@ -1285,6 +1285,7 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"collapseSimilarChannels", s._collapseSimilarChannels.current()},
 		{"hideSimilarChannels", s._hideSimilarChannels.current()},
 		{"messageBubbleRadius", s._messageBubbleRadius.current()},
+		{"bubbleRadiusV2", true},
 		{"disableOpenLinkWarning", s._disableOpenLinkWarning.current()},
 		{"wideMultiplier", s._wideMultiplier.current()},
 		{"spoofWebviewAsAndroid", s._spoofWebviewAsAndroid.current()},
@@ -1397,6 +1398,11 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._collapseSimilarChannels = j.value("collapseSimilarChannels", defaults._collapseSimilarChannels.current());
 	s._hideSimilarChannels = j.value("hideSimilarChannels", defaults._hideSimilarChannels.current());
 	s._messageBubbleRadius = j.value("messageBubbleRadius", defaults._messageBubbleRadius.current());
+	// The default used to be the largest radius. Whoever never chose a radius
+	// of their own, and so still has that one, gets the new default once.
+	if (!j.value("bubbleRadiusV2", false) && s._messageBubbleRadius.current() == 16) {
+		s._messageBubbleRadius = defaults._messageBubbleRadius.current();
+	}
 	s._disableOpenLinkWarning = j.value("disableOpenLinkWarning", defaults._disableOpenLinkWarning.current());
 	s._wideMultiplier = j.value("wideMultiplier", defaults._wideMultiplier.current());
 	s._spoofWebviewAsAndroid = j.value("spoofWebviewAsAndroid", defaults._spoofWebviewAsAndroid.current());

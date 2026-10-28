@@ -58,13 +58,15 @@ base::unique_qptr<Ui::SeparatePanel> GlobalPlayerWindow;
 
 // The artwork of the track that is playing. Album art rides along with the
 // audio document as its thumbnail, so it may still be downloading when the
-// track starts; until it arrives the cover is a soft accent gradient with
-// the player glyph in the middle.
+// track starts; until it arrives, or when the track has no artwork at all,
+// the cover is a plain quiet tile with the player glyph in the middle. With
+// nothing playing there is no cover: it takes no room.
 class Cover final : public Ui::RpWidget {
 public:
 	explicit Cover(QWidget *parent);
 
 	void setTrack(const AudioMsgId &audioId);
+	void setIdle(bool idle);
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -77,11 +79,27 @@ private:
 	rpl::lifetime _downloading;
 	QPixmap _artwork;
 	bool _blurred = false;
+	bool _idle = false;
 
 };
 
 Cover::Cover(QWidget *parent) : RpWidget(parent) {
 	resize(st::hoursgramPlayerCoverSize, st::hoursgramPlayerCoverSize);
+}
+
+void Cover::setIdle(bool idle) {
+	if (_idle == idle) {
+		return;
+	}
+	_idle = idle;
+	if (_idle) {
+		_media = nullptr;
+		_downloading.destroy();
+		_artwork = QPixmap();
+		_blurred = false;
+	}
+	resize(width(), _idle ? 0 : st::hoursgramPlayerCoverSize);
+	update();
 }
 
 void Cover::setTrack(const AudioMsgId &audioId) {
@@ -142,6 +160,9 @@ void Cover::prepare() {
 }
 
 void Cover::paintEvent(QPaintEvent *e) {
+	if (_idle) {
+		return;
+	}
 	auto p = QPainter(this);
 	auto hq = PainterHighQualityEnabler(p);
 
@@ -152,11 +173,8 @@ void Cover::paintEvent(QPaintEvent *e) {
 		return;
 	}
 
-	auto gradient = QLinearGradient(inner.topLeft(), inner.bottomRight());
-	gradient.setColorAt(0., st::windowBgActive->c);
-	gradient.setColorAt(1., st::windowBgRipple->c);
 	p.setPen(Qt::NoPen);
-	p.setBrush(gradient);
+	p.setBrush(st::windowBgRipple);
 	p.drawRoundedRect(
 		inner,
 		st::hoursgramPlayerCoverRadius,
@@ -514,12 +532,13 @@ struct Content {
 	const auto updateTrack = [=](const AudioMsgId &audioId) {
 		const auto document = audioId.audio();
 		if (!document) {
-			cover->setTrack(audioId);
+			cover->setIdle(true);
 			title->setText(tr::hoursgram_PlayerIdle(tr::now));
 			performer->setText(QString());
 			reloadLyrics(nullptr);
 			return;
 		}
+		cover->setIdle(false);
 		const auto song = document->song();
 		const auto name = (song && !song->title.isEmpty())
 			? song->title

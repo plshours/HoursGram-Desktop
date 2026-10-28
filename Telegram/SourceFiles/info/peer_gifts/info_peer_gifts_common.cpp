@@ -52,29 +52,6 @@ namespace {
 
 constexpr auto kGiftsPerRow = 3;
 constexpr auto kCraftUnavailableOpacity = 0.5;
-constexpr auto kBackdropSaturationMax = 96;
-constexpr auto kBackdropLightnessMin = 56;
-constexpr auto kBackdropLightnessMax = 104;
-
-// A gift backdrop arrives from the server fully saturated, which makes the
-// grid shout next to everything else in the profile. The hue is what tells
-// one gift from another, so it is kept and only the saturation and the
-// lightness are pulled into the range the rest of the palette lives in.
-[[nodiscard]] QColor Calmed(QColor color) {
-	auto hue = 0;
-	auto saturation = 0;
-	auto lightness = 0;
-	color.getHsl(&hue, &saturation, &lightness);
-	if (hue < 0) {
-		hue = 0;
-		saturation = 0;
-	}
-	return QColor::fromHsl(
-		hue,
-		std::min(saturation, kBackdropSaturationMax),
-		std::clamp(lightness, kBackdropLightnessMin, kBackdropLightnessMax),
-		color.alpha());
-}
 
 [[nodiscard]] bool AllowedToSend(
 		const GiftTypeStars &gift,
@@ -686,8 +663,8 @@ void GiftButton::paintUniqueBackgroundGradient(
 	auto hq = PainterHighQualityEnabler(p);
 	auto gradient = QRadialGradient(inner.center(), inner.width() / 2);
 	gradient.setStops({
-		{ 0., Calmed(unique->backdrop.centerColor) },
-		{ 1., Calmed(unique->backdrop.edgeColor) },
+		{ 0., unique->backdrop.centerColor },
+		{ 1., unique->backdrop.edgeColor },
 	});
 	p.setBrush(gradient);
 	p.setPen(Qt::NoPen);

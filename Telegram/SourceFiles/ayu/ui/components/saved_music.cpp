@@ -109,7 +109,7 @@ Cover GetCurrentCover(
 AyuMusicButton::AyuMusicButton(
 	QWidget *parent,
 	MusicButtonData data,
-	std::optional<QColor> overrideBg,
+	std::optional<QColor> /*overrideBg*/,
 	Fn<void()> handler)
 	: RippleButton(parent, st::infoMusicButtonRipple)
 	  , _performer(std::make_unique<Ui::FlatLabel>(
@@ -121,7 +121,9 @@ AyuMusicButton::AyuMusicButton(
 		  data.title,
 		  st::infoMusicButtonTitle))
 	  , _mediaView(data.mediaView)
-	  , _overrideBg(overrideBg) {
+	  // The colour of the profile header is not used: on a dark header the
+	  // card became part of it and stuck to the name above it.
+	  , _overrideBg(std::nullopt) {
 	_performerText = data.performer;
 	_titleText = data.title;
 	rpl::combine(

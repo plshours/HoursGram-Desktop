@@ -145,11 +145,8 @@ void Row::paintTile(QPainter &p) {
 		size,
 		size);
 
-	auto gradient = QLinearGradient(tile.topLeft(), tile.bottomRight());
-	gradient.setColorAt(0., st::windowBgActive->c);
-	gradient.setColorAt(1., st::windowBgRipple->c);
 	p.setPen(Qt::NoPen);
-	p.setBrush(_dimmed ? st::windowBgRipple->b : QBrush(gradient));
+	p.setBrush(_dimmed ? st::windowBgRipple->b : st::windowBgActive->b);
 	p.drawRoundedRect(
 		tile,
 		st::hoursgramPlaylistCoverRadius,

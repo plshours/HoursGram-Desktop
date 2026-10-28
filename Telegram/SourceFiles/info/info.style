@@ -536,7 +536,7 @@ infoProfileSkip: 7px;
 infoProfileCardPadding: margins(11px, 0px, 11px, 0px);
 infoProfileCardRadius: 28px;
 infoProfileCardSkip: 12px;
-infoProfileMusicPadding: margins(11px, 10px, 11px, 0px);
+infoProfileMusicPadding: margins(11px, 18px, 11px, 4px);
 infoProfileMusicRadius: 16px;
 
 infoProfileLabeledButtonQr: IconButton(defaultIconButton) {
