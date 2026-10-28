@@ -302,7 +302,7 @@ void Application::run() {
 	const auto customFont = settings().customFontFamily();
 	style::SetCustomFont(!customFont.isEmpty()
 		? customFont
-		: (AyuSettings::getInstance().clientTheme() == 2)
+		: (AyuSettings::getInstance().clientTheme() >= 2)
 		? MacThemeFont()
 		: u"Montserrat"_q);
 	style::internal::StartFonts();

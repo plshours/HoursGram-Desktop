@@ -9080,7 +9080,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "hoursgram_ThemeChoiceText" = "Use the HorusGram palette or keep Telegram's default colors? The light HorusGram macOS theme is in Appearance settings.";
 "hoursgram_ThemeHoursGram" = "HorusGram";
 "hoursgram_ThemeTelegram" = "Original (Telegram)";
-"hoursgram_ThemeMacOS" = "HorusGram macOS";
+"hoursgram_ThemeMacOS" = "HorusGram macOS (dark)";
+"hoursgram_ThemeMacOSLight" = "HorusGram macOS (light)";
 "hoursgram_LocalProfileIdentity" = "Local profile identity";
 "hoursgram_LocalNftUsername" = "NFT username (local)";
 "hoursgram_LocalNftNumber" = "Local NFT number";

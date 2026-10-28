@@ -541,7 +541,7 @@ void AyuSettings::validate() {
 		_appIcon = AyuAssets::DEFAULT_ICON;
 		modified = true;
 	}
-	if (_clientTheme.current() < -1 || _clientTheme.current() > 2) {
+	if (_clientTheme.current() < -1 || _clientTheme.current() > 3) {
 		_clientTheme = defaults._clientTheme.current();
 		modified = true;
 	}
@@ -762,25 +762,22 @@ void AyuSettings::resetPaletteOverrides() {
 }
 
 void AyuSettings::setClientTheme(int val) {
-	if (val < 0 || val > 2 || _clientTheme.current() == val) {
+	if (val < 0 || val > 3 || _clientTheme.current() == val) {
 		return;
 	}
-	if (val == 2) {
-		// The light look of Telegram for macOS: the palette is a day one, so
-		// the client leaves night mode, and the palette goes on with it.
-		const auto path = u":/gui/hoursgram-macos.tdesktop-palette"_q;
-		if (Window::Theme::IsNightMode()) {
-			Window::Theme::ToggleNightMode(path);
-		} else if (!Window::Theme::Apply(path)) {
-			return;
-		}
-		Window::Theme::KeepApplied();
-	} else if (val == 1) {
-		// The palette is a dark one, so the client is switched to night
-		// mode along with it: that is what picks the dark default chat
-		// background and keeps the computed colors from staying light.
-		const auto path = u":/gui/hoursgram.tdesktop-palette"_q;
-		if (!Window::Theme::IsNightMode()) {
+	if (val >= 1) {
+		// 1 is HorusGram, 2 and 3 are the dark and the light look of Telegram
+		// for macOS. The dark palettes switch the client to night mode with
+		// them: that is what picks the dark default chat background and
+		// keeps the computed colors from staying light. The light one leaves
+		// night mode for the same reason.
+		const auto path = (val == 1)
+			? u":/gui/hoursgram.tdesktop-palette"_q
+			: (val == 2)
+			? u":/gui/hoursgram-macos-dark.tdesktop-palette"_q
+			: u":/gui/hoursgram-macos.tdesktop-palette"_q;
+		const auto night = (val != 3);
+		if (Window::Theme::IsNightMode() != night) {
 			Window::Theme::ToggleNightMode(path);
 		} else if (!Window::Theme::Apply(path)) {
 			return;
@@ -792,10 +789,10 @@ void AyuSettings::setClientTheme(int val) {
 	// The shape of Telegram for macOS goes with its colours: bubbles of 16
 	// and round userpics. Leaving it puts the HorusGram shape back, which
 	// takes a restart to show in full, like the same two settings do.
-	if (val == 2) {
+	if (val >= 2) {
 		setMessageBubbleRadius(16);
 		setAvatarCorners(AyuUiSettings::kMaxAvatarCorners);
-	} else if (_clientTheme.current() == 2) {
+	} else if (_clientTheme.current() >= 2) {
 		const AyuSettings defaults;
 		setMessageBubbleRadius(defaults._messageBubbleRadius.current());
 		setAvatarCorners(defaults._avatarCorners.current());

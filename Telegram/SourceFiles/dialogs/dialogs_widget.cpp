@@ -109,6 +109,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ayu_settings.h"
+#include "boxes/peer_list_controllers.h"
+#include "calls/calls_box_controller.h"
+
+#include <array>
 #include "ayu/utils/telegram_helpers.h"
 #include "base/platform/base_platform_haptic.h"
 
@@ -509,6 +513,12 @@ Widget::Widget(
 			_childListPeerId.value(),
 			_childListShown.value(),
 			makeChildListShown)));
+
+	AyuSettings::getInstance().clientThemeChanges(
+	) | rpl::on_next([=] {
+		refreshMacTabBar();
+	}, lifetime());
+	crl::on_main(this, [=] { refreshMacTabBar(); });
 	rpl::combine(
 		_scroll->heightValue(),
 		_topBarSuggestionHeightChanged.events_starting_with(0)
@@ -2622,6 +2632,65 @@ void Widget::checkUpdateStatus() {
 	updateControlsGeometry();
 }
 
+void Widget::refreshMacTabBar() {
+	// The macOS themes carry the bar of tabs the macOS client has under its
+	// chat list. It is the main list only: a child list has no room for it.
+	const auto wanted = (_layout != Layout::Child)
+		&& (AyuSettings::getInstance().clientTheme() >= 2);
+	if (!wanted) {
+		if (_macTabBar) {
+			_macTabBar = nullptr;
+			updateControlsGeometry();
+		}
+		return;
+	} else if (_macTabBar) {
+		return;
+	}
+	_macTabBar = base::make_unique_q<Ui::RpWidget>(this);
+	const auto bar = _macTabBar.get();
+	bar->resize(width(), st::macTabBarHeight);
+
+	const auto controller = this->controller();
+	const auto add = [&](
+			const style::IconButton &st,
+			Fn<void()> callback) {
+		const auto button = new Ui::IconButton(bar, st);
+		button->setClickedCallback(std::move(callback));
+		return button;
+	};
+	const auto buttons = std::array<not_null<Ui::IconButton*>, 4>{
+		add(st::macTabContacts, [=] {
+			controller->show(PrepareContactsBox(controller));
+		}),
+		add(st::macTabCalls, [=] {
+			::Calls::ShowCallsBox(controller);
+		}),
+		add(st::macTabChats, [] {}),
+		add(st::macTabSettings, [=] {
+			controller->showSettings();
+		}),
+	};
+	bar->sizeValue(
+	) | rpl::on_next([=](QSize size) {
+		const auto slot = size.width() / int(buttons.size());
+		for (auto i = 0; i != int(buttons.size()); ++i) {
+			const auto button = buttons[i];
+			button->move(
+				i * slot + (slot - button->width()) / 2,
+				(size.height() - button->height()) / 2);
+		}
+	}, bar->lifetime());
+	bar->paintRequest(
+	) | rpl::on_next([=](QRect clip) {
+		auto p = QPainter(bar);
+		p.fillRect(clip, st::dialogsBg);
+		p.fillRect(0, 0, bar->width(), st::lineWidth, st::shadowFg);
+	}, bar->lifetime());
+	bar->show();
+	bar->raise();
+	updateControlsGeometry();
+}
+
 void Widget::setInnerFocus(bool unfocusSearch) {
 	if (_childList) {
 		_childList->setInnerFocus();
@@ -4643,6 +4712,7 @@ void Widget::updateControlsGeometry() {
 				buttonHeight);
 		}
 	};
+	putBottomButton(_macTabBar);
 	putBottomButton(_updateTelegram);
 	putBottomButton(_downloadBar);
 	putBottomButton(_loadMoreChats);

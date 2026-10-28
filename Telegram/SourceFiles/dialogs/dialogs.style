@@ -927,3 +927,30 @@ dialogsUnconfirmedAuthButtonNo: RoundButton(dialogsUnconfirmedAuthButton) {
 		color: attentionButtonBgRipple;
 	}
 }
+
+// The bar of four tabs at the bottom of the chat list in the macOS themes.
+macTabBarHeight: 46px;
+macTabContacts: IconButton {
+	width: 64px;
+	height: macTabBarHeight;
+
+	icon: icon {{ "menu/profile", windowSubTextFg }};
+	iconOver: icon {{ "menu/profile", windowActiveTextFg }};
+	iconPosition: point(-1px, -1px);
+
+	rippleAreaPosition: point(10px, 1px);
+	rippleAreaSize: 44px;
+	ripple: defaultRippleAnimationBgOver;
+}
+macTabCalls: IconButton(macTabContacts) {
+	icon: icon {{ "menu/phone", windowSubTextFg }};
+	iconOver: icon {{ "menu/phone", windowActiveTextFg }};
+}
+macTabChats: IconButton(macTabContacts) {
+	icon: icon {{ "menu/chats", windowActiveTextFg }};
+	iconOver: icon {{ "menu/chats", windowActiveTextFg }};
+}
+macTabSettings: IconButton(macTabContacts) {
+	icon: icon {{ "menu/settings", windowSubTextFg }};
+	iconOver: icon {{ "menu/settings", windowActiveTextFg }};
+}
