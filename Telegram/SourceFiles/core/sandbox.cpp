@@ -35,6 +35,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/mac/global_menu_mac.h"
 #endif // Q_OS_MAC
 
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QLockFile>
 #include <QtGui/QSessionManager>
 #include <QtGui/QScreen>
@@ -658,7 +659,19 @@ bool Sandbox::notify(QObject *receiver, QEvent *e) {
 			return true;
 		}
 	}
-	return QApplication::notify(receiver, e);
+
+	// What keeps the window from answering for long is written to the log,
+	// with the kind of widget that was handling the event.
+	constexpr auto kSlowEvent = 80;
+	const auto name = receiver ? receiver->metaObject()->className() : "";
+	const auto type = int(e->type());
+	auto timer = QElapsedTimer();
+	timer.start();
+	const auto result = QApplication::notify(receiver, e);
+	if (const auto elapsed = timer.elapsed(); elapsed >= kSlowEvent) {
+		LOG(("Slow event: %1 ms, receiver %2, event type %3.").arg(elapsed).arg(name).arg(type));
+	}
+	return result;
 }
 
 void Sandbox::processPostponedCalls(int level) {
