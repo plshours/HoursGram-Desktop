@@ -122,7 +122,8 @@ QSize IconGraphic::dprSize(const QImage &image) const {
 
 void IconGraphic::updateState() {
 	_new.iconThemeName = QIcon::themeName();
-	_new.monochrome = Core::App().settings().trayIconMonochrome();
+	// The panel icon of the theme is the Telegram plane, not this client.
+	_new.monochrome = false;
 	_new.counter = Core::App().unreadBadge();
 	_new.muted = Core::App().unreadBadgeMuted();
 	_new.systemIcon = systemIcon();
@@ -413,10 +414,7 @@ rpl::lifetime &Tray::lifetime() {
 Tray::~Tray() = default;
 
 bool HasMonochromeSetting() {
-	return QIcon::hasThemeIcon(
-		PanelIconName(
-			Core::App().unreadBadge(),
-			Core::App().unreadBadgeMuted()));
+	return false;
 }
 
 } // namespace Platform

@@ -248,7 +248,9 @@ void Tray::updateIcon() {
 				Core::App().unreadBadge(),
 				Core::App().unreadBadgeMuted()),
 			true,
-			Core::App().settings().trayIconMonochrome(),
+			// The monochrome icon is the silhouette of the Telegram
+			// plane, which is not this client; the fruit is always shown.
+			false,
 			session && session->supportMode()));
 	_icon->updateIcon(forTrayIcon);
 }
@@ -464,7 +466,8 @@ QString Tray::GhostJumpListIconPath() {
 }
 
 bool HasMonochromeSetting() {
-	return IsDarkTaskbar().has_value();
+	// There is no monochrome version of the fruit, so there is no choice.
+	return false;
 }
 
 std::optional<bool> IsDarkTaskbar() {
