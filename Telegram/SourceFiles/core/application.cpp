@@ -107,11 +107,33 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 // AyuGram includes
 #include "ayu/ayu_infra.h"
 #include "ayu/ayu_settings.h"
+
+#include <QtGui/QFontDatabase>
 #include "ayu/features/streamer_mode/streamer_mode.h"
 
 
 namespace Core {
 namespace {
+
+// The macOS theme is set in the system font of that platform. It is not
+// shipped, so the closest one the system has is taken, and the default of the
+// system when there is none.
+[[nodiscard]] QString MacThemeFont() {
+	const auto available = QFontDatabase::families();
+	for (const auto &name : {
+		u"SF Pro Text"_q,
+		u"SF Pro Display"_q,
+		u"Helvetica Neue"_q,
+		u"Inter"_q,
+		u"Segoe UI"_q,
+		u"Noto Sans"_q,
+	}) {
+		if (available.contains(name)) {
+			return name;
+		}
+	}
+	return QFont().family();
+}
 
 constexpr auto kQuitPreventTimeoutMs = crl::time(1500);
 constexpr auto kAutoLockTimeoutLateMs = crl::time(3000);
@@ -278,9 +300,11 @@ void Application::run() {
 	startLocalStorage();
 
 	const auto customFont = settings().customFontFamily();
-	style::SetCustomFont(customFont.isEmpty()
-		? u"Montserrat"_q
-		: customFont);
+	style::SetCustomFont(!customFont.isEmpty()
+		? customFont
+		: (AyuSettings::getInstance().clientTheme() == 2)
+		? MacThemeFont()
+		: u"Montserrat"_q);
 	style::internal::StartFonts();
 
 	Test::ApplyStartupOverrides();

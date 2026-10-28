@@ -9077,9 +9077,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_UpdateAyuGram" = "View HorusGram releases";
 "ayu_UtilityRestartRequired" = "The app will close in 5 seconds.";
 "hoursgram_ThemeChoiceTitle" = "Choose your client theme";
-"hoursgram_ThemeChoiceText" = "Use the HorusGram palette or keep Telegram's default colors? You can change this later in Appearance settings.";
+"hoursgram_ThemeChoiceText" = "Use the HorusGram palette or keep Telegram's default colors? The light HorusGram macOS theme is in Appearance settings.";
 "hoursgram_ThemeHoursGram" = "HorusGram";
-"hoursgram_ThemeTelegram" = "Telegram";
+"hoursgram_ThemeTelegram" = "Original (Telegram)";
+"hoursgram_ThemeMacOS" = "HorusGram macOS";
 "hoursgram_LocalProfileIdentity" = "Local profile identity";
 "hoursgram_LocalNftUsername" = "NFT username (local)";
 "hoursgram_LocalNftNumber" = "Local NFT number";

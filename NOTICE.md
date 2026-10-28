@@ -40,6 +40,10 @@ HoursGram is an independent, unofficial client. It is not made, approved or supp
 
 Telegram asks every client to use its own `api_id` and `api_hash`, issued at <https://my.telegram.org>. The workflows read them from the repository secrets `TDESKTOP_API_ID` and `TDESKTOP_API_HASH`. Until those are set, they fall back to the public development values from Telegram Desktop's build documentation, which are meant for building and testing only and should not be used for a build you hand to other people.
 
+## HorusGram macOS theme
+
+The colours of `Telegram/Resources/hoursgram-macos.tdesktop-palette` are the values of the light palette of [Telegram for macOS](https://github.com/TelegramMessenger/telegram-macos) (GPL-2.0, © Telegram FZ-LLC). Only colour values are taken, no code, no images and no fonts.
+
 ## If you are an author and something is missing
 
 If you wrote part of this code and think your credit, your licence or your terms are not respected here, open an issue on this repository or write to the maintainer through the profile page. We will correct it quickly, and remove the code if you ask us to.

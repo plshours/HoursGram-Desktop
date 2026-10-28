@@ -187,19 +187,27 @@ void BuildAvatarCorners(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 
 void BuildAppearance(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	auto *settings = &AyuSettings::getInstance();
+	const auto controller = builder.controller();
 
 	builder.addSubsectionTitle(tr::ayu_CategoryAppearance());
 	ayu.addChooseButton({
 		.id = u"hoursgram/theme"_q,
 		.title = tr::hoursgram_ThemeChoiceTitle(),
 		.boxTitle = tr::hoursgram_ThemeChoiceTitle(),
-		.initialSelection = settings->clientTheme() == 1 ? 0 : 1,
+		.initialSelection = std::max(settings->clientTheme(), 0),
 		.options = {
-			tr::hoursgram_ThemeHoursGram(tr::now),
 			tr::hoursgram_ThemeTelegram(tr::now),
+			tr::hoursgram_ThemeHoursGram(tr::now),
+			tr::hoursgram_ThemeMacOS(tr::now),
 		},
 		.setter = [=](int value) {
-			settings->setClientTheme(value == 0 ? 1 : 0);
+			const auto font = (settings->clientTheme() == 2)
+				!= (value == 2);
+			settings->setClientTheme(value);
+			// The font of the macOS theme is read when the client starts.
+			if (font && controller) {
+				ShowRestartPrompt(controller);
+			}
 		},
 	});
 

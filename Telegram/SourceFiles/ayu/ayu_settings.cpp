@@ -540,7 +540,7 @@ void AyuSettings::validate() {
 		_appIcon = AyuAssets::DEFAULT_ICON;
 		modified = true;
 	}
-	if (_clientTheme.current() < -1 || _clientTheme.current() > 1) {
+	if (_clientTheme.current() < -1 || _clientTheme.current() > 2) {
 		_clientTheme = defaults._clientTheme.current();
 		modified = true;
 	}
@@ -761,10 +761,20 @@ void AyuSettings::resetPaletteOverrides() {
 }
 
 void AyuSettings::setClientTheme(int val) {
-	if (val < 0 || val > 1 || _clientTheme.current() == val) {
+	if (val < 0 || val > 2 || _clientTheme.current() == val) {
 		return;
 	}
-	if (val == 1) {
+	if (val == 2) {
+		// The light look of Telegram for macOS: the palette is a day one, so
+		// the client leaves night mode, and the palette goes on with it.
+		const auto path = u":/gui/hoursgram-macos.tdesktop-palette"_q;
+		if (Window::Theme::IsNightMode()) {
+			Window::Theme::ToggleNightMode(path);
+		} else if (!Window::Theme::Apply(path)) {
+			return;
+		}
+		Window::Theme::KeepApplied();
+	} else if (val == 1) {
 		// The palette is a dark one, so the client is switched to night
 		// mode along with it: that is what picks the dark default chat
 		// background and keeps the computed colors from staying light.
