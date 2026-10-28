@@ -9,14 +9,21 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "settings.h"
 
+#include <crl/crl.h>
+
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
+#include <QtCore/QSaveFile>
+#include <QtCore/QThread>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
 
 #include <algorithm>
+#include <memory>
+#include <mutex>
 #include <vector>
 
 namespace HoursGram::Index {
@@ -107,8 +114,16 @@ void Scramble(char *bytes, qsizetype size) {
 	return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
+// The list is asked about from wherever a badge is worked out, and replaced
+// from the main thread when a newer one arrives. Readers take a reference to
+// the list they use, so a replacement never changes one under their hands.
+using Values = std::shared_ptr<const std::vector<uint64>>;
+
+constexpr auto kMaxResponseSize = 4 * 1024 * 1024;
+
 struct Data {
-	std::vector<uint64> values;
+	std::mutex mutex;
+	Values values;
 	bool loaded = false;
 	bool asked = false;
 };
@@ -120,20 +135,23 @@ struct Data {
 
 // What came down from the source last time wins, because it is the newer of
 // the two; the packed copy is the floor we always have.
-void Load() {
-	auto &data = Current();
-	data.values = Unpack(ReadFile(cWorkingDir() + QString::fromUtf8(kStored)));
-	if (data.values.empty()) {
-		data.values = Unpack(ReadFile(QString::fromUtf8(kPacked)));
+[[nodiscard]] Values LoadValues() {
+	auto values = Unpack(ReadFile(cWorkingDir() + QString::fromUtf8(kStored)));
+	if (values.empty()) {
+		values = Unpack(ReadFile(QString::fromUtf8(kPacked)));
 	}
+	return std::make_shared<const std::vector<uint64>>(std::move(values));
 }
 
+// Written to a temporary file and moved into place, so that an interrupted
+// write cannot leave a half of the list where the whole one was.
 void Store(const std::vector<uint64> &values) {
 	const auto path = cWorkingDir() + QString::fromUtf8(kStored);
 	QDir().mkpath(QFileInfo(path).absolutePath());
-	auto file = QFile(path);
+	auto file = QSaveFile(path);
 	if (file.open(QIODevice::WriteOnly)) {
 		file.write(Pack(values));
+		file.commit();
 	}
 }
 
@@ -155,25 +173,43 @@ constexpr unsigned char kOrigin[] = {
 } // namespace
 
 bool Contains(uint64 id) {
-	auto &data = Current();
-	if (!data.loaded) {
-		data.loaded = true;
-		Load();
-		Refresh();
-	}
 	if (!id || std::find(std::begin(kHeld), std::end(kHeld), id) != std::end(kHeld)) {
 		return false;
 	}
-	return std::binary_search(data.values.begin(), data.values.end(), id);
+	auto &data = Current();
+	auto values = Values();
+	auto first = false;
+	{
+		const auto guard = std::lock_guard(data.mutex);
+		if (!data.loaded) {
+			data.loaded = true;
+			data.values = LoadValues();
+			first = true;
+		}
+		values = data.values;
+	}
+	if (first) {
+		Refresh();
+	}
+	return values
+		&& std::binary_search(values->begin(), values->end(), id);
 }
 
 void Refresh() {
-	auto &data = Current();
-	const auto source = Source();
-	if (data.asked || source.isEmpty()) {
+	// The network manager belongs to the main thread, whoever asks.
+	if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+		crl::on_main([] { Refresh(); });
 		return;
 	}
-	data.asked = true;
+	auto &data = Current();
+	const auto source = Source();
+	{
+		const auto guard = std::lock_guard(data.mutex);
+		if (data.asked || source.isEmpty()) {
+			return;
+		}
+		data.asked = true;
+	}
 
 	static const auto manager = new QNetworkAccessManager();
 	auto request = QNetworkRequest(QUrl(source + u"/api/scam.txt"_q));
@@ -186,8 +222,13 @@ void Refresh() {
 		if (reply->error() != QNetworkReply::NoError) {
 			return;
 		}
+		// One byte more than allowed is read, so that too much is noticed.
+		const auto bytes = reply->read(kMaxResponseSize + 1);
+		if (bytes.size() > kMaxResponseSize) {
+			return;
+		}
 		auto values = std::vector<uint64>();
-		const auto body = QString::fromLatin1(reply->readAll());
+		const auto body = QString::fromLatin1(bytes);
 		for (const auto &line : body.split('\n', Qt::SkipEmptyParts)) {
 			auto ok = false;
 			const auto value = line.trimmed().toULongLong(&ok);
@@ -203,7 +244,10 @@ void Refresh() {
 			std::unique(values.begin(), values.end()),
 			values.end());
 		Store(values);
-		Current().values = std::move(values);
+		auto &current = Current();
+		const auto guard = std::lock_guard(current.mutex);
+		current.values = std::make_shared<const std::vector<uint64>>(
+			std::move(values));
 	});
 }
 

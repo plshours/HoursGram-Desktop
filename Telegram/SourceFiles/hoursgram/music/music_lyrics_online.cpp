@@ -30,9 +30,11 @@ constexpr auto kApiUrl = "https://lrclib.net/api/";
 constexpr auto kUserAgent = "HoursGram Desktop "
 	"(https://github.com/plshours/HoursGram-Desktop)";
 
+// Never destroyed: a Qt object that is a static of a function would be taken
+// down after the application object, which is too late for it.
 [[nodiscard]] QNetworkAccessManager &Manager() {
-	static auto result = QNetworkAccessManager();
-	return result;
+	static auto *result = new QNetworkAccessManager();
+	return *result;
 }
 
 // A track is looked up once per run, whether or not anything was found, so

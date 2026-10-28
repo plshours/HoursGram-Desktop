@@ -11,6 +11,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session.h"
 
 #include <QtCore/QFile>
+#include <QtCore/QSaveFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -138,9 +139,12 @@ void Playlists::save() {
 	root.insert(u"version"_q, 1);
 	root.insert(u"accounts"_q, accounts);
 
-	auto file = QFile(FilePath());
+	// Through a temporary file, so that the playlists are not lost if the
+	// write is cut short: opening the real file for writing empties it.
+	auto file = QSaveFile(FilePath());
 	if (file.open(QIODevice::WriteOnly)) {
 		file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+		file.commit();
 	}
 	_changes.fire({});
 }

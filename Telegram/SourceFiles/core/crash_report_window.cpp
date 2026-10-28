@@ -656,7 +656,11 @@ void LastCrashedWindow::checkingFinished() {
 		}
 	}
 
-	_sendReply = _sendManager.post(QNetworkRequest(u"https://sentry.radolyn.com/api/2/minidump/?sentry_key=cad638b2ec4a692e57c3dcc4af1508bf"_q), multipart);
+	// This client has no server to send reports to. They used to go to the
+	// one of AyuGram's developer, which has nothing to do with this client
+	// and should not receive the memory of anyone's crashed session. An empty
+	// address makes the request fail at once, and nothing leaves the machine.
+	_sendReply = _sendManager.post(QNetworkRequest(QUrl()), multipart);
 	multipart->setParent(_sendReply);
 
 	connect(
