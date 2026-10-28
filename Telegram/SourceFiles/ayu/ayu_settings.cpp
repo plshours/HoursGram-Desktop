@@ -7,6 +7,7 @@
 #include "ayu/ayu_settings.h"
 
 #include "hoursgram/customization/customization_palette.h"
+#include "ui/chat/chat_style_radius.h"
 
 #include "lang_auto.h"
 #include "tray.h"
@@ -788,6 +789,18 @@ void AyuSettings::setClientTheme(int val) {
 	} else {
 		Window::Theme::ResetToSomeDefault();
 	}
+	// The shape of Telegram for macOS goes with its colours: bubbles of 16
+	// and round userpics. Leaving it puts the HorusGram shape back, which
+	// takes a restart to show in full, like the same two settings do.
+	if (val == 2) {
+		setMessageBubbleRadius(16);
+		setAvatarCorners(AyuUiSettings::kMaxAvatarCorners);
+	} else if (_clientTheme.current() == 2) {
+		const AyuSettings defaults;
+		setMessageBubbleRadius(defaults._messageBubbleRadius.current());
+		setAvatarCorners(defaults._avatarCorners.current());
+	}
+	Ui::SetAppliedBubbleRadius(_messageBubbleRadius.current());
 	_clientTheme = val;
 	save();
 	HoursGram::Customization::ApplyCustomPalette();
