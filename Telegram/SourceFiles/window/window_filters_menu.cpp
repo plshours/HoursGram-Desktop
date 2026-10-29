@@ -136,16 +136,24 @@ void FiltersMenu::setup() {
 		p.drawRect(clip);
 	}, _outer.lifetime());
 
-	_parent->heightValue(
-	) | rpl::on_next([=](int height) {
+	const auto layout = [=](int height) {
 		const auto width = st::windowFiltersWidth;
 		_outer.setGeometry({ 0, 0, width, height });
 		_menu.resizeToWidth(width);
 		_menu.move(0, 0);
-		_scroll.setGeometry(
-			{ 0, _menu.height(), width, height - _menu.height() });
+		// The macOS themes keep settings in the bar at the bottom, so the
+		// button with three bars is not shown above the folders there.
+		const auto hideMenu = (AyuSettings::getInstance().clientTheme() >= 2);
+		_menu.setVisible(!hideMenu);
+		const auto top = hideMenu ? 0 : _menu.height();
+		_scroll.setGeometry({ 0, top, width, height - top });
 		_container->resizeToWidth(width);
 		_container->move(0, 0);
+	};
+	_parent->heightValue() | rpl::on_next(layout, _outer.lifetime());
+	AyuSettings::getInstance().clientThemeChanges(
+	) | rpl::on_next([=] {
+		layout(_parent->height());
 	}, _outer.lifetime());
 
 	auto premium = Data::AmPremiumValue(&_session->session());

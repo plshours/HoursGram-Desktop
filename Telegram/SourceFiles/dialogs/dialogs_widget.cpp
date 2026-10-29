@@ -1741,12 +1741,18 @@ void Widget::setupMainMenuToggle() {
 	_mainMenu.toggle->setIsMenuButton(true);
 	_mainMenu.toggle->setAccessibleName(tr::lng_main_menu(tr::now));
 
-	rpl::single(rpl::empty) | rpl::then(
-		controller()->filtersMenuChanged()
+	// The macOS themes keep settings in the bar at the bottom, as the macOS
+	// client does, so the three bars are not shown there.
+	rpl::merge(
+		rpl::single(rpl::empty) | rpl::then(
+			controller()->filtersMenuChanged()),
+		AyuSettings::getInstance().clientThemeChanges() | rpl::to_empty
 	) | rpl::on_next([=] {
 		const auto filtersHidden = !controller()->filtersWidth();
-		_mainMenu.toggle->setVisible(filtersHidden);
-		_mainMenu.under->setVisible(filtersHidden);
+		const auto shown = filtersHidden
+			&& (AyuSettings::getInstance().clientTheme() < 2);
+		_mainMenu.toggle->setVisible(shown);
+		_mainMenu.under->setVisible(shown);
 		_searchForNarrowLayout->setVisible(!filtersHidden);
 		updateControlsGeometry();
 	}, lifetime());
@@ -4624,7 +4630,10 @@ void Widget::updateControlsGeometry() {
 
 	auto filterLeft = (controller()->filtersWidth()
 		? st::dialogsFilterSkip
-		: (st::dialogsFilterPadding.x() + _mainMenu.toggle->width()))
+		: (st::dialogsFilterPadding.x()
+			+ ((AyuSettings::getInstance().clientTheme() >= 2)
+				? 0
+				: _mainMenu.toggle->width())))
 		+ st::dialogsFilterPadding.x();
 	const auto filterRight = st::dialogsFilterSkip
 		+ st::dialogsFilterPadding.x();

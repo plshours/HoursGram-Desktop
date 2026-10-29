@@ -20,7 +20,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace HoursGram::Customization {
 namespace {
 
-constexpr auto kPalettePath = ":/gui/hoursgram.tdesktop-palette";
+// The palette that is shipped for the theme that is on: HorusGram, or the
+// dark or the light look of Telegram for macOS.
+[[nodiscard]] QString PalettePath() {
+	switch (AyuSettings::getInstance().clientTheme()) {
+	case 2: return u":/gui/hoursgram-macos-dark.tdesktop-palette"_q;
+	case 3: return u":/gui/hoursgram-macos.tdesktop-palette"_q;
+	}
+	return u":/gui/hoursgram.tdesktop-palette"_q;
+}
 
 [[nodiscard]] QString Normalized(QString color) {
 	const auto trimmed = color.trimmed();
@@ -37,6 +45,45 @@ constexpr auto kPalettePath = ":/gui/hoursgram.tdesktop-palette";
 } // namespace
 
 const std::vector<PaletteSlot> &PaletteSlots() {
+	// Every theme has slots of its own, with ids of their own, so a color
+	// picked for one is never laid over another.
+	static const auto macDark = std::vector<PaletteSlot>{
+		{ u"macDark/windowBg"_q, u"18222D"_q, [] {
+			return tr::hoursgram_ColorWindowBg();
+		} },
+		{ u"macDark/surface"_q, u"1E2C3B"_q, [] {
+			return tr::hoursgram_ColorModalBg();
+		} },
+		{ u"macDark/accent"_q, u"2EA6FF"_q, [] {
+			return tr::hoursgram_ColorAccent();
+		} },
+		{ u"macDark/accentLight"_q, u"62BCF9"_q, [] {
+			return tr::hoursgram_ColorAccentLight();
+		} },
+		{ u"macDark/subtitle"_q, u"B1C3D5"_q, [] {
+			return tr::hoursgram_ColorSubtitle();
+		} },
+	};
+	static const auto macLight = std::vector<PaletteSlot>{
+		{ u"macLight/surface"_q, u"F4F4F4"_q, [] {
+			return tr::hoursgram_ColorModalBg();
+		} },
+		{ u"macLight/accent"_q, u"2481CC"_q, [] {
+			return tr::hoursgram_ColorAccent();
+		} },
+		{ u"macLight/accentLight"_q, u"4BA3E2"_q, [] {
+			return tr::hoursgram_ColorAccentLight();
+		} },
+		{ u"macLight/subtitle"_q, u"999999"_q, [] {
+			return tr::hoursgram_ColorSubtitle();
+		} },
+	};
+	const auto theme = AyuSettings::getInstance().clientTheme();
+	if (theme == 2) {
+		return macDark;
+	} else if (theme == 3) {
+		return macLight;
+	}
 	static const auto result = std::vector<PaletteSlot>{
 		{ u"windowBg"_q, u"343641"_q, [] {
 			return tr::hoursgram_ColorWindowBg();
@@ -63,7 +110,7 @@ namespace {
 // and hands the result to the running theme. An empty map puts the shipped
 // palette back untouched.
 void ApplyWith(const base::flat_map<QString, QString> &replacements) {
-	auto file = QFile(QString::fromUtf8(kPalettePath));
+	auto file = QFile(PalettePath());
 	if (!file.open(QIODevice::ReadOnly)) {
 		return;
 	}
@@ -103,7 +150,7 @@ void ApplyWith(const base::flat_map<QString, QString> &replacements) {
 
 void ApplyCustomPalette(bool force) {
 	auto &settings = AyuSettings::getInstance();
-	if (settings.clientTheme() != 1) {
+	if (settings.clientTheme() < 1) {
 		// Someone else's theme is on; there is nothing of ours to recolor.
 		return;
 	}
@@ -122,7 +169,7 @@ void ApplyCustomPalette(bool force) {
 }
 
 void ResetToShippedPalette() {
-	if (AyuSettings::getInstance().clientTheme() != 1) {
+	if (AyuSettings::getInstance().clientTheme() < 1) {
 		return;
 	}
 	ApplyWith(base::flat_map<QString, QString>());
