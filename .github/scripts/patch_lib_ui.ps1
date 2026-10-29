@@ -101,4 +101,16 @@ Edit-Text `
 			New = "`t.scope = [] {`n`t`t// HoursGram: RHI on every Windows, x64 included.`n`t`treturn QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
 		})
 
+# The swap chain of that renderer goes through DirectComposition, which
+# composites it only when it has alpha. Telegram added this together with
+# turning RHI on for Windows x64.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/rp_widget.cpp') `
+	'DirectComposition composites swap chain only with alpha' `
+	@(
+		@{
+			Old = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef DESKTOP_APP_USE_ANGLE`n";
+			New = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef Q_OS_WIN`n`t`t// DirectComposition composites swap chain only with alpha in it.`n`t`tformat.setAlphaBufferSize(8);`n#endif // Q_OS_WIN`n#ifdef DESKTOP_APP_USE_ANGLE`n";
+		})
+
 Write-Output 'Applied HoursGram fonts, rounded hover states and the GPU renderer to lib_ui.'

@@ -100,7 +100,9 @@ jobs:
       - name: Prepare native dependencies
         id: prepare-dependencies
         shell: cmd
-        run: Telegram\build\prepare\win.bat silent
+        # Qt 6, as Telegram builds Windows x64 now: Qt 5 has no RHI, so the
+        # window would be drawn on the CPU and the D3D11 fixes would not apply.
+        run: Telegram\build\prepare\win.bat silent qt6
 
       - name: Fingerprint prepared dependency state
         id: dependency-cache-key
@@ -163,16 +165,15 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: out
-          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
-            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-main-
-            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v2-
+            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
+            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-main-
 
       - name: Configure HorusGram
         shell: cmd
         working-directory: Telegram
-        run: configure.bat x64 -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON -D TDESKTOP_API_ID=${{ secrets.TDESKTOP_API_ID || '2040' }} -D TDESKTOP_API_HASH=${{ secrets.TDESKTOP_API_HASH || 'b18441a1ff607e10a989891a5462e627' }} -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
+        run: configure.bat x64 qt6 -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON -D TDESKTOP_API_ID=${{ secrets.TDESKTOP_API_ID || '2040' }} -D TDESKTOP_API_HASH=${{ secrets.TDESKTOP_API_HASH || 'b18441a1ff607e10a989891a5462e627' }} -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
 
       - name: Build HorusGram
         shell: cmd
@@ -223,7 +224,7 @@ jobs:
         continue-on-error: true
         with:
           path: out
-          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
 
       - name: Remove previous incremental CMake caches for this ref
         if: >-
@@ -234,8 +235,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          CACHE_KEY_PREFIX: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
-          CURRENT_CACHE_KEY: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v3-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          CACHE_KEY_PREFIX: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
+          CURRENT_CACHE_KEY: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
           CACHE_REF: ${{ github.ref }}
         run: |
           $headers = @{
