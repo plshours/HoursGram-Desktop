@@ -88,4 +88,17 @@ Edit-Text `
 			New = "`tradius: 12px;`n`tduration: 150;`n";
 		})
 
-Write-Output 'Applied HoursGram fonts and rounded hover states to lib_ui.'
+# The main window is drawn on the GPU through Qt RHI (Direct3D 11) on Windows
+# x64 too, as Telegram itself does now. The pinned lib_ui kept it to ARM64,
+# so x64 drew the whole window on the CPU and scrolled at a low frame rate.
+# A failed start still falls back to the old renderer through the crash check.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/gl/gl_detection.cpp') `
+	'HoursGram: RHI on every Windows' `
+	@(
+		@{
+			Old = "`t.scope = [] {`n`t`treturn (!Platform::IsWindows() || Platform::IsWindowsARM64())`n`t`t`t&& QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
+			New = "`t.scope = [] {`n`t`t// HoursGram: RHI on every Windows, x64 included.`n`t`treturn QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
+		})
+
+Write-Output 'Applied HoursGram fonts, rounded hover states and the GPU renderer to lib_ui.'
