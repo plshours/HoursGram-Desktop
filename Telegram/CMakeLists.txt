@@ -2576,6 +2576,11 @@ if (MSVC)
             )
         endif()
 
+        # QDnsLookup of Qt 6 Network calls DnsQueryEx and friends, which
+        # nothing else in the list above brings in.
+        target_link_libraries(Telegram PRIVATE dnsapi)
+        target_link_options(Telegram PRIVATE /DELAYLOAD:dnsapi.dll)
+
         target_link_options(Telegram
         PRIVATE
             /DELAYLOAD:API-MS-Win-Core-Console-l1-1-0.dll
