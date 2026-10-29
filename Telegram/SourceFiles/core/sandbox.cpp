@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/sandbox.h"
 
+#include "hoursgram/diagnostics/stall_watch.h"
 #include "base/platform/base_platform_info.h"
 #include "platform/platform_specific.h"
 #include "mainwidget.h"
@@ -667,7 +668,9 @@ bool Sandbox::notify(QObject *receiver, QEvent *e) {
 	const auto type = int(e->type());
 	auto timer = QElapsedTimer();
 	timer.start();
+	HoursGram::Diagnostics::EventStarted();
 	const auto result = QApplication::notify(receiver, e);
+	HoursGram::Diagnostics::EventFinished();
 	if (const auto elapsed = timer.elapsed(); elapsed >= kSlowEvent) {
 		LOG(("Slow event: %1 ms, receiver %2, event type %3.").arg(elapsed).arg(name).arg(type));
 	}

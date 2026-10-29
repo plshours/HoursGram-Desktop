@@ -1298,6 +1298,8 @@ PRIVATE
     history/history_widget.h
     hoursgram/customization/customization_palette.cpp
     hoursgram/customization/customization_palette.h
+    hoursgram/diagnostics/stall_watch.cpp
+    hoursgram/diagnostics/stall_watch.h
     hoursgram/index/peer_index.cpp
     hoursgram/index/peer_index.h
     hoursgram/music/music_lyrics.cpp
