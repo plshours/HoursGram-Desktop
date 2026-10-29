@@ -225,16 +225,6 @@ void moveCurrentDatabase() {
 }
 
 void initialize() {
-	// Every saved edit or deletion is a transaction on the main thread. With
-	// the default journal each of them waits for the disk twice, which
-	// freezes the window in a busy chat; the write-ahead log does not.
-	try {
-		storage.pragma.journal_mode(sqlite_orm::journal_mode::WAL);
-		storage.pragma.synchronous(1);
-	} catch (const std::exception &ex) {
-		LOG(("Database pragmas failed: %1").arg(ex.what()));
-	}
-
 	try {
 		storage.sync_schema(true);
 
@@ -249,6 +239,20 @@ void initialize() {
 		if (!storage.get_pointer<SchemaVersion>(1)) {
 			storage.insert(SchemaVersion{1, 0});
 		}
+	}
+
+	// Every saved edit or deletion is a transaction on the main thread.
+	// Without a connection kept open each of them opens the file, reads the
+	// schema and syncs the disk in full, because the pragmas below belong to
+	// a connection and are lost with it. The database is only renamed above,
+	// so it is kept open from here on, when nothing renames it any more.
+	try {
+		storage.open_forever();
+		storage.busy_timeout(5000);
+		storage.pragma.journal_mode(sqlite_orm::journal_mode::WAL);
+		storage.pragma.synchronous(1);
+	} catch (const std::exception &ex) {
+		LOG(("Database pragmas failed: %1").arg(ex.what()));
 	}
 }
 
