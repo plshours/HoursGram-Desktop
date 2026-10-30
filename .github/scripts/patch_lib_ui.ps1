@@ -113,4 +113,31 @@ Edit-Text `
 			New = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef Q_OS_WIN`n`t`t// DirectComposition composites swap chain only with alpha in it.`n`t`tformat.setAlphaBufferSize(8);`n#endif // Q_OS_WIN`n#ifdef DESKTOP_APP_USE_ANGLE`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states and the GPU renderer to lib_ui.'
+# Emoji statuses and custom emoji are drawn by FrameGenerator, which took the
+# size and the frame count an animation states on trust. A broken or hostile
+# one made rlottie throw std::length_error on its render thread while the chat
+# list scrolled, and the uncaught exception closed the client. The sticker
+# path's bounds apply here as well, as upstream lib_lottie does now, and what
+# rlottie still throws stays on the frame instead of ending the process.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_lottie/lottie/lottie_frame_generator.cpp') `
+	'HoursGram: bounded FrameGenerator' `
+	@(
+		@{
+			Old = "#include `"lottie/lottie_common.h`"`n#include `"lottie/lottie_wrap.h`"`n";
+			New = "#include `"lottie/details/lottie_frame_renderer.h`"`n#include `"lottie/lottie_common.h`"`n#include `"lottie/lottie_wrap.h`"`n";
+		},
+		@{
+			Old = "`tif (!_framesCount || !_frameDuration || _size.isEmpty()) {`n";
+			New = "`t// HoursGram: bounded FrameGenerator, as the sticker path is.`n`tif (!_framesCount`n`t`t|| _framesCount > kMaxFramesCount`n`t`t|| !_frameDuration`n`t`t|| _size.isEmpty()`n`t`t|| _size.width() > kMaxSize`n`t`t|| _size.height() > kMaxSize) {`n";
+		},
+		@{
+			Old = "#include `"ui/image/image_prepare.h`"`n";
+			New = "#include `"ui/image/image_prepare.h`"`n`n#include <QtGui/QPainter>`n";
+		},
+		@{
+			Old = "`tconst auto scaled = _size.scaled(size, mode);`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto xskip = (size.width() - render.width()) / 2;`n`tconst auto yskip = (size.height() - render.height());`n`tconst auto skip = (yskip * storage.bytesPerLine() / 4) + xskip;`n`tauto surface = rlottie::Surface(`n`t`treinterpret_cast<uint32_t*>(storage.bits()) + skip,`n`t`trender.width(),`n`t`trender.height(),`n`t`tstorage.bytesPerLine());`n`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n";
+			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
+		})
+
+Write-Output 'Applied HoursGram fonts, rounded hover states, the GPU renderer and the Lottie bounds to the pinned libraries.'
