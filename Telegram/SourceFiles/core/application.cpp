@@ -302,17 +302,39 @@ void Application::run() {
 	startLocalStorage();
 
 	const auto customFont = settings().customFontFamily();
-	style::SetCustomFont(!customFont.isEmpty()
+	const auto family = !customFont.isEmpty()
 		? customFont
 		: (AyuSettings::getInstance().clientTheme() >= 2)
 		? MacThemeFont()
 #ifdef Q_OS_WIN
 		// Montserrat stalls the window while typing and sending on Windows,
 		// so the system font is the default there; it can still be chosen.
-		: MacThemeFont());
+		: MacThemeFont();
 #else // Q_OS_WIN
-		: u"Montserrat"_q);
+		: u"Montserrat"_q;
 #endif // Q_OS_WIN
+
+	// Telegram gives its own font a short list of fonts to take missing
+	// characters from. Without one Qt searches every installed font for
+	// each character the family lacks - emoji, CJK, symbols - and on
+	// Windows that search stalls typing and sending. Whatever family is
+	// picked here gets such a list, Open Sans first, as Telegram has it.
+	if (family != style::SystemFontTag() && family != u"Open Sans"_q) {
+		QFont::insertSubstitutions(family, {
+			u"Open Sans"_q,
+#ifdef Q_OS_WIN
+			u"Segoe UI"_q,
+			u"Segoe UI Symbol"_q,
+			u"Segoe UI Emoji"_q,
+			u"Microsoft YaHei UI"_q,
+			u"Yu Gothic UI"_q,
+			u"Malgun Gothic"_q,
+			u"Ebrima"_q,
+			u"Nirmala UI"_q,
+#endif // Q_OS_WIN
+		});
+	}
+	style::SetCustomFont(family);
 	style::internal::StartFonts();
 
 	Test::ApplyStartupOverrides();
