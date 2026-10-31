@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      # A feature branch builds as soon as it is pushed, without a pull
+      # request or a manual run.
+      - feature/**
   pull_request:
   workflow_dispatch:
     inputs:
