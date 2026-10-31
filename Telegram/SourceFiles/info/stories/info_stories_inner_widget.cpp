@@ -42,6 +42,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/labels.h"
 #include "ui/widgets/popup_menu.h"
+#include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
@@ -301,11 +302,22 @@ void InnerWidget::startTop() {
 void InnerWidget::createProfileTop() {
 	startTop();
 
-	Info::Saved::SetupSavedMusic(
-		_top,
-		_controller,
-		_peer,
-		_topBarColor.value());
+	// The track is a card of its own, inset from the sides and kept off the
+	// cover, the same as on the profile page without stories.
+	const auto music = _top->add(
+		object_ptr<Ui::SlideWrap<Ui::PaddingWrap<Ui::VerticalLayout>>>(
+			_top,
+			object_ptr<Ui::PaddingWrap<Ui::VerticalLayout>>(
+				_top,
+				object_ptr<Ui::VerticalLayout>(_top),
+				st::infoProfileMusicPadding)));
+	music->toggleOn(
+		Info::Saved::SetupSavedMusic(
+			music->entity(),
+			_controller,
+			_peer,
+			_topBarColor.value()),
+		anim::type::instant);
 
 	using namespace Profile;
 	AddDetails(
