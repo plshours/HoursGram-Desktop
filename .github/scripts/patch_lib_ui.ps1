@@ -117,6 +117,20 @@ Edit-Text `
 			New = "`t.scope = [] {`n`t`t// HoursGram: RHI on every Windows, x64 included.`n`t`treturn QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
 		})
 
+# Direct3D 11 hands out its software device, WARP, when the GPU or its driver
+# is not usable, and the probe took that as a GPU. Every frame of the window
+# was then drawn by the processor through an emulated GPU, which is slower
+# than the plain renderer: typing, sending and scrolling all lagged. The probe
+# now turns RHI down for a software device, as upstream lib_ui does.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/gl/gl_detection.cpp') `
+	'HoursGram: no RHI on a software device' `
+	@(
+		@{
+			Old = "`tconst auto compute = rhi->isFeatureSupported(QRhi::Compute);`n`tLOG((`"RHI: Probe backend=%1 device=%2 compute=%3.`"`n`t`t).arg(rhi->backendName()`n`t`t).arg(rhi->driverInfo().deviceName`n`t`t).arg(compute ? `"yes`" : `"no`"));`n";
+			New = "`t// HoursGram: no RHI on a software device, it is slower than none.`n`tconst auto info = rhi->driverInfo();`n`tconst auto software = (info.deviceType == QRhiDriverInfo::CpuDevice);`n`tconst auto compute = rhi->isFeatureSupported(QRhi::Compute);`n`tLOG((`"RHI: Probe backend=%1 device=%2 software=%3 compute=%4.`"`n`t`t).arg(rhi->backendName()`n`t`t).arg(info.deviceName`n`t`t).arg(software ? `"yes`" : `"no`"`n`t`t).arg(compute ? `"yes`" : `"no`"));`n`tif (software) {`n`t`tLOG((`"RHI: Not supported, software device.`"));`n`t`treturn {};`n`t}`n";
+		})
+
 # The swap chain of that renderer goes through DirectComposition, which
 # composites it only when it has alpha. Telegram added this together with
 # turning RHI on for Windows x64.
@@ -169,4 +183,4 @@ Edit-Text `
 			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer, the mini app input and the Lottie bounds to the pinned libraries.'
+Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer and its software check, the mini app input and the Lottie bounds to the pinned libraries.'
