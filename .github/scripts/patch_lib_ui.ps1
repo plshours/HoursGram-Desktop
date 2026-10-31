@@ -40,7 +40,8 @@ function Edit-Text(
 
 # Settings and profile rows: flat by default, a rounded pill under the
 # cursor. The row still fills the whole damaged rect first, so closing a
-# layer over it cannot leave anything behind.
+# layer over it cannot leave anything behind. The pen and the brush are put
+# back afterwards, since a row may pick its text color before its background.
 Edit-Text `
 	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
 	'kSettingsButtonRadius' `
@@ -51,11 +52,13 @@ Edit-Text `
 		},
 		@{
 			Old = "void SettingsButton::paintBg(Painter &p, const QRect &rect, bool over) const {`n`tp.fillRect(rect, over ? _st.textBgOver : _st.textBg);`n}`n";
-			New = "void SettingsButton::paintBg(Painter &p, const QRect &rect, bool over) const {`n`tp.fillRect(rect, _st.textBg);`n`tif (!over) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto full = this->rect();`n`tconst auto scaled = style::ConvertScale(kSettingsButtonRadius);`n`tconst auto radius = (full.height() > 2 * scaled)`n`t`t? scaled`n`t`t: (full.height() / 2);`n`tp.setPen(Qt::NoPen);`n`tp.setBrush(_st.textBgOver);`n`tp.drawRoundedRect(full, radius, radius);`n}`n";
+			New = "void SettingsButton::paintBg(Painter &p, const QRect &rect, bool over) const {`n`tp.fillRect(rect, _st.textBg);`n`tif (!over) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto full = this->rect();`n`tconst auto scaled = style::ConvertScale(kSettingsButtonRadius);`n`tconst auto radius = (full.height() > 2 * scaled)`n`t`t? scaled`n`t`t: (full.height() / 2);`n`tp.save();`n`tp.setPen(Qt::NoPen);`n`tp.setBrush(_st.textBgOver);`n`tp.drawRoundedRect(full, radius, radius);`n`tp.restore();`n}`n";
 		})
 
 # Popup and drawer menu rows get the same rounded hover. The row background
-# is painted over the whole item first, for the same reason as above.
+# is painted over the whole item first, for the same reason as above. Here
+# the pen matters most: "Mute forever" sets its red before the background,
+# and without it the text vanished under the cursor.
 Edit-Text `
 	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/menu/menu_action.cpp') `
 	'kHoursGramMenuRadius' `
@@ -66,7 +69,7 @@ Edit-Text `
 		},
 		@{
 			Old = "void Action::paintBackground(QPainter &p, bool selected) {`n`tif (selected && _st.itemBgOver->c.alpha() < 255) {`n`t`tp.fillRect(0, 0, width(), _height, _st.itemBg);`n`t}`n`tp.fillRect(`n`t`tQRect(0, 0, width(), _height),`n`t`tselected ? _st.itemBgOver : _st.itemBg);`n}`n";
-			New = "void Action::paintBackground(QPainter &p, bool selected) {`n`tp.fillRect(0, 0, width(), _height, _st.itemBg);`n`tif (!selected) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto margin = style::ConvertScale(kHoursGramMenuMargin);`n`tconst auto skip = (margin < (width() / 8)) ? margin : (width() / 8);`n`tconst auto scaled = style::ConvertScale(kHoursGramMenuRadius);`n`tconst auto radius = (scaled < (_height / 2)) ? scaled : (_height / 2);`n`tp.setPen(Qt::NoPen);`n`tp.setBrush(_st.itemBgOver);`n`tp.drawRoundedRect(`n`t`tQRect(skip, 0, width() - 2 * skip, _height),`n`t`tradius,`n`t`tradius);`n}`n";
+			New = "void Action::paintBackground(QPainter &p, bool selected) {`n`tp.fillRect(0, 0, width(), _height, _st.itemBg);`n`tif (!selected) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto margin = style::ConvertScale(kHoursGramMenuMargin);`n`tconst auto skip = (margin < (width() / 8)) ? margin : (width() / 8);`n`tconst auto scaled = style::ConvertScale(kHoursGramMenuRadius);`n`tconst auto radius = (scaled < (_height / 2)) ? scaled : (_height / 2);`n`tp.save();`n`tp.setPen(Qt::NoPen);`n`tp.setBrush(_st.itemBgOver);`n`tp.drawRoundedRect(`n`t`tQRect(skip, 0, width() - 2 * skip, _height),`n`t`tradius,`n`t`tradius);`n`tp.restore();`n}`n";
 		})
 
 # Rounder boxes and popup menus.
@@ -126,6 +129,19 @@ Edit-Text `
 			New = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef Q_OS_WIN`n`t`t// DirectComposition composites swap chain only with alpha in it.`n`t`tformat.setAlphaBufferSize(8);`n#endif // Q_OS_WIN`n#ifdef DESKTOP_APP_USE_ANGLE`n";
 		})
 
+# Mini apps did not take a single click on Windows since the move to Qt 6.
+# The webview sits in a native child window whose default format has alpha,
+# so Qt made it a layered window, and an empty layered window is skipped by
+# mouse hit-testing. Upstream lib_webview drops the alpha the same way.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_webview/webview/platform/win/webview_win.cpp') `
+	'HoursGram: no alpha for the webview window' `
+	@(
+		@{
+			Old = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`treturn result;`n";
+			New = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`n`t// HoursGram: no alpha for the webview window, or Qt makes it a`n`t// layered window that mouse hit-testing skips.`n`tauto format = result->format();`n`tformat.setAlphaBufferSize(0);`n`tresult->setFormat(format);`n`treturn result;`n";
+		})
+
 # Emoji statuses and custom emoji are drawn by FrameGenerator, which took the
 # size and the frame count an animation states on trust. A broken or hostile
 # one made rlottie throw std::length_error on its render thread while the chat
@@ -153,4 +169,4 @@ Edit-Text `
 			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer and the Lottie bounds to the pinned libraries.'
+Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer, the mini app input and the Lottie bounds to the pinned libraries.'
