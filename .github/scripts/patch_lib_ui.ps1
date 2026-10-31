@@ -88,6 +88,19 @@ Edit-Text `
 			New = "`tradius: 12px;`n`tduration: 150;`n";
 		})
 
+# Input fields painted windowBg under the text. Telegram's boxes are windowBg
+# too, so nothing showed there, but ours are boxBg and every field in a box
+# got a lighter block behind it - the host, the port and the key of a proxy,
+# for one. The fields now take the color of whatever they sit on.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/widgets.style') `
+	'HoursGram: see-through input fields' `
+	@(
+		@{
+			Old = "defaultInputField: InputField {`n`ttextBg: windowBg;`n`ttextBgActive: windowBg;`n";
+			New = "defaultInputField: InputField {`n`t// HoursGram: see-through input fields.`n`ttextBg: transparent;`n`ttextBgActive: transparent;`n";
+		})
+
 # The main window is drawn on the GPU through Qt RHI (Direct3D 11) on Windows
 # x64 too, as Telegram itself does now. The pinned lib_ui kept it to ARM64,
 # so x64 drew the whole window on the CPU and scrolled at a low frame rate.
@@ -140,4 +153,4 @@ Edit-Text `
 			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states, the GPU renderer and the Lottie bounds to the pinned libraries.'
+Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer and the Lottie bounds to the pinned libraries.'
