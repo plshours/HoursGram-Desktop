@@ -297,6 +297,10 @@ public:
 	[[nodiscard]] bool increaseWebviewWidth() const { return _increaseWebviewWidth.current(); }
 	[[nodiscard]] bool materialSwitches() const { return _materialSwitches.current(); }
 	[[nodiscard]] bool removeMessageTail() const { return _removeMessageTail.current(); }
+	[[nodiscard]] bool incomingMessageTail() const { return _incomingMessageTail.current(); }
+	[[nodiscard]] bool outgoingMessageTail() const { return _outgoingMessageTail.current(); }
+	// Whether a bubble of this side is drawn with a tail at all.
+	[[nodiscard]] bool messageTail(bool out) const;
 	[[nodiscard]] bool disableNotificationsDelay() const { return _disableNotificationsDelay.current(); }
 	[[nodiscard]] bool localPremium() const { return _localPremium.current(); }
 	[[nodiscard]] bool showChannelReactions() const { return _showChannelReactions.current(); }
@@ -394,6 +398,8 @@ public:
 	void setIncreaseWebviewWidth(bool val);
 	void setMaterialSwitches(bool val);
 	void setRemoveMessageTail(bool val);
+	void setIncomingMessageTail(bool val);
+	void setOutgoingMessageTail(bool val);
 	void setDisableNotificationsDelay(bool val);
 	void setLocalPremium(bool val);
 	void setShowChannelReactions(bool val);
@@ -403,6 +409,7 @@ public:
 	void setClientTheme(int val);
 	void setPaletteOverride(const QString &slot, const QString &color);
 	void resetPaletteOverrides();
+	void resetPaletteOverrides(Fn<bool(const QString&)> which);
 	[[nodiscard]] bool addLocalGift(uint64 userId, const QString &giftId);
 	[[nodiscard]] bool removeLocalGift(uint64 userId, const QString &giftId);
 	[[nodiscard]] bool hasLocalGift(uint64 userId, const QString &giftId) const;
@@ -520,6 +527,7 @@ public:
 	[[nodiscard]] rpl::producer<bool> materialSwitchesChanges() const { return _materialSwitches.changes(); }
 	[[nodiscard]] rpl::producer<bool> removeMessageTailValue() const { return _removeMessageTail.value(); }
 	[[nodiscard]] rpl::producer<bool> removeMessageTailChanges() const { return _removeMessageTail.changes(); }
+	[[nodiscard]] rpl::producer<> messageTailChanges() const;
 	[[nodiscard]] rpl::producer<bool> disableNotificationsDelayValue() const { return _disableNotificationsDelay.value(); }
 	[[nodiscard]] rpl::producer<bool> disableNotificationsDelayChanges() const { return _disableNotificationsDelay.changes(); }
 	[[nodiscard]] rpl::producer<bool> localPremiumValue() const { return _localPremium.value(); }
@@ -680,6 +688,8 @@ private:
 	rpl::variable<bool> _increaseWebviewWidth = false;
 	rpl::variable<bool> _materialSwitches = true;
 	rpl::variable<bool> _removeMessageTail = true;
+	rpl::variable<bool> _incomingMessageTail = true;
+	rpl::variable<bool> _outgoingMessageTail = true;
 	rpl::variable<bool> _disableNotificationsDelay = false;
 	rpl::variable<bool> _localPremium = false;
 	rpl::variable<bool> _showChannelReactions = true;

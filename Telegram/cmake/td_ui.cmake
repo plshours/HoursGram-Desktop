@@ -79,6 +79,7 @@ set(style_files
     payments/ui/payments.style
     profile/profile.style
     settings/settings.style
+    hoursgram/customization/hoursgram_customization.style
     settings/sections/settings_local_storage.style
     settings/sections/settings_active_sessions.style
     settings/sections/settings_premium.style

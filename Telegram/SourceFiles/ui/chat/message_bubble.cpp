@@ -48,7 +48,7 @@ void PaintBubbleGeneric(
 	}
 
 	const auto &settings = AyuSettings::getInstance();
-	if (settings.removeMessageTail()) {
+	if (!settings.messageTail(args.outbg)) {
 		if (bottomWithTailLeft == Corner::Tail) {
 			bottomWithTailLeft = Corner::Large;
 		}

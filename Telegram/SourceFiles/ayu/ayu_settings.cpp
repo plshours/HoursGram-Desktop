@@ -22,6 +22,8 @@
 #include "main/main_session.h"
 #include "platform/platform_translate_provider.h"
 #include "rpl/combine.h"
+#include "rpl/map.h"
+#include "rpl/merge.h"
 #include "window/window_controller.h"
 #include "window/themes/window_theme.h"
 
@@ -696,6 +698,34 @@ void AyuSettings::setRemoveMessageTail(bool val) {
 	save();
 }
 
+void AyuSettings::setIncomingMessageTail(bool val) {
+	if (_incomingMessageTail.current() == val) return;
+	_incomingMessageTail = val;
+	save();
+}
+
+void AyuSettings::setOutgoingMessageTail(bool val) {
+	if (_outgoingMessageTail.current() == val) return;
+	_outgoingMessageTail = val;
+	save();
+}
+
+bool AyuSettings::messageTail(bool out) const {
+	if (_removeMessageTail.current()) {
+		return false;
+	}
+	return out
+		? _outgoingMessageTail.current()
+		: _incomingMessageTail.current();
+}
+
+rpl::producer<> AyuSettings::messageTailChanges() const {
+	return rpl::merge(
+		_removeMessageTail.changes() | rpl::to_empty,
+		_incomingMessageTail.changes() | rpl::to_empty,
+		_outgoingMessageTail.changes() | rpl::to_empty);
+}
+
 void AyuSettings::setDisableNotificationsDelay(bool val) {
 	if (_disableNotificationsDelay.current() == val) return;
 	_disableNotificationsDelay = val;
@@ -757,6 +787,18 @@ void AyuSettings::resetPaletteOverrides() {
 		return;
 	}
 	_paletteOverrides.clear();
+	save();
+	_paletteOverridesChanges.fire({});
+}
+
+void AyuSettings::resetPaletteOverrides(Fn<bool(const QString&)> which) {
+	const auto removed = std::erase_if(_paletteOverrides, [&](
+			const auto &pair) {
+		return which(pair.first);
+	});
+	if (!removed) {
+		return;
+	}
 	save();
 	_paletteOverridesChanges.fire({});
 }
@@ -1313,6 +1355,8 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"increaseWebviewWidth", s._increaseWebviewWidth.current()},
 		{"materialSwitches", s._materialSwitches.current()},
 		{"removeMessageTail", s._removeMessageTail.current()},
+		{"incomingMessageTail", s._incomingMessageTail.current()},
+		{"outgoingMessageTail", s._outgoingMessageTail.current()},
 		{"disableNotificationsDelay", s._disableNotificationsDelay.current()},
 		{"localPremium", s._localPremium.current()},
 		{"showChannelReactions", s._showChannelReactions.current()},
@@ -1430,6 +1474,8 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._increaseWebviewWidth = j.value("increaseWebviewWidth", defaults._increaseWebviewWidth.current());
 	s._materialSwitches = j.value("materialSwitches", defaults._materialSwitches.current());
 	s._removeMessageTail = j.value("removeMessageTail", defaults._removeMessageTail.current());
+	s._incomingMessageTail = j.value("incomingMessageTail", defaults._incomingMessageTail.current());
+	s._outgoingMessageTail = j.value("outgoingMessageTail", defaults._outgoingMessageTail.current());
 	s._disableNotificationsDelay = j.value("disableNotificationsDelay", defaults._disableNotificationsDelay.current());
 	s._localPremium = j.value("localPremium", defaults._localPremium.current());
 	s._showChannelReactions = j.value("showChannelReactions", defaults._showChannelReactions.current());

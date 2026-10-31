@@ -3573,7 +3573,8 @@ BottomRippleMask Message::bottomRippleMask(int buttonHeight) const {
 	const auto &large = CachedCornersMasks(Radius::BubbleLarge);
 	const auto &small = CachedCornersMasks(Radius::BubbleSmall);
 	auto rounding = countBubbleRounding();
-	if (AyuSettings::getInstance().removeMessageTail() || hasRightLayout()) {
+	if (!AyuSettings::getInstance().messageTail(hasOutLayout())
+		|| hasRightLayout()) {
 		if (rounding.bottomLeft == Corner::Tail) {
 			rounding.bottomLeft = Corner::Large;
 		}

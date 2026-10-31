@@ -127,8 +127,7 @@ MessagePreview::MessagePreview(
 			| rpl::to_empty,
 		AyuSettings::getInstance().editedMarkChanges()
 			| rpl::to_empty,
-		AyuSettings::getInstance().removeMessageTailChanges()
-			| rpl::to_empty,
+		AyuSettings::getInstance().messageTailChanges(),
 		AyuSettings::getInstance().hideFastShareChanges()
 			| rpl::to_empty,
 		AyuSettings::getInstance().simpleQuotesAndRepliesChanges()

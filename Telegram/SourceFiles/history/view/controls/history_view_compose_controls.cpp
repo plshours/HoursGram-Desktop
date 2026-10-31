@@ -2483,7 +2483,7 @@ void ComposeControls::init() {
 		AyuSettings::getInstance().showAttachPopupChanges() | rpl::to_empty,
 		AyuSettings::getInstance().showEmojiPopupChanges() | rpl::to_empty,
 		AyuSettings::getInstance().channelBottomButtonChanges() | rpl::to_empty,
-		AyuSettings::getInstance().removeMessageTailChanges() | rpl::to_empty
+		AyuSettings::getInstance().messageTailChanges()
 	) | rpl::on_next([=] {
 		updateSendButtonType();
 		updateControlsVisibility();

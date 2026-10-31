@@ -23,6 +23,7 @@
 #include "settings/sections/settings_main.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
+#include "styles/style_hoursgram_customization.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
@@ -35,7 +36,10 @@
 #include "ui/image/image_prepare.h"
 #include "ui/layers/generic_box.h"
 #include "ui/painter.h"
+#include "ui/widgets/buttons.h"
 #include "ui/widgets/color_editor.h"
+#include "ui/widgets/fields/input_field.h"
+#include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "window/section_widget.h"
 #include "window/themes/window_theme.h"
@@ -46,15 +50,162 @@ namespace Settings {
 
 using namespace Builder;
 using namespace AyuBuilder;
+using namespace rpl::mappers;
 
 namespace {
 
 using HoursGram::Customization::ApplyCustomPalette;
+using HoursGram::Customization::ColorToHex;
+using HoursGram::Customization::CurrentKeyColors;
+using HoursGram::Customization::HexToColor;
+using HoursGram::Customization::IsCurrentThemeOverride;
+using HoursGram::Customization::KeyOverrideId;
+using HoursGram::Customization::PaletteGroups;
+using HoursGram::Customization::PaletteKey;
+using HoursGram::Customization::PaletteKeys;
 using HoursGram::Customization::PaletteSlots;
 using HoursGram::Customization::ResetToShippedPalette;
 
-// Only the colors the palette is actually built from are editable, so a
-// pick stays consistent everywhere that color is used.
+// A color picker for one value. `alpha` lets the color be see-through,
+// which shadows, overlays and service messages need.
+void ShowColorBox(
+		not_null<Window::SessionController*> controller,
+		rpl::producer<QString> title,
+		QColor current,
+		bool alpha,
+		Fn<void(QColor)> save,
+		Fn<void()> reset) {
+	controller->show(Box([=, title = std::move(title)](
+			not_null<Ui::GenericBox*> box) mutable {
+		box->setTitle(std::move(title));
+		const auto editor = box->addRow(
+			object_ptr<ColorEditor>(
+				box,
+				alpha ? ColorEditor::Mode::RGBA : ColorEditor::Mode::HSL,
+				current));
+		const auto done = [=] {
+			save(editor->color());
+			box->closeBox();
+		};
+		editor->submitRequests(
+		) | rpl::on_next(done, editor->lifetime());
+		box->setFocusCallback([=] {
+			editor->setInnerFocus();
+		});
+		box->addButton(tr::lng_settings_save(), done);
+		if (reset) {
+			box->addLeftButton(tr::hoursgram_PaletteResetOne(), [=] {
+				reset();
+				box->closeBox();
+			});
+		}
+		box->addButton(tr::lng_cancel(), [=] {
+			box->closeBox();
+		});
+		box->setWidth(editor->width());
+	}));
+}
+
+// The colors of single palette keys. With `search` the list gets a field
+// that filters it by the key name, which the full list of keys needs.
+void ShowPaletteKeysBox(
+		not_null<Window::SessionController*> controller,
+		Fn<rpl::producer<QString>()> title,
+		std::vector<PaletteKey> keys,
+		bool search) {
+	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+		auto *settings = &AyuSettings::getInstance();
+		box->setTitle(title());
+		box->setWidth(st::boxWideWidth);
+		box->setMaxHeight(st::boxWideWidth * 2);
+		box->addTopButton(st::boxTitleClose, [=] { box->closeBox(); });
+
+		// Worked out once for the whole list, and again after each pick.
+		const auto colors = box->lifetime().make_state<
+			rpl::variable<base::flat_map<QString, QString>>
+		>(CurrentKeyColors());
+		settings->paletteOverridesChanges(
+		) | rpl::on_next([=] {
+			*colors = CurrentKeyColors();
+		}, box->lifetime());
+
+		const auto query = box->lifetime().make_state<
+			rpl::variable<QString>
+		>();
+		if (search) {
+			const auto field = box->addRow(object_ptr<Ui::InputField>(
+				box,
+				st::defaultInputField,
+				tr::hoursgram_PaletteSearch()));
+			field->changes() | rpl::on_next([=] {
+				*query = field->getLastText().trimmed();
+			}, field->lifetime());
+			box->setFocusCallback([=] {
+				field->setFocusFast();
+			});
+		}
+
+		const auto content = box->verticalLayout();
+		for (const auto &entry : keys) {
+			const auto key = entry.key;
+			const auto keyTitle = entry.title;
+			const auto id = KeyOverrideId(key);
+			const auto wrap = content->add(
+				object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+					content,
+					object_ptr<Ui::VerticalLayout>(content)));
+			const auto button = AddButtonWithLabel(
+				wrap->entity(),
+				keyTitle(),
+				colors->value(
+				) | rpl::map([=](const base::flat_map<QString, QString> &map) {
+					const auto i = map.find(key);
+					if (i == map.end()) {
+						return QString();
+					}
+					// A star marks the colors that were picked by hand.
+					const auto mark = settings->paletteOverride(id).isEmpty()
+						? QString()
+						: u"* "_q;
+					return mark + u"#"_q + i->second;
+				}),
+				st::hoursgramPaletteButton);
+			button->setClickedCallback([=] {
+				const auto &map = colors->current();
+				const auto i = map.find(key);
+				const auto current = (i != map.end())
+					? HexToColor(i->second)
+					: st::windowBg->c;
+				ShowColorBox(
+					controller,
+					keyTitle(),
+					current,
+					true,
+					[=](QColor color) {
+						settings->setPaletteOverride(id, ColorToHex(color));
+						ApplyCustomPalette(true);
+					},
+					[=] {
+						settings->setPaletteOverride(id, QString());
+						ApplyCustomPalette(true);
+					});
+			});
+			if (search) {
+				query->value(
+				) | rpl::on_next([=](const QString &text) {
+					wrap->toggle(
+						text.isEmpty()
+							|| key.contains(text, Qt::CaseInsensitive),
+						anim::type::instant);
+				}, wrap->lifetime());
+			}
+		}
+	}));
+}
+
+// The five colors the whole interface is built from come first; the
+// groups after them reach every single color of the palette, so that the
+// bubbles, their tails, the input bar and the chat list can be set apart.
 void BuildPalette(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	auto *settings = &AyuSettings::getInstance();
@@ -64,6 +215,7 @@ void BuildPalette(SectionBuilder &builder) {
 	for (const auto &slot : PaletteSlots()) {
 		const auto id = slot.id;
 		const auto base = slot.base;
+		const auto title = slot.title;
 		builder.addButton({
 			.id = u"hoursgram/color/"_q + id,
 			.title = slot.title(),
@@ -78,36 +230,56 @@ void BuildPalette(SectionBuilder &builder) {
 			}),
 			.onClick = [=] {
 				const auto picked = settings->paletteOverride(id);
-				const auto current = QColor(
-					u"#"_q + (picked.isEmpty() ? base : picked));
-				controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-					const auto editor = box->addRow(
-						object_ptr<ColorEditor>(
-							box,
-							ColorEditor::Mode::HSL,
-							current));
-					const auto save = [=] {
-						const auto color = editor->color();
+				ShowColorBox(
+					controller,
+					title(),
+					QColor(u"#"_q + (picked.isEmpty() ? base : picked)),
+					false,
+					[=](QColor color) {
 						settings->setPaletteOverride(
 							id,
 							color.name(QColor::HexRgb).mid(1).toUpper());
 						ApplyCustomPalette(true);
-						box->closeBox();
-					};
-					editor->submitRequests(
-					) | rpl::on_next(save, editor->lifetime());
-					box->setFocusCallback([=] {
-						editor->setInnerFocus();
+					},
+					[=] {
+						settings->setPaletteOverride(id, QString());
+						ApplyCustomPalette(true);
 					});
-					box->addButton(tr::lng_settings_save(), save);
-					box->addButton(tr::lng_cancel(), [=] {
-						box->closeBox();
-					});
-					box->setWidth(editor->width());
-				}));
 			},
 		});
 	}
+	builder.addDividerText(tr::hoursgram_CustomizationPaletteAbout());
+
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::hoursgram_PaletteDetailed());
+	for (const auto &group : PaletteGroups()) {
+		const auto title = group.title;
+		const auto keys = group.keys;
+		builder.addButton({
+			.id = u"hoursgram/palette/"_q + group.id,
+			.title = group.title(),
+			.st = &st::settingsButtonNoIcon,
+			.onClick = [=] {
+				ShowPaletteKeysBox(controller, title, keys, false);
+			},
+		});
+	}
+	builder.addButton({
+		.id = u"hoursgram/palette/all"_q,
+		.title = tr::hoursgram_PaletteGroupAll(),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			auto keys = std::vector<PaletteKey>();
+			for (const auto &key : PaletteKeys()) {
+				keys.push_back({ key, [=] { return rpl::single(key); } });
+			}
+			ShowPaletteKeysBox(
+				controller,
+				[] { return tr::hoursgram_PaletteGroupAll(); },
+				std::move(keys),
+				true);
+		},
+	});
 
 	builder.addButton({
 		.id = u"hoursgram/colorReset"_q,
@@ -117,13 +289,14 @@ void BuildPalette(SectionBuilder &builder) {
 			// Dropping the picks is not enough on its own: the running
 			// palette still holds them, so the shipped one is applied
 			// again. Only the palette is swapped - going through the
-			// theme would also throw away the chat background.
-			settings->resetPaletteOverrides();
+			// theme would also throw away the chat background. The picks
+			// made for the other themes are kept.
+			settings->resetPaletteOverrides(IsCurrentThemeOverride);
 			ResetToShippedPalette();
 			controller->showToast(tr::hoursgram_ColorResetDone(tr::now));
 		},
 	});
-	builder.addDividerText(tr::hoursgram_CustomizationPaletteAbout());
+	builder.addDividerText(tr::hoursgram_PaletteDetailedAbout());
 }
 
 void BuildBackground(SectionBuilder &builder) {
@@ -199,6 +372,21 @@ void BuildMessages(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 		.title = tr::ayu_RemoveMessageTail(),
 		.getter = &AyuSettings::removeMessageTail,
 		.setter = &AyuSettings::setRemoveMessageTail,
+	});
+	// The sides are only worth asking about while tails are drawn at all.
+	ayu.addSettingToggle({
+		.id = u"hoursgram/incomingMessageTail"_q,
+		.title = tr::hoursgram_TailIncoming(),
+		.getter = &AyuSettings::incomingMessageTail,
+		.setter = &AyuSettings::setIncomingMessageTail,
+		.shown = settings->removeMessageTailValue() | rpl::map(!_1),
+	});
+	ayu.addSettingToggle({
+		.id = u"hoursgram/outgoingMessageTail"_q,
+		.title = tr::hoursgram_TailOutgoing(),
+		.getter = &AyuSettings::outgoingMessageTail,
+		.setter = &AyuSettings::setOutgoingMessageTail,
+		.shown = settings->removeMessageTailValue() | rpl::map(!_1),
 	});
 
 	const auto controller = builder.controller();
