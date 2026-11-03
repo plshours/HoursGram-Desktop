@@ -971,7 +971,7 @@ void AddBurnAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
 					item->markContentsRead();
 				}).send();
 		},
-		&st::menuIconTTLAny);
+		&st::menuIconTTL);
 }
 
 void AddCreateFilterAction(not_null<Ui::PopupMenu*> menu,

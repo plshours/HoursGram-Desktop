@@ -38,6 +38,43 @@ function Edit-Text(
 		[System.Text.UTF8Encoding]::new($false))
 }
 
+# AyuGram keeps its changes to lib_ui and codegen in forks of its own. We
+# build from the upstream libraries that Telegram Desktop pins and lay those
+# changes over them here, so that following Telegram does not wait for the
+# forks. The patch goes through the index, where the text is LF whatever the
+# checkout does with line endings, and nothing happens when it is in already.
+function Apply-Patch(
+		[string]$Repository,
+		[string]$Patch) {
+	if (!(Test-Path -LiteralPath $Repository)) {
+		throw "The pinned checkout $Repository is missing."
+	}
+	# A failed check writes to stderr, which must not stop the script here.
+	$previous = $ErrorActionPreference
+	$ErrorActionPreference = 'Continue'
+	& git -C $Repository apply --cached --check --reverse $Patch 2>&1 | Out-Null
+	$applied = ($LASTEXITCODE -eq 0)
+	$ErrorActionPreference = $previous
+	if ($applied) {
+		return
+	}
+	& git -C $Repository apply --cached $Patch
+	if ($LASTEXITCODE -ne 0) {
+		throw "Could not apply $Patch to $Repository."
+	}
+	& git -C $Repository checkout -- .
+	if ($LASTEXITCODE -ne 0) {
+		throw "Could not check out the patched $Repository."
+	}
+}
+
+Apply-Patch `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui') `
+	(Join-Path $WorkspaceRoot '.github/patches/lib_ui-ayugram.patch')
+Apply-Patch `
+	(Join-Path $WorkspaceRoot 'Telegram/codegen') `
+	(Join-Path $WorkspaceRoot '.github/patches/codegen-ayugram.patch')
+
 # Settings and profile rows: flat by default, a rounded pill under the
 # cursor. The row still fills the whole damaged rect first, so closing a
 # layer over it cannot leave anything behind. The pen and the brush are put
@@ -104,56 +141,4 @@ Edit-Text `
 			New = "defaultInputField: InputField {`n`t// HoursGram: see-through input fields.`n`ttextBg: transparent;`n`ttextBgActive: transparent;`n";
 		})
 
-# The main window is drawn on the GPU through Qt RHI (Direct3D 11) on Windows
-# x64 too, as Telegram itself does now. The pinned lib_ui kept it to ARM64,
-# so x64 drew the whole window on the CPU and scrolled at a low frame rate.
-# A failed start still falls back to the old renderer through the crash check.
-Edit-Text `
-	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/gl/gl_detection.cpp') `
-	'HoursGram: RHI on every Windows' `
-	@(
-		@{
-			Old = "`t.scope = [] {`n`t`treturn (!Platform::IsWindows() || Platform::IsWindowsARM64())`n`t`t`t&& QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
-			New = "`t.scope = [] {`n`t`t// HoursGram: RHI on every Windows, x64 included.`n`t`treturn QLibraryInfo::version() >= QVersionNumber(6, 7);`n`t},`n";
-		})
-
-# Direct3D 11 hands out its software device, WARP, when the GPU or its driver
-# is not usable, and the probe took that as a GPU. Every frame of the window
-# was then drawn by the processor through an emulated GPU, which is slower
-# than the plain renderer: typing, sending and scrolling all lagged. The probe
-# now turns RHI down for a software device, as upstream lib_ui does.
-Edit-Text `
-	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/gl/gl_detection.cpp') `
-	'HoursGram: no RHI on a software device' `
-	@(
-		@{
-			Old = "`tconst auto compute = rhi->isFeatureSupported(QRhi::Compute);`n`tLOG((`"RHI: Probe backend=%1 device=%2 compute=%3.`"`n`t`t).arg(rhi->backendName()`n`t`t).arg(rhi->driverInfo().deviceName`n`t`t).arg(compute ? `"yes`" : `"no`"));`n";
-			New = "`t// HoursGram: no RHI on a software device, it is slower than none.`n`tconst auto info = rhi->driverInfo();`n`tconst auto software = (info.deviceType == QRhiDriverInfo::CpuDevice);`n`tconst auto compute = rhi->isFeatureSupported(QRhi::Compute);`n`tLOG((`"RHI: Probe backend=%1 device=%2 software=%3 compute=%4.`"`n`t`t).arg(rhi->backendName()`n`t`t).arg(info.deviceName`n`t`t).arg(software ? `"yes`" : `"no`"`n`t`t).arg(compute ? `"yes`" : `"no`"));`n`tif (software) {`n`t`tLOG((`"RHI: Not supported, software device.`"));`n`t`treturn {};`n`t}`n";
-		})
-
-# The swap chain of that renderer goes through DirectComposition, which
-# composites it only when it has alpha. Telegram added this together with
-# turning RHI on for Windows x64.
-Edit-Text `
-	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/rp_widget.cpp') `
-	'DirectComposition composites swap chain only with alpha' `
-	@(
-		@{
-			Old = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef DESKTOP_APP_USE_ANGLE`n";
-			New = "`t`tformat.setSwapInterval(::Platform::MetalSupported() ? 1 : 0);`n#ifdef Q_OS_WIN`n`t`t// DirectComposition composites swap chain only with alpha in it.`n`t`tformat.setAlphaBufferSize(8);`n#endif // Q_OS_WIN`n#ifdef DESKTOP_APP_USE_ANGLE`n";
-		})
-
-# Mini apps did not take a single click on Windows since the move to Qt 6.
-# The webview sits in a native child window whose default format has alpha,
-# so Qt made it a layered window, and an empty layered window is skipped by
-# mouse hit-testing. Upstream lib_webview drops the alpha the same way.
-Edit-Text `
-	(Join-Path $WorkspaceRoot 'Telegram/lib_webview/webview/platform/win/webview_win.cpp') `
-	'HoursGram: no alpha for the webview window' `
-	@(
-		@{
-			Old = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`treturn result;`n";
-			New = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`n`t// HoursGram: no alpha for the webview window, or Qt makes it a`n`t// layered window that mouse hit-testing skips.`n`tauto format = result->format();`n`tformat.setAlphaBufferSize(0);`n`tresult->setFormat(format);`n`treturn result;`n";
-		})
-
-Write-Output 'Applied HoursGram fonts, rounded hover states, see-through input fields, the GPU renderer and its software check, and the mini app input to the pinned libraries.'
+Write-Output 'Applied the AyuGram changes, rounded hover states and see-through input fields to the pinned libraries.'

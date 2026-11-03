@@ -20,11 +20,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_cursor_state.h"
 #include "history/view/history_view_keyboard_text_selection.h"
+#include "history/view/history_view_touch_scroll.h"
 #include "history/history_inner_widget_accessibility.h"
 #include "history/history_view_highlight_manager.h"
 #include "history/history_view_top_toast.h"
 
 struct ClickHandlerContext;
+struct HistorySelectedTextParts;
 
 namespace Main {
 class Session;
@@ -40,6 +42,7 @@ struct ChatPaintContextArgs;
 enum class TouchScrollState;
 struct PeerUserpicView;
 class MessageSendingAnimationController;
+struct MessageSendingReveal;
 } // namespace Ui
 
 namespace Dialogs::Ui {
@@ -344,6 +347,7 @@ public:
 	void restoreScrollPosition();
 
 	void resizeToWidth(int newWidth, int minHeight);
+	void shiftScrollBaseline(int delta);
 
 	void saveState(not_null<ListMemento*> memento);
 	void restoreState(not_null<ListMemento*> memento);
@@ -367,13 +371,14 @@ public:
 
 	[[nodiscard]] TextForMimeData getSelectedText() const;
 	[[nodiscard]] Iv::RichPageBlocksSlice getSelectedRichBlocks() const;
-	void copySelectedText();
+	void copySelectedText(bool withImageText = false);
 	[[nodiscard]] MessageIdsList getSelectedIds() const;
 	[[nodiscard]] SelectedItems getSelectedItems() const;
 	[[nodiscard]] TextSelection getSelectedTextRange(
 		not_null<HistoryItem*> item) const;
 	[[nodiscard]] MessageSelection getSelectedTextSelection(
 		not_null<HistoryItem*> item) const;
+	void clearSelected();
 	void cancelSelection();
 	void selectItem(not_null<HistoryItem*> item);
 	void selectItemAsGroup(not_null<HistoryItem*> item);
@@ -463,7 +468,6 @@ public:
 	void replyToMessageRequestNotify(
 		FullReplyTo to,
 		bool forceAnotherChat = false);
-	[[nodiscard]] rpl::producer<FullMsgId> readMessageRequested() const;
 	[[nodiscard]] rpl::producer<FullMsgId> showMessageRequested() const;
 	void setInsertTextCallback(Fn<void(QString)> callback);
 	void insertTextAtCursor(const QString &text);
@@ -542,6 +546,7 @@ public:
 		Element *replacing) override;
 	QString elementAuthorRank(not_null<const Element*> view) override;
 	bool elementHideTopicButton(not_null<const Element*> view) override;
+	GramReadLine *elementGramReadLine() override;
 
 	void collapseGapsUpdated();
 	[[nodiscard]] auto collapseGaps() const
@@ -565,6 +570,7 @@ public:
 	QString accessibilityChildName(int index) const override;
 	QAccessible::State accessibilityChildState(int index) const override;
 	QAccessible::Role accessibilityChildRole() const override;
+	QAccessible::Role accessibilityChildRoleAt(int index) const override;
 	QRect accessibilityChildRect(int index) const override;
 	int accessibilityChildColumnCount(int row) const override;
 	QAccessible::Role accessibilityChildSubItemRole() const override;
@@ -696,6 +702,7 @@ private:
 	void rememberScrollAnchor();
 	void saveScrollState();
 	void restoreScrollState();
+	void applyScrollTopState();
 
 	[[nodiscard]] bool jumpToBottomInsteadOfUnread() const;
 	void showAroundPosition(
@@ -795,10 +802,10 @@ private:
 		const SelectedMap::const_iterator &i);
 	bool hasSelectedText() const;
 	bool hasSelectedItems() const;
+	[[nodiscard]] HistorySelectedTextParts getSelectedTextParts() const;
 	SelectionModeResult inSelectionMode() const;
 	bool overSelectedItems() const;
 	void clearTextSelection();
-	void clearSelected();
 	void setTextSelection(
 		not_null<Element*> view,
 		MessageSelection selection);
@@ -880,7 +887,9 @@ private:
 	void revealItemsCallback();
 	void maybeMarkReactionsRead(not_null<HistoryItem*> item);
 
-	void startMessageSendingAnimation(not_null<HistoryItem*> item);
+	std::optional<Ui::MessageSendingReveal> startMessageSendingAnimation(
+		not_null<HistoryItem*> item,
+		bool textFlightOnly = false);
 	void showPremiumStickerTooltip(
 		not_null<const HistoryView::Element*> view);
 
@@ -930,8 +939,6 @@ private:
 	template <typename Method>
 	void enumerateForumThreadBars(Method method);
 
-	void setGeometryCrashAnnotations(not_null<Element*> view);
-
 	static constexpr auto kMinimalIdsLimit = 24;
 
 	const not_null<ListDelegate*> _delegate;
@@ -959,6 +966,7 @@ private:
 		not_null<Element*>,
 		ItemRevealAnimation> _itemRevealAnimations;
 	int _itemsRevealHeight = 0;
+	rpl::event_stream<> _itemsRevealHeightChanges;
 	base::flat_set<not_null<const HistoryItem*>> _animatedStickersPlayed;
 	base::flat_map<not_null<PeerData*>, Ui::PeerUserpicView> _userpics;
 	base::flat_map<not_null<PeerData*>, Ui::PeerUserpicView> _userpicsCache;
@@ -968,6 +976,7 @@ private:
 		std::unique_ptr<VideoUserpic>> _videoUserpics;
 
 	const std::unique_ptr<Ui::PathShiftGradient> _pathGradient;
+	std::unique_ptr<GramReadLine> _gramReadLine;
 	QPainterPath _highlightPathCache;
 
 	base::unique_qptr<Ui::RpWidget> _emptyInfo = nullptr;
@@ -1089,11 +1098,11 @@ private:
 	crl::time _touchAccelerationTime = 0;
 	crl::time _touchTime = 0;
 	base::Timer _touchScrollTimer;
+	TouchScroll _touchElastic;
 	Ui::MiddleClickAutoscroll _middleClickAutoscroll;
 
 	rpl::event_stream<FullMsgId> _requestedToEditMessage;
 	rpl::event_stream<ReplyToMessageRequest> _requestedToReplyToMessage;
-	rpl::event_stream<FullMsgId> _requestedToReadMessage;
 	rpl::event_stream<FullMsgId> _requestedToShowMessage;
 	Fn<void(QString)> _insertTextCallback;
 	rpl::event_stream<not_null<QKeyEvent*>> _scrollKeyEvents;

@@ -66,6 +66,8 @@ class ForumTopic;
 struct DrawToReplyRequest;
 } // namespace Data
 
+class SendFilesBox;
+
 namespace Support {
 class Autocomplete;
 struct Contact;
@@ -75,6 +77,7 @@ namespace HistoryView {
 
 namespace Controls {
 struct VoiceToSend;
+class StashManager;
 } // namespace Controls
 
 class Element;
@@ -153,6 +156,7 @@ public:
 
 	bool confirmSendingFiles(const QStringList &files) override;
 	bool confirmSendingFiles(not_null<const QMimeData*> data) override;
+	void insertTextAtCursor(const QString &text) override;
 	bool notify_switchInlineBotButtonReceived(
 		const QString &query,
 		UserData *samePeerBot,
@@ -322,6 +326,8 @@ private:
 	void onScroll();
 	void scrollToCurrentVoiceMessage(FullMsgId fromId, FullMsgId toId);
 	void closeCurrent();
+	void topicDestroyed();
+	void sublistDestroyed();
 	void unreadCountUpdated();
 	void updateInnerVisibleArea();
 	void updateControlsGeometry();
@@ -340,7 +346,7 @@ private:
 		Data::MessagePosition position,
 		FullMsgId originItemId,
 		const Window::SectionShow &params);
-	void finishSending();
+	void finishSending(const Api::SendOptions &options);
 
 	void setupComposeControls();
 	void setupSwipeReplyAndBack();
@@ -353,6 +359,7 @@ private:
 
 	void setupDragArea();
 	void setupShortcuts();
+	void setupComposeStash();
 
 	void searchRequested();
 	void searchInTopic();
@@ -533,7 +540,7 @@ private:
 	MsgId _repliesKeyboardHiddenId = 0;
 	HistoryItem *_repliesRoot = nullptr;
 	Data::ForumTopic *_topic = nullptr;
-	mutable Data::ForumTopic *_creatingBotTopic = nullptr;
+	mutable base::weak_ptr<Data::ForumTopic> _creatingBotTopic;
 	mutable bool _newTopicDiscarded = false;
 	std::shared_ptr<Data::RepliesList> _replies;
 	rpl::lifetime _repliesLifetime;
@@ -598,6 +605,8 @@ private:
 
 	FullMsgId _lastShownAt;
 	HistoryView::CornerButtons _cornerButtons;
+	std::unique_ptr<Controls::StashManager> _stash;
+	QPointer<SendFilesBox> _sendFilesBox;
 	std::unique_ptr<Support::Autocomplete> _supportAutocomplete;
 	rpl::lifetime _topicLifetime;
 	rpl::lifetime _historySponsoredPreloading;

@@ -26,9 +26,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_messages.h"
 #include "data/data_saved_sublist.h"
 #include "data/data_shared_media.h"
-#include "data/data_message_reactions.h"
 #include "data/data_folder.h"
 #include "data/data_changes.h"
+#include "data/stickers/data_custom_emoji.h"
+#include "chat_helpers/stickers_emoji_pack.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
 #include "data/data_user.h"
@@ -92,9 +93,11 @@ auto PlainPrimaryUsernameValue(not_null<PeerData*> peer) {
 	}) | rpl::type_erased;
 }
 
-void StripExternalLinks(TextWithEntities &text) {
-	const auto local = [](const QString &url) {
-		return !UrlRequiresConfirmation(QUrl::fromUserInput(url));
+void StripExternalLinks(
+		not_null<Main::Session*> session,
+		TextWithEntities &text) {
+	const auto local = [&](const QString &url) {
+		return !UrlRequiresConfirmation(session, QUrl::fromUserInput(url));
 	};
 	const auto notLocal = [&](const EntityInText &entity) {
 		if (entity.type() == EntityType::CustomUrl) {
@@ -163,6 +166,10 @@ rpl::producer<TextWithEntities> PhoneValue(not_null<UserData*> user) {
 				const QString &localPhone) {
 		return localPhone.isEmpty() ? phone : tr::marked(localPhone);
 	}) | rpl::type_erased;
+}
+
+QString PublicLinkByPhone(not_null<UserData*> user) {
+	return user->session().createInternalLinkFull('+' + user->phone());
 }
 
 rpl::producer<TextWithEntities> PhoneOrHiddenValue(not_null<UserData*> user) {
@@ -288,7 +295,7 @@ TextWithEntities AboutWithEntities(
 	auto result = TextWithEntities{ value };
 	TextUtilities::ParseEntities(result, flags);
 	if (stripExternal) {
-		StripExternalLinks(result);
+		StripExternalLinks(&peer->session(), result);
 	}
 	return result;
 }
@@ -364,6 +371,7 @@ rpl::producer<bool> NotificationsEnabledValue(
 	if (!topic) {
 		return NotificationsEnabledValue(thread->peer());
 	}
+	const auto weak = base::make_weak(topic);
 	return rpl::merge(
 		topic->session().changes().topicFlagsValue(
 			topic,
@@ -374,7 +382,9 @@ rpl::producer<bool> NotificationsEnabledValue(
 			UpdateFlag::Notifications
 		) | rpl::to_empty,
 		topic->owner().notifySettings().defaultUpdates(topic->peer())
-	) | rpl::map([=] {
+	) | rpl::filter([=] {
+		return (weak.get() != nullptr);
+	}) | rpl::map([=] {
 		return !topic->owner().notifySettings().isMuted(topic);
 	}) | rpl::distinct_until_changed();
 }
@@ -724,16 +734,6 @@ rpl::producer<bool> CanAddMemberValue(not_null<PeerData*> peer) {
 	return rpl::single(false);
 }
 
-rpl::producer<int> FullReactionsCountValue(
-		not_null<Main::Session*> session) {
-	const auto reactions = &session->data().reactions();
-	return rpl::single(rpl::empty) | rpl::then(
-		reactions->defaultUpdates()
-	) | rpl::map([=] {
-		return int(reactions->list(Data::Reactions::Type::Active).size());
-	}) | rpl::distinct_until_changed();
-}
-
 rpl::producer<bool> CanViewParticipantsValue(
 		not_null<ChannelData*> megagroup) {
 	if (megagroup->amCreator()) {
@@ -797,6 +797,36 @@ rpl::producer<QString> BirthdayLabelText(
 			tr::lng_info_birthday_today_label(),
 			tr::lng_info_birthday_label());
 	}) | rpl::flatten_latest();
+}
+
+rpl::producer<TextWithEntities> BirthdayValueMarkedText(
+		not_null<UserData*> user,
+		rpl::producer<Data::Birthday> birthday) {
+	const auto session = &user->session();
+	const auto cake = Data::BirthdayCake();
+	const auto emoji = Ui::Emoji::Find(cake);
+	return rpl::combine(
+		BirthdayValueText(std::move(birthday)),
+		rpl::single(rpl::empty) | rpl::then(
+			session->emojiStickersPack().refreshed())
+	) | rpl::map([=](const QString &text, const auto &) {
+		auto result = TextWithEntities{ text };
+		const auto position = emoji ? text.indexOf(cake) : -1;
+		if (position < 0) {
+			return result;
+		}
+		const auto id = session->emojiStickersPack().standardEmojiDocument(
+			emoji);
+		if (id) {
+			result.entities.push_back({
+				EntityType::CustomEmoji,
+				int(position),
+				int(cake.size()),
+				Data::SerializeCustomEmojiId(id),
+			});
+		}
+		return result;
+	});
 }
 
 rpl::producer<QString> BirthdayValueText(

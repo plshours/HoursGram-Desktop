@@ -28,6 +28,6 @@ constexpr auto AppVersionStr = "1.0.0";
 // The version of Telegram Desktop this build is made from. It is what the
 // servers are told, since they turn some features on by the version of the
 // client, and our own 1.0.0 would look to them like a client from 2017.
-constexpr auto BaseAppVersionStr = "7.2.9";
+constexpr auto BaseAppVersionStr = "7.3.4";
 constexpr auto AppBetaVersion = false;
 constexpr auto AppAlphaVersion = TDESKTOP_ALPHA_VERSION;

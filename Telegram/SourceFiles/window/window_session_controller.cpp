@@ -117,6 +117,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/storage_account.h"
 #include "window/themes/window_theme.h"
 #include "window/themes/window_themes_chat.h"
+#include "window/window_no_paid_token.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller_link_info.h"
 #include "settings/cloud_password/settings_cloud_password_input.h"
@@ -430,9 +431,21 @@ bool SessionNavigation::showFrozenError() {
 
 void SessionNavigation::showPeerByLink(const PeerByLinkInfo &info) {
 	Core::App().hideMediaView();
+	if (!info.contactToken.isEmpty()) {
+		_api.request(base::take(_resolveRequestId)).cancel();
+		resolveContactToken(info.contactToken, [=](not_null<PeerData*> peer) {
+			ApplyNoPaidToken(this, peer, info.noPaidToken, [=] {
+				showPeerByLinkResolved(peer, info);
+			});
+		});
+		return;
+	}
+	cancelContactTokenResolve();
 	if (!info.phone.isEmpty()) {
 		resolvePhone(info.phone, [=](not_null<PeerData*> peer) {
-			showPeerByLinkResolved(peer, info);
+			ApplyNoPaidToken(this, peer, info.noPaidToken, [=] {
+				showPeerByLinkResolved(peer, info);
+			});
 		});
 	} else if (!info.chatLinkSlug.isEmpty()) {
 		resolveChatLink(info.chatLinkSlug, [=](
@@ -443,16 +456,18 @@ void SessionNavigation::showPeerByLink(const PeerByLinkInfo &info) {
 		});
 	} else if (const auto name = std::get_if<QString>(&info.usernameOrId)) {
 		resolveUsername(*name, [=](not_null<PeerData*> peer) {
-			if (info.startAutoSubmit) {
-				peer->session().api().blockedPeers().unblock(
-					peer,
-					[=](bool) { showPeerByLinkResolved(peer, info); },
-					true);
-			} else if (info.joinChannel && peer->isChannel()) {
-				peer->session().api().joinChannel(peer->asChannel());
-			} else {
-				showPeerByLinkResolved(peer, info);
-			}
+			ApplyNoPaidToken(this, peer, info.noPaidToken, [=] {
+				if (info.startAutoSubmit) {
+					peer->session().api().blockedPeers().unblock(
+						peer,
+						[=](bool) { showPeerByLinkResolved(peer, info); },
+						true);
+				} else if (info.joinChannel && peer->isChannel()) {
+					peer->session().api().joinChannel(peer->asChannel());
+				} else {
+					showPeerByLinkResolved(peer, info);
+				}
+			});
 		}, info.referral);
 	} else if (const auto id = std::get_if<ChannelId>(&info.usernameOrId)) {
 		resolveChannelById(*id, [=](not_null<ChannelData*> channel) {
@@ -506,8 +521,13 @@ void SessionNavigation::resolveChatLink(
 		_resolveRequestId = 0;
 		parentController()->hideLayer();
 		const auto &data = result.data();
-		_session->data().processUsers(data.vusers());
-		_session->data().processChats(data.vchats());
+		const auto weak = base::make_weak(this);
+		const auto owner = &_session->data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+		if (!weak) {
+			return;
+		}
 
 		using namespace Api;
 		const auto peerId = peerFromMTP(data.vpeer());
@@ -560,8 +580,13 @@ void SessionNavigation::resolveDone(
 	_resolveRequestId = 0;
 	parentController()->hideLayer();
 	result.match([&](const MTPDcontacts_resolvedPeer &data) {
-		_session->data().processUsers(data.vusers());
-		_session->data().processChats(data.vchats());
+		const auto weak = base::make_weak(this);
+		const auto owner = &_session->data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+		if (!weak) {
+			return;
+		}
 		if (const auto peerId = peerFromMTP(data.vpeer())) {
 			done(_session->data().peer(peerId));
 		}
@@ -587,7 +612,11 @@ void SessionNavigation::resolveChannelById(
 			MTP_inputChannel(MTP_long(channelId.bare), MTP_long(0)))
 	)).done([=](const MTPmessages_Chats &result) {
 		result.match([&](const auto &data) {
+			const auto weak = base::make_weak(this);
 			const auto peer = _session->data().processChats(data.vchats());
+			if (!weak) {
+				return;
+			}
 			if (peer && peer->id == peerFromChannel(channelId)) {
 				const auto channel = peer->asChannel();
 				if (channel->isForbidden() && !channel->isPublic()) {
@@ -621,6 +650,41 @@ void SessionNavigation::showMessageByLinkResolved(
 		showPeerHistory(peer, params, item->id);
 	}
 }
+
+namespace {
+
+void OpenPeerWithSidebar(
+		not_null<SessionNavigation*> navigation,
+		not_null<PeerData*> peer,
+		std::optional<Storage::SharedMediaType> media,
+		const SectionShow &params,
+		MsgId msgId) {
+	auto &settings = Core::App().settings();
+	const auto tabbedPinned = settings.tabbedSelectorSectionEnabled();
+	settings.setThirdSectionInfoEnabled(true);
+	if (tabbedPinned) {
+		settings.setTabbedSelectorSectionEnabled(true);
+	}
+	Core::App().saveSettingsDelayed();
+	const auto controller = navigation->parentController();
+	if (!controller->adaptive().isThreeColumn()) {
+		controller->resizeForThirdSection();
+	}
+	if (tabbedPinned) {
+		settings.setTabbedReplacedWithInfo(true);
+	}
+	if (const auto forum = peer->forum()) {
+		controller->showForum(forum, params, msgId);
+	} else {
+		navigation->showPeerHistory(peer, params, msgId);
+	}
+	auto memento = media
+		? std::make_shared<Info::Memento>(peer, Info::Section(*media))
+		: Info::Memento::Default(peer);
+	navigation->showSection(std::move(memento), params.withThirdColumn());
+}
+
+} // namespace
 
 void SessionNavigation::showPeerByLinkResolved(
 		not_null<PeerData*> peer,
@@ -688,8 +752,23 @@ void SessionNavigation::showPeerByLinkResolved(
 	} else if (const auto commentId = std::get_if<CommentId>(&replies)) {
 		const auto history = peer->owner().history(peer);
 		showRepliesForMessage(history, msgId, commentId->id, params);
+	} else if (info.sidebar && resolveType == ResolveType::Default) {
+		OpenPeerWithSidebar(this, peer, info.sharedMediaTab, params, msgId);
 	} else if (resolveType == ResolveType::Profile) {
-		showPeerInfo(peer, params);
+		if (const auto media = info.sharedMediaTab) {
+			showSection(
+				Info::Memento::ProfileWithMediaTab(peer, *media),
+				params);
+		} else {
+			showPeerInfo(peer, params);
+		}
+	} else if (resolveType == ResolveType::Default
+		&& info.sharedMediaTab) {
+		showSection(
+			std::make_shared<Info::Memento>(
+				peer,
+				Info::Section(*info.sharedMediaTab)),
+			params);
 	} else if (resolveType == ResolveType::HashtagSearch) {
 		searchMessages(info.text, peer->owner().history(peer));
 	} else if (info.storyParam == u"live"_q) {
@@ -1007,7 +1086,11 @@ void SessionNavigation::resolveConferenceCall(
 			const auto call = session().data().sharedConferenceCall(
 				data.vid().v,
 				data.vaccess_hash().v);
+			const auto weak = base::make_weak(this);
 			call->processFullCall(result);
+			if (!weak) {
+				return;
+			}
 			const auto join = [=](Fn<void()> close) {
 				const auto &appConfig = call->session().appConfig();
 				const auto conferenceLimit = appConfig.confcallSizeLimit();
@@ -1081,8 +1164,13 @@ void SessionNavigation::applyBoost(
 	_api.request(MTPpremium_GetMyBoosts(
 	)).done([=](const MTPpremium_MyBoosts &result) {
 		const auto &data = result.data();
-		_session->data().processUsers(data.vusers());
-		_session->data().processChats(data.vchats());
+		const auto weak = base::make_weak(this);
+		const auto owner = &_session->data();
+		owner->processUsers(data.vusers());
+		owner->processChats(data.vchats());
+		if (!weak) {
+			return;
+		}
 		const auto slots = ParseForChannelBoostSlots(
 			channel,
 			data.vmy_boosts().v);
@@ -1203,7 +1291,11 @@ void SessionNavigation::joinVoiceChatFromLink(
 	_resolveRequestId = _api.request(
 		MTPchannels_GetFullChannel(peer->asChannel()->inputChannel())
 	).done([=](const MTPmessages_ChatFull &result) {
+		const auto weak = base::make_weak(this);
 		_session->api().processFullPeer(peer, result);
+		if (!weak) {
+			return;
+		}
 		const auto call = peer->groupCall();
 		if (!call) {
 			bad();
@@ -1227,7 +1319,9 @@ void SessionNavigation::joinVoiceChatFromLink(
 				if (!now->loaded()) {
 					now->processFullCall(result);
 				}
-				join();
+				if (weak) {
+					join();
+				}
 			} else {
 				bad();
 			}
@@ -1276,9 +1370,11 @@ void SessionNavigation::showRepliesForMessage(
 	).done([=](const MTPmessages_DiscussionMessage &result) {
 		_showingRepliesRequestId = 0;
 		result.match([&](const MTPDmessages_discussionMessage &data) {
-			_session->data().processUsers(data.vusers());
-			_session->data().processChats(data.vchats());
-			_session->data().processMessages(
+			const auto weak = base::make_weak(this);
+			const auto owner = &_session->data();
+			owner->processUsers(data.vusers());
+			owner->processChats(data.vchats());
+			owner->processMessages(
 				data.vmessages(),
 				NewMessageType::Existing);
 			const auto list = data.vmessages().v;
@@ -1296,16 +1392,16 @@ void SessionNavigation::showRepliesForMessage(
 			}
 			auto item = deleted
 				? nullptr
-				: _session->data().message(peer, id);
+				: owner->message(peer, id);
 			if (comments && !item) {
 				return;
 			}
-			const auto &groups = _session->data().groups();
+			const auto &groups = owner->groups();
 			if (const auto group = item ? groups.find(item) : nullptr) {
 				item = group->items.front();
 			}
 			if (comments) {
-				const auto post = _session->data().message(postPeer, rootId);
+				const auto post = owner->message(postPeer, rootId);
 				if (post) {
 					post->setCommentsItemId(item->fullId());
 					if (const auto maxId = data.vmax_id()) {
@@ -1314,6 +1410,9 @@ void SessionNavigation::showRepliesForMessage(
 					post->setCommentsInboxReadTill(
 						data.vread_inbox_max_id().value_or_empty());
 				}
+			}
+			if (!weak) {
+				return;
 			}
 			if (deleted || item) {
 				using namespace HistoryView;
@@ -1462,9 +1561,12 @@ void SessionNavigation::showByInitialId(
 		clearSectionStack(instant);
 		const auto type = id.sharedMediaType;
 		const auto topic = id.thread->asTopic();
+		const auto sublist = id.thread->asSublist();
 		showSection(
 			(topic
 				? std::make_shared<Info::Memento>(topic, type)
+				: sublist
+				? std::make_shared<Info::Memento>(sublist, type)
 				: std::make_shared<Info::Memento>(id.thread->peer(), type)),
 			instant);
 		parent->widget()->setMaximumWidth(st::maxWidthSharedMediaWindow);
@@ -1523,14 +1625,14 @@ auto SessionNavigation::showToast(Ui::Toast::Config &&config)
 
 auto SessionNavigation::showToast(const QString &text, crl::time duration)
 -> base::weak_ptr<Ui::Toast::Instance> {
-	return uiShow()->showToast(text);
+	return uiShow()->showToast(text, duration);
 }
 
 auto SessionNavigation::showToast(
 	TextWithEntities &&text,
 	crl::time duration)
 -> base::weak_ptr<Ui::Toast::Instance> {
-	return uiShow()->showToast(std::move(text));
+	return uiShow()->showToast(std::move(text), duration);
 }
 
 std::shared_ptr<ChatHelpers::Show> SessionNavigation::uiShow() {
@@ -1584,6 +1686,22 @@ SessionController::SessionController(
 , _defaultChatTheme(std::make_shared<Ui::ChatTheme>())
 , _chatStyle(std::make_unique<Ui::ChatStyle>(session->colorIndicesValue())) {
 	init();
+
+	// WHY: the window keeps a raw pointer to its root topic or sublist, and
+	// subscribing before its sections lets this close destroy their later
+	// subscriptions before they run, so it stays the only rooted close.
+	if (const auto root = window->id().thread) {
+		const auto topic = root->asTopic();
+		const auto sublist = root->asSublist();
+		if (topic || sublist) {
+			auto destroyed = topic
+				? topic->destroyed()
+				: sublist->destroyed();
+			std::move(destroyed) | rpl::on_next([=] {
+				Core::App().closeWindow(_window);
+			}, _lifetime);
+		}
+	}
 
 	_chatStyleTheme = _defaultChatTheme;
 	_chatStyle->apply(_defaultChatTheme.get());
@@ -1698,11 +1816,11 @@ SessionController::SessionController(
 			}
 		}
 		for (auto &entry : _chatEntryHistory) {
-			if (const auto topic = entry.key.topic()) {
-				if (topic->rootId() == change.oldId) {
-					entry.key = Dialogs::Key(
-						topic->forum()->topicFor(change.newId.msg));
-				}
+			const auto topic = entry.thread ? entry.row.key.topic() : nullptr;
+			if (topic && topic->rootId() == change.oldId) {
+				const auto real = topic->forum()->topicFor(change.newId.msg);
+				entry.row.key = Dialogs::Key(real);
+				entry.thread = real;
 			}
 		}
 	}, lifetime());
@@ -1929,7 +2047,9 @@ void SessionController::init() {
 }
 
 void SessionController::setupScreenshotProtection() {
-	Core::App().screenshotProtection().addAmbientReason(activeChatValue(
+	Core::App().screenshotProtection().addAmbientReason(
+		widget(),
+		activeChatValue(
 	) | rpl::map([](Dialogs::Key key) {
 		const auto peer = key.peer();
 		return peer
@@ -2193,6 +2313,9 @@ bool SessionController::showForumInDifferentWindow(
 		not_null<Data::Forum*> forum,
 		const SectionShow &params,
 		MsgId showAtMsgId) {
+	if (windowId().forum() == forum) {
+		return false;
+	}
 	const auto window = Core::App().windowForShowingForum(forum);
 	if (window == _window) {
 		return false;
@@ -2416,7 +2539,8 @@ bool SessionController::chatEntryHistoryMove(int steps) {
 		return false;
 	}
 	_chatEntryHistoryPosition = position;
-	return jumpToChatListEntry(_chatEntryHistory[position]);
+	const auto &entry = _chatEntryHistory[position];
+	return entry.thread && jumpToChatListEntry(entry.row);
 }
 
 bool SessionController::jumpToChatListEntry(Dialogs::RowDescriptor row) {
@@ -2432,16 +2556,14 @@ bool SessionController::jumpToChatListEntry(Dialogs::RowDescriptor row) {
 
 void SessionController::setDialogsEntryState(
 		Dialogs::EntryState state) {
-	_dialogsEntryState = state;
+	_dialogsEntryThread = state.key.thread();
+	_dialogsEntryState = std::move(state);
 }
 
 Dialogs::EntryState SessionController::dialogsEntryStateCurrent() const {
-	return _dialogsEntryState.current();
-}
-
-auto SessionController::dialogsEntryStateValue() const
--> rpl::producer<Dialogs::EntryState> {
-	return _dialogsEntryState.value();
+	return _dialogsEntryThread
+		? _dialogsEntryState.current()
+		: Dialogs::EntryState();
 }
 
 bool SessionController::switchInlineQuery(
@@ -2469,7 +2591,8 @@ bool SessionController::switchInlineQuery(
 		Ui::kQFixedMax
 	};
 	if (to.currentReplyTo.messageId.msg == to.currentReplyTo.topicRootId
-		&& to.currentReplyTo.quote.empty()) {
+		&& to.currentReplyTo.quote.empty()
+		&& !to.currentReplyTo.richQuote) {
 		to.currentReplyTo.messageId.msg = MsgId();
 	}
 	if (!history->suggestDraftAllowed()) {
@@ -2536,12 +2659,16 @@ Dialogs::RowDescriptor SessionController::resolveChatPrevious(
 }
 
 void SessionController::pushToChatEntryHistory(Dialogs::RowDescriptor row) {
-	if (!_chatEntryHistory.empty()
-		&& _chatEntryHistory[_chatEntryHistoryPosition] == row) {
-		return;
+	const auto thread = row.key.thread();
+	if (!_chatEntryHistory.empty()) {
+		const auto &current = _chatEntryHistory[_chatEntryHistoryPosition];
+		// A new topic can reuse a freed one's address.
+		if (current.row == row && current.thread.get() == thread) {
+			return;
+		}
 	}
 	_chatEntryHistory.resize(++_chatEntryHistoryPosition);
-	_chatEntryHistory.push_back(row);
+	_chatEntryHistory.push_back({ row, thread });
 	if (_chatEntryHistory.size() > kMaxChatEntryHistorySize) {
 		_chatEntryHistory.pop_front();
 		--_chatEntryHistoryPosition;
@@ -2745,6 +2872,13 @@ void SessionController::resizeForThirdSection() {
 
 	auto &settings = Core::App().settings();
 	auto layout = computeColumnLayout();
+	const auto oneColumn
+		= (layout.windowLayout == Adaptive::WindowLayout::OneColumn);
+	// WHY: a one-column window grows back to three columns, so the
+	// deficit covers the dialogs and chat columns (third one included).
+	const auto deficit = oneColumn
+		? (minimalThreeColumnWidth() - layout.bodyWidth)
+		: 0;
 	auto tabbedSelectorSectionEnabled
 		= settings.tabbedSelectorSectionEnabled();
 	auto thirdSectionInfoEnabled
@@ -2752,8 +2886,8 @@ void SessionController::resizeForThirdSection() {
 	settings.setTabbedSelectorSectionEnabled(false);
 	settings.setThirdSectionInfoEnabled(false);
 
-	auto wanted = countThirdColumnWidthFromRatio(layout.bodyWidth);
-	auto minimal = st::columnMinimalWidthThird;
+	auto wanted = countThirdColumnWidthFromRatio(layout.bodyWidth) + deficit;
+	auto minimal = deficit ? deficit : st::columnMinimalWidthThird;
 	auto extendBy = wanted;
 	auto extendedBy = [&] {
 		// Best - extend by third column without moving the window.
@@ -2772,7 +2906,9 @@ void SessionController::resizeForThirdSection() {
 	}();
 	if (extendedBy) {
 		if (extendBy != settings.thirdColumnWidth()) {
-			settings.setThirdColumnWidth(extendBy);
+			settings.setThirdColumnWidth(std::max(
+				extendBy - deficit,
+				st::columnMinimalWidthThird));
 		}
 		const auto nochat = !mainSectionShown();
 		auto newBodyWidth = layout.bodyWidth + extendedBy;
@@ -2781,7 +2917,9 @@ void SessionController::resizeForThirdSection() {
 			(currentRatio * layout.bodyWidth) / newBodyWidth,
 			nochat);
 	}
-	auto savedValue = (extendedBy == extendBy) ? -1 : extendedBy;
+	auto savedValue = (extendedBy == extendBy && !oneColumn)
+		? -1
+		: extendedBy;
 	settings.setThirdSectionExtendedBy(savedValue);
 
 	settings.setTabbedSelectorSectionEnabled(
