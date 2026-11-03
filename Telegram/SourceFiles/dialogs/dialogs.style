@@ -979,6 +979,7 @@ macTabChats: IconButton(macTabContacts) {
 macTabSettings: IconButton(macTabContacts) {
 	icon: icon {{ "menu/settings", windowSubTextFg }};
 	iconOver: icon {{ "menu/settings", windowActiveTextFg }};
+}
 restoreWindowsOfferPadding: margins(
 	dialogsTopBarLeftPadding,
 	6px,
