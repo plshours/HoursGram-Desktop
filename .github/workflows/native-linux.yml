@@ -89,6 +89,26 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/build.log"
           df -h / /mnt
 
+      - name: Report build errors
+        if: failure()
+        run: |
+          # The job log is shown to signed-in users only, annotations are
+          # public, so the lines that explain a failure are copied there.
+          # A step gets ten annotations at most, so the lines go in groups.
+          log="$RUNNER_TEMP/build.log"
+          [ -f "$log" ] || exit 0
+          grep -n -i -E 'error|FAILED:|undefined reference|no such file' "$log" \
+            | grep -v -i -E 'Werror|error_code|-error-|errors?\.(h|cpp|c)\b' \
+            | head -n 80 > "$RUNNER_TEMP/errors.txt" || true
+          if [ ! -s "$RUNNER_TEMP/errors.txt" ]; then
+            tail -n 40 "$log" > "$RUNNER_TEMP/errors.txt"
+          fi
+          split -l 10 "$RUNNER_TEMP/errors.txt" "$RUNNER_TEMP/errors-part-"
+          for part in "$RUNNER_TEMP"/errors-part-*; do
+            message=$(cut -c1-400 "$part" | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error::$message"
+          done
+
       - name: Package for Arch, Manjaro and the rest
         run: |
           chmod +x .github/scripts/package_linux.sh
