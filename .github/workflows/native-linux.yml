@@ -79,6 +79,7 @@ jobs:
             -u "$(id -u)" \
             -v "$PWD:/usr/src/tdesktop" \
             -e CONFIG=Release \
+            -e KEEP_GOING=1 \
             "$BUILD_IMAGE" \
             /usr/src/tdesktop/Telegram/build/docker/centos_env/build.sh \
             -D CMAKE_CONFIGURATION_TYPES=Release \
@@ -97,9 +98,9 @@ jobs:
           # A step gets ten annotations at most, so the lines go in groups.
           log="$RUNNER_TEMP/build.log"
           [ -f "$log" ] || exit 0
-          grep -n -i -E 'error|FAILED:|undefined reference|no such file' "$log" \
-            | grep -v -i -E 'Werror|error_code|-error-|errors?\.(h|cpp|c)\b' \
-            | head -n 80 > "$RUNNER_TEMP/errors.txt" || true
+          grep -n -E ': error:|: fatal error:|error [0-9]+:|FAILED:|undefined reference' "$log" \
+            | grep -v 'stddef.h' \
+            | head -n 100 > "$RUNNER_TEMP/errors.txt" || true
           if [ ! -s "$RUNNER_TEMP/errors.txt" ]; then
             tail -n 40 "$log" > "$RUNNER_TEMP/errors.txt"
           fi
