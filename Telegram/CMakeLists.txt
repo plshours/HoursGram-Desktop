@@ -35,6 +35,7 @@ include(cmake/lib_tgcalls.cmake)
 include(cmake/lib_prisma.cmake)
 include(cmake/lib_fido2.cmake)
 include(cmake/lib_zxcvbn.cmake)
+include(cmake/lib_quickjs.cmake)
 include(cmake/td_export.cmake)
 include(cmake/td_gram.cmake)
 include(cmake/td_iv.cmake)
@@ -76,6 +77,7 @@ set_target_properties(Telegram PROPERTIES AUTOMOC ON)
 
 target_link_libraries(Telegram
 PRIVATE
+    desktop-app::lib_quickjs
     tdesktop::lib_fido2
     tdesktop::lib_tgcalls
     tdesktop::td_export
@@ -1431,6 +1433,10 @@ PRIVATE
     hoursgram/music/music_playlists.h
     hoursgram/music/music_playlists_box.cpp
     hoursgram/music/music_playlists_box.h
+    hoursgram/plugins/plugins.cpp
+    hoursgram/plugins/plugins.h
+    hoursgram/plugins/plugins_box.cpp
+    hoursgram/plugins/plugins_box.h
 
     info/bot/earn/info_bot_earn_list.cpp
     info/bot/earn/info_bot_earn_list.h
@@ -2720,6 +2726,7 @@ PRIVATE
     qrc/telegram/animations.qrc
     qrc/telegram/export.qrc
     qrc/telegram/hoursgram_fonts.qrc
+    qrc/telegram/hoursgram_plugins.qrc
     qrc/telegram/export_rich.qrc
     qrc/telegram/picker.qrc
     qrc/telegram/telegram.qrc

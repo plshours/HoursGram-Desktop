@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/hoursgram/plugins">
+    <file alias="prelude.js">../../plugins/horus_plugin_prelude.js</file>
+    <file alias="example.hgplugin">../../plugins/horus_example.hgplugin</file>
+  </qresource>
+</RCC>

@@ -99,6 +99,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_settings.h"
 #include "ayu/data/messages_storage.h"
 #include "ayu/features/filters/filters_controller.h"
+#include "hoursgram/plugins/plugins.h"
 #include "ayu/utils/telegram_helpers.h"
 
 
@@ -3683,6 +3684,9 @@ HistoryItem *Session::addNewMessage(
 		type);
 	if (type == NewMessageType::Unread) {
 		CheckForSwitchInlineButton(result);
+		if (result) {
+			HoursGram::Plugins::ProcessIncoming(result);
+		}
 	}
 	return result;
 }

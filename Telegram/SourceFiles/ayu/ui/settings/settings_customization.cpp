@@ -19,6 +19,8 @@
 #include "core/file_utilities.h"
 #include "data/data_wall_paper.h"
 #include "hoursgram/customization/customization_palette.h"
+#include "hoursgram/plugins/plugins.h"
+#include "hoursgram/plugins/plugins_box.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_main.h"
 #include "settings/settings_builder.h"
@@ -508,6 +510,27 @@ void BuildFonts(SectionBuilder &builder) {
 	}
 }
 
+void BuildPlugins(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+
+	builder.addSkip();
+	builder.addSubsectionTitle(tr::hoursgram_Plugins());
+	builder.addButton({
+		.id = u"hoursgram/plugins"_q,
+		.title = tr::hoursgram_Plugins(),
+		.st = &st::settingsButtonNoIcon,
+		.label = rpl::single(rpl::empty) | rpl::then(
+			HoursGram::Plugins::Changes()
+		) | rpl::map([](auto&&) {
+			return QString::number(HoursGram::Plugins::List().size());
+		}),
+		.onClick = [=] {
+			HoursGram::Plugins::ShowPluginsBox(controller);
+		},
+	});
+	builder.addDividerText(tr::hoursgram_PluginsAbout());
+}
+
 const auto kMeta = BuildHelper({
 	.id = AyuCustomization::Id(),
 	.parentId = AyuMain::Id(),
@@ -521,6 +544,7 @@ const auto kMeta = BuildHelper({
 	BuildFonts(builder);
 	BuildBackground(builder);
 	BuildMessages(builder, ayu);
+	BuildPlugins(builder);
 	builder.addSkip();
 });
 

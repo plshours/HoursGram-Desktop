@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ui/boxes/plugin_info_box.h"
+#include "hoursgram/plugins/plugins.h"
 #include <QtCore/QFile>
 
 
@@ -268,6 +269,19 @@ void ResolveDocument(
 	const auto openPluginInfo = [&] {
 		if (document->size >= Images::kReadBytesLimit) {
 			return false;
+		}
+		// HorusGram: a plugin file opened from a chat is offered for
+		// installation.
+		if (controller
+			&& HoursGram::Plugins::IsPluginFile(document->filename())
+			&& !document->filepath(true).isEmpty()) {
+			auto file = QFile(document->location(true).name());
+			if (file.open(QIODevice::ReadOnly)) {
+				HoursGram::Plugins::AskInstall(
+					controller,
+					QString::fromUtf8(file.readAll()));
+				return true;
+			}
 		}
 		if (controller
 			&& document->filename().endsWith(

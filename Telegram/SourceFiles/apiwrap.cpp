@@ -114,6 +114,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_worker.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "ayu/features/forward/ayu_forward.h"
+#include "hoursgram/plugins/plugins.h"
 
 
 namespace {
@@ -4828,6 +4829,19 @@ void ApiWrap::sendRichMessage(
 void ApiWrap::sendMessage(
 		MessageToSend &&message,
 		std::optional<MsgId> localMessageId) {
+	// HorusGram: plugins see a text message before it leaves, and may
+	// change or stop it.
+	if (!message.textWithTags.text.isEmpty()) {
+		const auto processed = HoursGram::Plugins::ProcessOutgoing(
+			&session(),
+			message.action.history->peer->id,
+			message.textWithTags.text);
+		if (!processed) {
+			return;
+		} else if (*processed != message.textWithTags.text) {
+			message.textWithTags = { *processed };
+		}
+	}
 	applyGhostScheduling(message.action, message.textWithTags.text);
 	const auto clearReplyTo = prependPseudoReply(message);
 
