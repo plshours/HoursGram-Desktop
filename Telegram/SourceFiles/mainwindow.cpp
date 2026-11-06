@@ -375,6 +375,19 @@ void MainWindow::setupMain(
 			.title = tr::hoursgram_ThemeChoiceTitle(),
 			.strictCancel = true,
 		}));
+	} else if (AyuSettings::getInstance().clientTheme() == 4) {
+		// The first Graphite palette had dark links and accent text. The
+		// saved copy of it is replaced once by the palette of this version.
+		static auto checked = false;
+		if (!checked) {
+			checked = true;
+			if (st::windowActiveTextFg->c.lightness() < 128) {
+				const auto path = u":/gui/hoursgram-graphite.tdesktop-palette"_q;
+				if (Window::Theme::Apply(path)) {
+					Window::Theme::KeepApplied();
+				}
+			}
+		}
 	}
 }
 

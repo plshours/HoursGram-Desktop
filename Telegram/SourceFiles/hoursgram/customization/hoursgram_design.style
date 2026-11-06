@@ -31,3 +31,10 @@ hoursgramIconMusic: icon {{ "hoursgram/settings_music", hoursgramIconFg }};
 hoursgramIconGifts: icon {{ "hoursgram/settings_gifts", hoursgramIconFg }};
 hoursgramIconMore: icon {{ "hoursgram/settings_more", hoursgramIconFg }};
 hoursgramIconDevices: icon {{ "hoursgram/settings_devices", hoursgramIconFg }};
+
+// The Saved and Music buttons of the left bar, in the size of the folder
+// icons. Made by tools/make_icons.py --side-bar.
+hoursgramSideBarSaved: icon {{ "hoursgram/sidebar_saved", sideBarIconFg }};
+hoursgramSideBarSavedActive: icon {{ "hoursgram/sidebar_saved", sideBarIconFgActive }};
+hoursgramSideBarMusic: icon {{ "hoursgram/sidebar_music", sideBarIconFg }};
+hoursgramSideBarMusicActive: icon {{ "hoursgram/sidebar_music", sideBarIconFgActive }};

@@ -173,3 +173,57 @@ Edit-Text `
 		})
 
 Write-Output 'Applied HoursGram fonts, rounded hover states, the Graphite button edges, the GPU renderer and the Lottie bounds to the pinned libraries.'
+
+# HorusGram Graphite: settings rows and side bar buttons animate under the
+# cursor: the pill and its edge fade in, side bar icons spring up.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'_hoursgramOver.start' `
+	@(
+		@{
+			Old = "void SettingsButton::paintEvent(QPaintEvent *e) {`n`tPainter p(this);`n`n`tconst auto paintOver = (isOver() || isDown()) && !isDisabled();`n`tpaintBg(p, e->rect(), paintOver);`n";
+			New = "void SettingsButton::paintEvent(QPaintEvent *e) {`n`tPainter p(this);`n`n`tconst auto paintOver = (isOver() || isDown()) && !isDisabled();`n`tif (HoursGramGraphite()) {`n`t`t// The pill and its edge fade in under the cursor instead of`n`t`t// appearing at once.`n`t`tconst auto shown = std::clamp(`n`t`t`t_hoursgramOver.value(paintOver ? 1. : 0.),`n`t`t`t0.,`n`t`t`t1.);`n`t`tpaintBg(p, e->rect(), false);`n`t`tif (shown > 0.) {`n`t`t`tconst auto full = QRectF(rect());`n`t`t`tconst auto scaled = float64(`n`t`t`t`tstyle::ConvertScale(kSettingsButtonRadius));`n`t`t`tconst auto radius = (full.height() > 2 * scaled)`n`t`t`t`t? scaled`n`t`t`t`t: (full.height() / 2.);`n`t`t`t{`n`t`t`t`tauto hq = PainterHighQualityEnabler(p);`n`t`t`t`tp.setOpacity(shown);`n`t`t`t`tp.setPen(Qt::NoPen);`n`t`t`t`tp.setBrush(_st.textBgOver);`n`t`t`t`tp.drawRoundedRect(full, radius, radius);`n`t`t`t`tp.setOpacity(1.);`n`t`t`t}`n`t`t`tPaintHoursGramEdge(p, full, radius, shown);`n`t`t}`n`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n";
+		},
+		@{
+			Old = "`tconst auto wasDisabled = !!(was & StateFlag::Disabled);`n`tconst auto nowDisabled = isDisabled();`n`tif (!nowDisabled || !isDown()) {`n`t`tRippleButton::onStateChanged(was, source);`n`t}`n";
+			New = "`tconst auto wasDisabled = !!(was & StateFlag::Disabled);`n`tconst auto nowDisabled = isDisabled();`n`tif (!nowDisabled || !isDown()) {`n`t`tRippleButton::onStateChanged(was, source);`n`t}`n`tif (HoursGramGraphite()) {`n`t`tconst auto over = (isOver() || isDown()) && !nowDisabled;`n`t`tconst auto wasOver = !wasDisabled`n`t`t`t&& (!!(was & StateFlag::Over) || !!(was & StateFlag::Down));`n`t`tif (over != wasOver) {`n`t`t`t_hoursgramOver.start(`n`t`t`t`t[=] { update(); },`n`t`t`t`tover ? 0. : 1.,`n`t`t`t`tover ? 1. : 0.,`n`t`t`t`tover ? 180 : 260,`n`t`t`t`tanim::easeOutCirc);`n`t`t}`n`t}`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.h') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "`tstd::optional<QColor> _textColorOverride;`n`tText::MarkedContext _context;`n`n};`n";
+			New = "`tstd::optional<QColor> _textColorOverride;`n`tText::MarkedContext _context;`n`tUi::Animations::Simple _hoursgramOver;`n`n};`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.cpp') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "#include `"ui/effects/ripple_animation.h`"`n";
+			New = "#include `"ui/effects/ripple_animation.h`"`n#include `"styles/palette.h`"`n";
+		},
+		@{
+			Old = "`tRippleButton::paintRipple(p, 0, 0);`n`n`tif (_lock.locked) {`n`t`tp.setOpacity(kPremiumLockedOpacity);`n`t}`n`n`tif (_showIcon) {`n`t`tconst auto &icon = computeIcon();`n`t`tconst auto x = iconLeft();`n`t`tconst auto y = iconTop();`n";
+			New = "`tauto hoursgramLift = 0;`n`tif (HoursGramGraphite()) {`n`t`t// A pill with a light top edge fades in under the cursor and the`n`t`t// icon springs up a little; the active folder keeps the pill.`n`t`tconst auto value = _hoursgramOver.value(isOver() ? 1. : 0.);`n`t`tconst auto shown = _active ? 1. : std::clamp(value, 0., 1.);`n`t`tif (shown > 0.) {`n`t`t`tauto hq = PainterHighQualityEnabler(p);`n`t`t`tconst auto side = float64(style::ConvertScale(7));`n`t`t`tconst auto top = float64(style::ConvertScale(2));`n`t`t`tconst auto pill = QRectF(rect()).marginsRemoved(`n`t`t`t`t{ side, top, side, top });`n`t`t`tconst auto radius = std::min(`n`t`t`t`tfloat64(style::ConvertScale(16)),`n`t`t`t`tpill.height() / 2.);`n`t`t`tconst auto line = style::ConvertScaleExact(1.5);`n`t`t`tconst auto half = line / 2.;`n`t`t`tconst auto inner = pill.marginsRemoved({ half, half, half, half });`n`t`t`tp.save();`n`t`t`tp.setOpacity(shown);`n`t`t`tp.setPen(Qt::NoPen);`n`t`t`tp.setBrush(st::windowBgOver);`n`t`t`tp.drawRoundedRect(pill, radius, radius);`n`t`t`tp.setBrush(Qt::NoBrush);`n`t`t`tp.setPen(QPen(st::windowBgRipple->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.setClipRect(`n`t`t`t`tQRectF(pill.x(), pill.y(), pill.width(), pill.height() * 0.4),`n`t`t`t`tQt::IntersectClip);`n`t`t`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.restore();`n`t`t}`n`t`tif (!_active) {`n`t`t`thoursgramLift = -int(std::round(style::ConvertScale(2) * value));`n`t`t}`n`t}`n`n`tRippleButton::paintRipple(p, 0, 0);`n`n`tif (_lock.locked) {`n`t`tp.setOpacity(kPremiumLockedOpacity);`n`t}`n`n`tif (_showIcon) {`n`t`tconst auto &icon = computeIcon();`n`t`tconst auto x = iconLeft();`n`t`tconst auto y = iconTop() + hoursgramLift;`n";
+		},
+		@{
+			Old = "const style::icon &SideBarButton::computeIcon() const {`n";
+			New = "void SideBarButton::onStateChanged(State was, StateChangeSource source) {`n`tRippleButton::onStateChanged(was, source);`n`tconst auto over = isOver();`n`tif (HoursGramGraphite() && (over != !!(was & StateFlag::Over))) {`n`t`t_hoursgramOver.start(`n`t`t`t[=] { update(); },`n`t`t`tover ? 0. : 1.,`n`t`t`tover ? 1. : 0.,`n`t`t`tover ? 320 : 220,`n`t`t`tover ? anim::easeOutBack : anim::easeOutCirc);`n`t}`n}`n`nconst style::icon &SideBarButton::computeIcon() const {`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.h') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "private:`n`tvoid paintEvent(QPaintEvent *e) override;`n`n`t[[nodiscard]] const style::icon &computeIcon() const;`n";
+			New = "private:`n`tvoid paintEvent(QPaintEvent *e) override;`n`tvoid onStateChanged(State was, StateChangeSource source) override;`n`n`t[[nodiscard]] const style::icon &computeIcon() const;`n";
+		},
+		@{
+			Old = "`tbool _showIcon = true;`n`tbool _showText = true;`n";
+			New = "`tbool _showIcon = true;`n`tbool _showText = true;`n`tUi::Animations::Simple _hoursgramOver;`n";
+		})

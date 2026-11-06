@@ -50,6 +50,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_hoursgram_design.h"
 
 #include <QtGui/QtEvents>
 
@@ -153,13 +154,18 @@ void FiltersMenu::setup() {
 		const auto graphite = Ui::HoursGramGraphite() && !hideMenu;
 		_hoursgramBottom->setVisible(graphite);
 		if (graphite) {
-			// Folders from the top, then Saved and Music, and the menu with
-			// the settings at the very bottom.
+			// The menu with the settings on top, the folders under it, and
+			// Saved and Music at the bottom.
 			_hoursgramBottom->resizeToWidth(width);
-			const auto bottom = _hoursgramBottom->height() + _menu.height();
-			_menu.move(0, height - _menu.height());
+			const auto top = _menu.height();
+			const auto bottom = _hoursgramBottom->height();
+			_menu.move(0, 0);
 			_hoursgramBottom->move(0, height - bottom);
-			_scroll.setGeometry({ 0, 0, width, std::max(height - bottom, 0) });
+			_scroll.setGeometry({
+				0,
+				top,
+				width,
+				std::max(height - top - bottom, 0) });
 		} else {
 			const auto top = hideMenu ? 0 : _menu.height();
 			_scroll.setGeometry({ 0, top, width, height - top });
@@ -236,21 +242,21 @@ void FiltersMenu::setupHoursGramBottom() {
 	const auto add = [&](
 			const QString &english,
 			const QString &inRussian,
-			Ui::FilterIcon icon,
+			const style::icon &icon,
+			const style::icon &iconActive,
 			Fn<void()> callback) {
 		const auto button = _hoursgramBottom->add(
 			object_ptr<Ui::SideBarButton>(
 				_hoursgramBottom.get(),
 				TextWithEntities{ russian ? inRussian : english },
 				buttonStyle()));
-		const auto &icons = Ui::LookupFilterIcon(icon);
-		button->setIconOverride(icons.normal, icons.active);
+		button->setIconOverride(&icon, &iconActive);
 		button->setClickedCallback(std::move(callback));
 	};
-	add(u"Saved"_q, u"Избранное"_q, Ui::FilterIcon::Favorite, [=] {
+	add(u"Saved"_q, u"Избранное"_q, st::hoursgramSideBarSaved, st::hoursgramSideBarSavedActive, [=] {
 		_session->showPeerHistory(_session->session().user());
 	});
-	add(u"Music"_q, u"Музыка"_q, Ui::FilterIcon::Note, [=] {
+	add(u"Music"_q, u"Музыка"_q, st::hoursgramSideBarMusic, st::hoursgramSideBarMusicActive, [=] {
 		HoursGram::Music::ShowPlayer(_session);
 	});
 	_hoursgramBottom->resizeToWidth(st::windowFiltersWidth);
