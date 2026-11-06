@@ -20,7 +20,7 @@
 | Акцент (свои имя и аватарка, главные кнопки) | `#E8E6E1` |
 | Текст и иконки на акценте | `#1A1A1A` |
 
-Палитры собираются скриптами из палитры HorusGram (`tools/graphite_palette.py` на ПК, `tools/horusgram/graphite_theme.py` на Android):
+Палитры собираются скриптами из палитры HorusGram (`tools/graphite_palette.py` на ПК, `Tools/horusgram/graphite_theme.py` на Android):
 
 - ПК: `Telegram/Resources/hoursgram-graphite.tdesktop-palette`. Каждый цвет HorusGram заменяется по таблице, а текст на светлом акценте становится тёмным.
 - Android: `TMessagesProj/src/main/assets/horusgram_graphite.attheme`. Сине-фиолетовые цвета превращаются в графит, светлые акцентные — в тёплый почти белый, остальные оттенки остаются. Текст на акценте тёмный.
