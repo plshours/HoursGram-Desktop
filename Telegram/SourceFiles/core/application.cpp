@@ -304,7 +304,7 @@ void Application::run() {
 	const auto customFont = settings().customFontFamily();
 	style::SetCustomFont(!customFont.isEmpty()
 		? customFont
-		: (AyuSettings::getInstance().clientTheme() >= 2)
+		: AyuSettings::getInstance().macTheme()
 		? MacThemeFont()
 #ifdef Q_OS_WIN
 		// Montserrat stalls the window while typing and sending on Windows,

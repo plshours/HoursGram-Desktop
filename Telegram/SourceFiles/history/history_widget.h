@@ -567,6 +567,9 @@ private:
 	void initAiButton();
 	void updateAiButtonVisibility();
 	void updateAiButtonGeometry();
+	// The button left of the field, which the small buttons over it align
+	// to: attach, or emoji when Graphite moves attach to the right.
+	[[nodiscard]] QRect leftFieldButtonGeometry() const;
 	void showAiComposeBox();
 	void triggerAiApplyInPlace();
 	void initSendAsFileButton();

@@ -19,6 +19,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/random.h"
 #include "boxes/compose_ai_box.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/widgets/buttons.h"
 #include "boxes/delete_messages_box.h"
 #include "boxes/send_credits_box.h"
 #include "boxes/send_gif_with_caption_box.h"
@@ -922,7 +923,9 @@ HistoryWidget::HistoryWidget(
 		AyuSettings::getInstance().showAttachPopupChanges() | rpl::to_empty,
 		AyuSettings::getInstance().showEmojiPopupChanges() | rpl::to_empty,
 		AyuSettings::getInstance().channelBottomButtonChanges() | rpl::to_empty,
-		AyuSettings::getInstance().removeMessageTailChanges() | rpl::to_empty
+		AyuSettings::getInstance().removeMessageTailChanges() | rpl::to_empty,
+		// Graphite moves the emoji and attach buttons around.
+		AyuSettings::getInstance().clientThemeChanges() | rpl::to_empty
 	) | rpl::on_next([=] {
 		refreshSendGiftToggle();
 		refreshAttachBotsMenu();
@@ -7309,11 +7312,17 @@ void HistoryWidget::updateDiscardRichDraftVisibility() {
 	updateDiscardRichDraftGeometry();
 }
 
+QRect HistoryWidget::leftFieldButtonGeometry() const {
+	return Ui::HoursGramGraphite()
+		? _tabbedSelectorToggle->geometry()
+		: _attachToggle->geometry();
+}
+
 void HistoryWidget::updateDiscardRichDraftGeometry() {
 	if (_discardRichDraft->isHidden()) {
 		return;
 	}
-	const auto anchor = _attachToggle->geometry();
+	const auto anchor = leftFieldButtonGeometry();
 	const auto x = anchor.x()
 		+ (anchor.width() - _discardRichDraft->width()) / 2;
 	const auto y = _richDraftPreview->y()
@@ -7325,7 +7334,8 @@ void HistoryWidget::updateAiButtonGeometry() {
 	if (_aiButton->isHidden()) {
 		return;
 	}
-	const auto x = _attachToggle->x() - st::historyAiComposeButtonPosition.x();
+	const auto x = leftFieldButtonGeometry().x()
+		- st::historyAiComposeButtonPosition.x();
 	const auto y = _field->y() + st::historyAiComposeButtonPosition.y();
 	_aiButton->move(x, y);
 	if (_aiTooltipManager) {
@@ -7354,7 +7364,8 @@ void HistoryWidget::updateSendAsFileGeometry() {
 	if (_sendAsFile->isHidden()) {
 		return;
 	}
-	const auto x = _attachToggle->x() - st::historyAiComposeButtonPosition.x();
+	const auto x = leftFieldButtonGeometry().x()
+		- st::historyAiComposeButtonPosition.x();
 	const auto y = _field->y() + st::historyAiComposeButtonPosition.y();
 	_sendAsFile->move(x, y);
 	if (_sendAsFileTooltipManager) {
@@ -7386,12 +7397,23 @@ void HistoryWidget::moveFieldControls() {
 		_botMenu.button->moveToLeft(left + skip, buttonsBottom + skip);
 		left += skip + _botMenu.button->width();
 	}
-	if (_replaceMedia) {
-		_replaceMedia->moveToLeft(left, buttonsBottom);
-	}
-	if (settings.showAttachButtonInMessageField()) {
-		_attachToggle->moveToLeft(left, buttonsBottom);
-	left += _attachToggle->width();
+	// HORUSGRAM_DESIGN.md: Graphite puts emoji left of the field and attach
+	// next to the send button.
+	const auto graphite = Ui::HoursGramGraphite();
+	if (graphite) {
+		_tabbedSelectorToggle->moveToLeft(left, buttonsBottom);
+		_botKeyboardHide->moveToLeft(left, buttonsBottom);
+		if (settings.showEmojiButtonInMessageField()) {
+			left += _tabbedSelectorToggle->width();
+		}
+	} else {
+		if (_replaceMedia) {
+			_replaceMedia->moveToLeft(left, buttonsBottom);
+		}
+		if (settings.showAttachButtonInMessageField()) {
+			_attachToggle->moveToLeft(left, buttonsBottom);
+			left += _attachToggle->width();
+		}
 	}
 	if (_sendAs) {
 		_sendAs->moveToLeft(left, buttonsBottom);
@@ -7408,9 +7430,19 @@ void HistoryWidget::moveFieldControls() {
 	auto right = st::historySendRight;
 	_send->moveToRight(right, buttonsBottom); right += _send->width();
 	_voiceRecordBar->moveToLeft(0, bottom - _voiceRecordBar->height());
-	_tabbedSelectorToggle->moveToRight(right, buttonsBottom);
-	_botKeyboardHide->moveToRight(right, buttonsBottom);
-	right += settings.showEmojiButtonInMessageField() || !_botKeyboardHide->isHidden() ? _botKeyboardHide->width() : 0;
+	if (graphite) {
+		if (_replaceMedia) {
+			_replaceMedia->moveToRight(right, buttonsBottom);
+		}
+		_attachToggle->moveToRight(right, buttonsBottom);
+		if (settings.showAttachButtonInMessageField()) {
+			right += _attachToggle->width();
+		}
+	} else {
+		_tabbedSelectorToggle->moveToRight(right, buttonsBottom);
+		_botKeyboardHide->moveToRight(right, buttonsBottom);
+		right += settings.showEmojiButtonInMessageField() || !_botKeyboardHide->isHidden() ? _botKeyboardHide->width() : 0;
+	}
 	_botKeyboardShow->moveToRight(right, buttonsBottom);
 	_botCommandStart->moveToRight(right, buttonsBottom);
 	if (_silent) {
@@ -7447,12 +7479,21 @@ void HistoryWidget::moveFieldControls() {
 		_inlineResults->moveBottom(_field->y() - st::historySendPadding);
 	}
 	if (_tabbedPanel) {
-		_tabbedPanel->moveBottomRight(buttonsBottom, width());
+		// The panel opens over the button that shows it.
+		_tabbedPanel->moveBottomRight(
+			buttonsBottom,
+			graphite ? _tabbedPanel->width() : width());
 	}
 	if (_attachBotsMenu) {
-		_attachBotsMenu->moveToLeft(
-			0,
-			buttonsBottom - _attachBotsMenu->height());
+		if (graphite) {
+			_attachBotsMenu->moveToRight(
+				0,
+				buttonsBottom - _attachBotsMenu->height());
+		} else {
+			_attachBotsMenu->moveToLeft(
+				0,
+				buttonsBottom - _attachBotsMenu->height());
+		}
 	}
 
 	const auto fullWidthButtonRect = myrtlrect(
@@ -11099,8 +11140,14 @@ void HistoryWidget::drawField(Painter &p, const QRect &rect) {
 					radius,
 					radius);
 			}
+			// Graphite rounds the row into a pill: the radius of a single
+			// line, kept when the field grows taller.
+			const auto pillRadius = (st::historyComposeField.heightMin
+				+ 2 * st::historySendPadding) / 2;
 			const auto radius = std::min(
-				st::historyComposeFieldRadius,
+				Ui::HoursGramGraphite()
+					? pillRadius
+					: st::historyComposeFieldRadius,
 				rowHeight / 2);
 			p.setBrush(_field->isHidden()
 				? st::historyReplyBg->c

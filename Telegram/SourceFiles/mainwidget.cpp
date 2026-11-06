@@ -7,6 +7,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "mainwidget.h"
 
+#include "ayu/ayu_settings.h"
+#include "hoursgram/customization/graphite_frame.h"
+
 #include "api/api_updates.h"
 #include "api/api_views.h"
 #include "data/components/scheduled_messages.h"
@@ -2581,6 +2584,36 @@ void MainWidget::updateControlsGeometry() {
 	_contentScrollAddToY = 0;
 
 	floatPlayerUpdatePositions();
+	updateGraphiteFrame();
+}
+
+void MainWidget::updateGraphiteFrame() {
+	if (!_graphiteFrame) {
+		_graphiteFrame = base::make_unique_q<
+			HoursGram::Customization::GraphiteFrame
+		>(this, [=] { return _graphitePanels; });
+		AyuSettings::getInstance().clientThemeChanges(
+		) | rpl::on_next([=] {
+			updateControlsGeometry();
+		}, _graphiteFrame->lifetime());
+	}
+	_graphitePanels.clear();
+	if (isOneColumn()) {
+		_graphitePanels.push_back(rect());
+	} else {
+		const auto left = _history->x();
+		const auto third = _thirdSection ? _thirdSection->width() : 0;
+		if (left > 0) {
+			_graphitePanels.push_back(QRect(0, 0, left, height()));
+		}
+		_graphitePanels.push_back(
+			QRect(left, 0, width() - left - third, height()));
+		if (third > 0) {
+			_graphitePanels.push_back(
+				QRect(width() - third, 0, third, height()));
+		}
+	}
+	_graphiteFrame->refresh();
 }
 
 void MainWidget::destroyThirdSection() {

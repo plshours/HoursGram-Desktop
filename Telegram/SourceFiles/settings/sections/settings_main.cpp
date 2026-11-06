@@ -92,6 +92,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ui/settings/settings_main.h"
+#include "ayu/ui/settings/settings_appearance.h"
+#include "ayu/ui/settings/settings_ayu.h"
+#include "ayu/ui/settings/settings_customization.h"
+#include "ayu/ui/settings/settings_filters.h"
+#include "ayu/ui/settings/settings_local_nft.h"
+#include "ayu/ui/settings/settings_other.h"
+#include "hoursgram/music/music_player_box.h"
+#include "styles/style_hoursgram_design.h"
 #include "ayu/ui/utils/ayu_profile_values.h"
 #include "ayu/utils/telegram_helpers.h"
 
@@ -383,7 +391,157 @@ void Cover::refreshQrButtonGeometry(int newWidth) {
 	_qrButton->moveToRight(buttonRight - inset, buttonTop, newWidth);
 }
 
+// HORUSGRAM_DESIGN.md: with Graphite the sections are two groups, Account
+// and App, the sections of HorusGram among those of Telegram, each with an
+// icon of the HorusGram set on a round plate.
+[[nodiscard]] bool UsesRussianLabels() {
+	const auto &lang = Lang::GetInstance();
+	return lang.id().startsWith(u"ru"_q) || lang.baseId().startsWith(u"ru"_q);
+}
+
+[[nodiscard]] rpl::producer<QString> HoursGramLabel(
+		const QString &english,
+		const QString &russian) {
+	return rpl::single(UsesRussianLabels() ? russian : english);
+}
+
+[[nodiscard]] IconDescriptor HoursGramIcon(const style::icon &icon) {
+	return { &icon, IconType::Round, &st::hoursgramIconPlate };
+}
+
+void BuildGraphiteSectionButtons(SectionBuilder &builder) {
+	const auto session = builder.session();
+	const auto controller = builder.controller();
+	const auto showOther = builder.showOther();
+
+	builder.addSubsectionTitle(HoursGramLabel(u"Account"_q, u"Аккаунт"_q));
+	if (!session->supportMode()) {
+		builder.addSectionButton({
+			.title = tr::lng_settings_my_account(),
+			.targetSection = InformationId(),
+			.icon = HoursGramIcon(st::hoursgramIconAccount),
+			.keywords = { u"profile"_q, u"edit"_q, u"information"_q },
+		});
+	}
+	builder.addSectionButton({
+		.title = tr::lng_settings_section_privacy(),
+		.targetSection = PrivacySecurityId(),
+		.icon = HoursGramIcon(st::hoursgramIconPrivacy),
+		.keywords = { u"security"_q, u"passcode"_q, u"password"_q, u"2fa"_q },
+	});
+	builder.addSectionButton({
+		.title = tr::lng_settings_section_notify(),
+		.targetSection = NotificationsId(),
+		.icon = HoursGramIcon(st::hoursgramIconNotifications),
+		.keywords = { u"alerts"_q, u"sounds"_q, u"badge"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"Ghost mode"_q, u"Режим призрака"_q),
+		.targetSection = AyuGhost::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconGhost),
+		.keywords = { u"ghost"_q, u"ayu"_q },
+	});
+
+	builder.addSkip();
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle(HoursGramLabel(u"App"_q, u"Приложение"_q));
+	builder.addSectionButton({
+		.title = tr::lng_settings_section_chat_settings(),
+		.targetSection = ChatId(),
+		.icon = HoursGramIcon(st::hoursgramIconChats),
+		.keywords = { u"themes"_q, u"appearance"_q, u"stickers"_q },
+	});
+	builder.addButton({
+		.title = tr::lng_settings_section_filters(),
+		.icon = HoursGramIcon(st::hoursgramIconFolders),
+		.onClick = [=] { showOther(FoldersId()); },
+		.keywords = { u"filters"_q, u"tabs"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"Message filters"_q, u"Фильтры сообщений"_q),
+		.targetSection = AyuFilters::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconFilters),
+		.keywords = { u"filters"_q, u"ayu"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"Appearance"_q, u"Внешний вид"_q),
+		.targetSection = AyuAppearance::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconAppearance),
+		.keywords = { u"theme"_q, u"graphite"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"Fonts and scale"_q, u"Шрифты и масштаб"_q),
+		.targetSection = AyuCustomization::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconAdvanced),
+		.keywords = { u"fonts"_q, u"palette"_q },
+	});
+	builder.addSectionButton({
+		.title = tr::lng_settings_advanced(),
+		.targetSection = AdvancedId(),
+		.icon = HoursGramIcon(st::hoursgramIconAdvanced),
+		.keywords = { u"performance"_q, u"proxy"_q, u"experimental"_q },
+	});
+	builder.addSectionButton({
+		.title = tr::lng_settings_section_devices(),
+		.targetSection = CallsId(),
+		.icon = HoursGramIcon(st::hoursgramIconSound),
+		.keywords = { u"sessions"_q, u"calls"_q },
+	});
+	builder.addButton({
+		.id = u"main/power"_q,
+		.title = tr::lng_settings_power_menu(),
+		.icon = HoursGramIcon(st::hoursgramIconBattery),
+		.onClick = [=] {
+			controller->show(Box(PowerSavingBox, PowerSaving::Flags()));
+		},
+		.keywords = { u"battery"_q, u"animations"_q, u"power"_q, u"saving"_q },
+	});
+	builder.addButton({
+		.id = u"main/language"_q,
+		.title = tr::lng_settings_language(),
+		.icon = HoursGramIcon(st::hoursgramIconLanguage),
+		.label = rpl::single(
+			Lang::GetInstance().id()
+		) | rpl::then(
+			Lang::GetInstance().idChanges()
+		) | rpl::map([] { return Lang::GetInstance().nativeName(); }),
+		.onClick = [=] {
+			static auto Guard = base::binary_guard();
+			Guard = LanguageBox::Show(controller);
+		},
+		.keywords = { u"translate"_q, u"localization"_q, u"language"_q },
+	});
+	builder.addButton({
+		.id = u"hoursgram/music"_q,
+		.title = HoursGramLabel(u"Music"_q, u"Музыка"_q),
+		.icon = HoursGramIcon(st::hoursgramIconMusic),
+		.onClick = [=] {
+			if (controller) {
+				HoursGram::Music::ShowPlayer(controller);
+			}
+		},
+		.keywords = { u"music"_q, u"player"_q, u"lyrics"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"Local gifts"_q, u"Локальные подарки"_q),
+		.targetSection = AyuLocalNft::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconGifts),
+		.keywords = { u"gifts"_q, u"nft"_q },
+	});
+	builder.addSectionButton({
+		.title = HoursGramLabel(u"More"_q, u"Прочее"_q),
+		.targetSection = AyuMain::Id(),
+		.icon = HoursGramIcon(st::hoursgramIconMore),
+		.keywords = { u"ayu"_q, u"hoursgram"_q },
+	});
+}
+
 void BuildSectionButtons(SectionBuilder &builder) {
+	if (Ui::HoursGramGraphite()) {
+		BuildGraphiteSectionButtons(builder);
+		return;
+	}
 	const auto session = builder.session();
 	const auto controller = builder.controller();
 	const auto showOther = builder.showOther();

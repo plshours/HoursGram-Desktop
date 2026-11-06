@@ -131,6 +131,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ayu_settings.h"
+#include "ui/widgets/buttons.h"
 
 
 namespace Window {
@@ -1650,7 +1651,16 @@ SessionController::SessionController(
 	}, lifetime());
 
 	const auto processFiltersMenu = [this] {
-		if (SessionNavigation::session().data().chatsFilters().has()) {
+		const auto hasFilters
+			= SessionNavigation::session().data().chatsFilters().has();
+		if (Ui::HoursGramGraphite() && !AyuSettings::getInstance().macTheme()) {
+			// HORUSGRAM_DESIGN.md: with Graphite the bar on the left is the
+			// menu of the app, so it stays whenever there is room for it,
+			// folders or not.
+			const auto vertical = enoughSpaceForFilters();
+			content()->toggleFiltersMenu(hasFilters && !vertical);
+			toggleFiltersMenu(vertical);
+		} else if (hasFilters) {
 			const auto isHorizontal
 				= Core::App().settings().chatFiltersHorizontal()
 					|| !enoughSpaceForFilters();
@@ -1664,7 +1674,8 @@ SessionController::SessionController(
 	rpl::merge(
 		enoughSpaceForFiltersValue() | rpl::skip(1) | rpl::to_empty,
 		Core::App().settings().chatFiltersHorizontalChanges() | rpl::to_empty,
-		session->data().chatsFilters().changed()
+		session->data().chatsFilters().changed(),
+		AyuSettings::getInstance().clientThemeChanges() | rpl::to_empty
 	) | rpl::on_next([=] {
 		if (!_filtersActivated) {
 			processFiltersMenu();
@@ -1672,6 +1683,9 @@ SessionController::SessionController(
 		checkOpenedFilter();
 		crl::on_main(this, processFiltersMenu);
 	}, lifetime());
+	// Graphite shows the bar without folders too, so it is laid out once
+	// at the start instead of waiting for the folders to change.
+	crl::on_main(this, processFiltersMenu);
 
 	session->data().itemIdChanged(
 	) | rpl::on_next([=](Data::Session::IdChange change) {

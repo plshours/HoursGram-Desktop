@@ -140,4 +140,90 @@ Edit-Text `
 			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states, the GPU renderer and the Lottie bounds to the pinned libraries.'
+# HorusGram Graphite: a light top edge under the cursor for buttons and a
+# ring that main buttons keep. Only drawn while Ui::HoursGramGraphite() is on.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'PaintHoursGramEdge' `
+	@(
+		@{
+			Old = "#include `"ui/round_rect.h`"`n";
+			New = "#include `"ui/round_rect.h`"`n#include `"styles/palette.h`"`n";
+		},
+		@{
+			Old = "} // namespace`n`nLinkButton::LinkButton(`n";
+			New = "} // namespace`n`nnamespace {`n`nbool HoursGramGraphiteValue = false;`n`n// The edge of HORUSGRAM_DESIGN.md: under the cursor a button gets a thin`n// line around it, light along the top, as if lit from above.`nvoid PaintHoursGramEdge(`n`t`tQPainter &p,`n`t`tQRectF rect,`n`t`tfloat64 radius,`n`t`tfloat64 opacity) {`n`tif (opacity <= 0.) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto half = line / 2.;`n`tconst auto inner = rect.marginsRemoved({ half, half, half, half });`n`tconst auto r = std::max(radius - half, 0.);`n`tp.save();`n`tp.setOpacity(p.opacity() * opacity);`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::windowBgOver->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.setClipRect(`n`t`tQRectF(rect.x(), rect.y(), rect.width(), rect.height() * 0.4),`n`t`tQt::IntersectClip);`n`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n// A main button keeps its ring at all times: a dark line set in from the`n// edge of the fill, which reads as a ring with a gap around the button and`n// never needs room outside it. Under the cursor the gap grows.`nvoid PaintHoursGramRing(QPainter &p, QRectF rect, float64 radius, bool over) {`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto gap = style::ConvertScaleExact(over ? 3. : 2.) + line / 2.;`n`tconst auto inner = rect.marginsRemoved({ gap, gap, gap, gap });`n`tconst auto r = std::max(radius - gap, 0.);`n`tp.save();`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::activeButtonFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n} // namespace`n`nvoid SetHoursGramGraphite(bool enabled) {`n`tHoursGramGraphiteValue = enabled;`n}`n`nbool HoursGramGraphite() {`n`treturn HoursGramGraphiteValue;`n}`n`nLinkButton::LinkButton(`n";
+		},
+		@{
+			Old = "`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n`tconst auto overIconOpacity = iconOverOpacity();`n";
+			New = "`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n`tconst auto overIconOpacity = iconOverOpacity();`n`tif (HoursGramGraphite() && _st.rippleAreaSize > 0) {`n`t`tconst auto size = float64(_st.rippleAreaSize);`n`t`tPaintHoursGramEdge(`n`t`t`tp,`n`t`t`tQRectF(QPointF(_st.rippleAreaPosition), QSizeF(size, size)),`n`t`t`tsize / 2.,`n`t`t`toverIconOpacity);`n`t}`n";
+		},
+		@{
+			Old = "`tauto over = isOver();`n`tauto down = isDown();`n`tif (!_brushOverride && (over || down)) {`n`t`tdrawRect(_roundRectOver);`n`t}`n";
+			New = "`tauto over = isOver();`n`tauto down = isDown();`n`tif (!_brushOverride && (over || down)) {`n`t`tdrawRect(_roundRectOver);`n`t}`n`tif (HoursGramGraphite() && !_cornerRadii) {`n`t`tconst auto fill = QRectF(myrtlrect(rounded));`n`t`tconst auto radius = _fullRadius`n`t`t`t? (rounded.height() / 2.)`n`t`t`t: float64(_st.radius ? _st.radius : st::buttonRadius);`n`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, over || down);`n`t`t} else if (over || down) {`n`t`t`tPaintHoursGramEdge(p, fill, radius, 1.);`n`t`t}`n`t}`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.h') `
+	'SetHoursGramGraphite' `
+	@(
+		@{
+			Old = "namespace Ui {`n`nclass RippleAnimation;`n";
+			New = "namespace Ui {`n`n// HorusGram: while the Graphite theme is on, buttons are drawn with the`n// edges and rings of HORUSGRAM_DESIGN.md.`nvoid SetHoursGramGraphite(bool enabled);`n[[nodiscard]] bool HoursGramGraphite();`n`nclass RippleAnimation;`n";
+		})
+
+Write-Output 'Applied HoursGram fonts, rounded hover states, the Graphite button edges, the GPU renderer and the Lottie bounds to the pinned libraries.'
+
+# HorusGram Graphite: settings rows and side bar buttons animate under the
+# cursor: the pill and its edge fade in, side bar icons spring up.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'_hoursgramOver.start' `
+	@(
+		@{
+			Old = "void SettingsButton::paintEvent(QPaintEvent *e) {`n`tPainter p(this);`n`n`tconst auto paintOver = (isOver() || isDown()) && !isDisabled();`n`tpaintBg(p, e->rect(), paintOver);`n";
+			New = "void SettingsButton::paintEvent(QPaintEvent *e) {`n`tPainter p(this);`n`n`tconst auto paintOver = (isOver() || isDown()) && !isDisabled();`n`tif (HoursGramGraphite()) {`n`t`t// The pill and its edge fade in under the cursor instead of`n`t`t// appearing at once.`n`t`tconst auto shown = std::clamp(`n`t`t`t_hoursgramOver.value(paintOver ? 1. : 0.),`n`t`t`t0.,`n`t`t`t1.);`n`t`tpaintBg(p, e->rect(), false);`n`t`tif (shown > 0.) {`n`t`t`tconst auto full = QRectF(rect());`n`t`t`tconst auto scaled = float64(`n`t`t`t`tstyle::ConvertScale(kSettingsButtonRadius));`n`t`t`tconst auto radius = (full.height() > 2 * scaled)`n`t`t`t`t? scaled`n`t`t`t`t: (full.height() / 2.);`n`t`t`t{`n`t`t`t`tauto hq = PainterHighQualityEnabler(p);`n`t`t`t`tp.setOpacity(shown);`n`t`t`t`tp.setPen(Qt::NoPen);`n`t`t`t`tp.setBrush(_st.textBgOver);`n`t`t`t`tp.drawRoundedRect(full, radius, radius);`n`t`t`t`tp.setOpacity(1.);`n`t`t`t}`n`t`t`tPaintHoursGramEdge(p, full, radius, shown);`n`t`t}`n`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n";
+		},
+		@{
+			Old = "`tconst auto wasDisabled = !!(was & StateFlag::Disabled);`n`tconst auto nowDisabled = isDisabled();`n`tif (!nowDisabled || !isDown()) {`n`t`tRippleButton::onStateChanged(was, source);`n`t}`n";
+			New = "`tconst auto wasDisabled = !!(was & StateFlag::Disabled);`n`tconst auto nowDisabled = isDisabled();`n`tif (!nowDisabled || !isDown()) {`n`t`tRippleButton::onStateChanged(was, source);`n`t}`n`tif (HoursGramGraphite()) {`n`t`tconst auto over = (isOver() || isDown()) && !nowDisabled;`n`t`tconst auto wasOver = !wasDisabled`n`t`t`t&& (!!(was & StateFlag::Over) || !!(was & StateFlag::Down));`n`t`tif (over != wasOver) {`n`t`t`t_hoursgramOver.start(`n`t`t`t`t[=] { update(); },`n`t`t`t`tover ? 0. : 1.,`n`t`t`t`tover ? 1. : 0.,`n`t`t`t`tover ? 180 : 260,`n`t`t`t`tanim::easeOutCirc);`n`t`t}`n`t}`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.h') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "`tstd::optional<QColor> _textColorOverride;`n`tText::MarkedContext _context;`n`n};`n";
+			New = "`tstd::optional<QColor> _textColorOverride;`n`tText::MarkedContext _context;`n`tUi::Animations::Simple _hoursgramOver;`n`n};`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.cpp') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "#include `"ui/effects/ripple_animation.h`"`n";
+			New = "#include `"ui/effects/ripple_animation.h`"`n#include `"styles/palette.h`"`n";
+		},
+		@{
+			Old = "`tRippleButton::paintRipple(p, 0, 0);`n`n`tif (_lock.locked) {`n`t`tp.setOpacity(kPremiumLockedOpacity);`n`t}`n`n`tif (_showIcon) {`n`t`tconst auto &icon = computeIcon();`n`t`tconst auto x = iconLeft();`n`t`tconst auto y = iconTop();`n";
+			New = "`tauto hoursgramLift = 0;`n`tif (HoursGramGraphite()) {`n`t`t// A pill with a light top edge fades in under the cursor and the`n`t`t// icon springs up a little; the active folder keeps the pill.`n`t`tconst auto value = _hoursgramOver.value(isOver() ? 1. : 0.);`n`t`tconst auto shown = _active ? 1. : std::clamp(value, 0., 1.);`n`t`tif (shown > 0.) {`n`t`t`tauto hq = PainterHighQualityEnabler(p);`n`t`t`tconst auto side = float64(style::ConvertScale(7));`n`t`t`tconst auto top = float64(style::ConvertScale(2));`n`t`t`tconst auto pill = QRectF(rect()).marginsRemoved(`n`t`t`t`t{ side, top, side, top });`n`t`t`tconst auto radius = std::min(`n`t`t`t`tfloat64(style::ConvertScale(16)),`n`t`t`t`tpill.height() / 2.);`n`t`t`tconst auto line = style::ConvertScaleExact(1.5);`n`t`t`tconst auto half = line / 2.;`n`t`t`tconst auto inner = pill.marginsRemoved({ half, half, half, half });`n`t`t`tp.save();`n`t`t`tp.setOpacity(shown);`n`t`t`tp.setPen(Qt::NoPen);`n`t`t`tp.setBrush(st::windowBgOver);`n`t`t`tp.drawRoundedRect(pill, radius, radius);`n`t`t`tp.setBrush(Qt::NoBrush);`n`t`t`tp.setPen(QPen(st::windowBgRipple->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.setClipRect(`n`t`t`t`tQRectF(pill.x(), pill.y(), pill.width(), pill.height() * 0.4),`n`t`t`t`tQt::IntersectClip);`n`t`t`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.restore();`n`t`t}`n`t`tif (!_active) {`n`t`t`thoursgramLift = -int(std::round(style::ConvertScale(2) * value));`n`t`t}`n`t}`n`n`tRippleButton::paintRipple(p, 0, 0);`n`n`tif (_lock.locked) {`n`t`tp.setOpacity(kPremiumLockedOpacity);`n`t}`n`n`tif (_showIcon) {`n`t`tconst auto &icon = computeIcon();`n`t`tconst auto x = iconLeft();`n`t`tconst auto y = iconTop() + hoursgramLift;`n";
+		},
+		@{
+			Old = "const style::icon &SideBarButton::computeIcon() const {`n";
+			New = "void SideBarButton::onStateChanged(State was, StateChangeSource source) {`n`tRippleButton::onStateChanged(was, source);`n`tconst auto over = isOver();`n`tif (HoursGramGraphite() && (over != !!(was & StateFlag::Over))) {`n`t`t_hoursgramOver.start(`n`t`t`t[=] { update(); },`n`t`t`tover ? 0. : 1.,`n`t`t`tover ? 1. : 0.,`n`t`t`tover ? 320 : 220,`n`t`t`tover ? anim::easeOutBack : anim::easeOutCirc);`n`t}`n}`n`nconst style::icon &SideBarButton::computeIcon() const {`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.h') `
+	'_hoursgramOver' `
+	@(
+		@{
+			Old = "private:`n`tvoid paintEvent(QPaintEvent *e) override;`n`n`t[[nodiscard]] const style::icon &computeIcon() const;`n";
+			New = "private:`n`tvoid paintEvent(QPaintEvent *e) override;`n`tvoid onStateChanged(State was, StateChangeSource source) override;`n`n`t[[nodiscard]] const style::icon &computeIcon() const;`n";
+		},
+		@{
+			Old = "`tbool _showIcon = true;`n`tbool _showText = true;`n";
+			New = "`tbool _showIcon = true;`n`tbool _showText = true;`n`tUi::Animations::Simple _hoursgramOver;`n";
+		})
