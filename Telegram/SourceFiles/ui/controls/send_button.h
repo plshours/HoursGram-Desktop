@@ -60,6 +60,9 @@ public:
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
+	void onStateChanged(
+		AbstractButton::State was,
+		StateChangeSource source) override;
 
 	QImage prepareRippleMask() const override;
 	QPoint prepareRippleStartPosition() const override;
@@ -108,6 +111,11 @@ private:
 
 	Ui::Animations::Simple _stateChangeAnimation;
 	int _stateChangeFromWidth = 0;
+
+	// Graphite: the button gives under a press and springs back, and its
+	// ring opens up under the cursor.
+	Ui::Animations::Simple _graphitePress;
+	Ui::Animations::Simple _graphiteOver;
 
 	QString _slowmodeDelayText;
 	Ui::Text::String _starsToSendText;

@@ -152,6 +152,34 @@ void SendButton::finishAnimating() {
 	update();
 }
 
+void SendButton::onStateChanged(
+		AbstractButton::State was,
+		StateChangeSource source) {
+	RippleButton::onStateChanged(was, source);
+	if (!HoursGramGraphite()) {
+		return;
+	}
+	const auto wasDown = static_cast<bool>(was & AbstractButton::StateFlag::Down);
+	if (wasDown != isDown()) {
+		// HORUSGRAM_DESIGN.md: down quickly, back with a spring.
+		_graphitePress.start(
+			[=] { update(); },
+			isDown() ? 0. : 1.,
+			isDown() ? 1. : 0.,
+			isDown() ? 120 : 380,
+			isDown() ? anim::easeOutCubic : anim::easeOutBack);
+	}
+	const auto wasOver = static_cast<bool>(was & AbstractButton::StateFlag::Over);
+	if (wasOver != isOver()) {
+		_graphiteOver.start(
+			[=] { update(); },
+			isOver() ? 0. : 1.,
+			isOver() ? 1. : 0.,
+			350,
+			anim::easeOutBack);
+	}
+}
+
 void SendButton::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 
@@ -338,8 +366,10 @@ void SendButton::paintSend(QPainter &p, bool over) {
 // HORUSGRAM_DESIGN.md: with Graphite the button is a light circle with the
 // plane dark on it, and keeps a ring that opens up under the cursor.
 void SendButton::paintGraphiteSend(QPainter &p, bool over) {
-	const auto size = std::min(width(), height())
-		- 2 * st::historySendGraphiteSkip;
+	const auto press = _graphitePress.value(isDown() ? 1. : 0.);
+	const auto hover = _graphiteOver.value(over ? 1. : 0.);
+	const auto size = (std::min(width(), height())
+		- 2 * st::historySendGraphiteSkip) * (1. - 0.12 * press);
 	if (size <= 0) {
 		return;
 	}
@@ -361,7 +391,7 @@ void SendButton::paintGraphiteSend(QPainter &p, bool over) {
 		p.drawEllipse(circle);
 		if (!isDisabled()) {
 			const auto line = style::ConvertScaleExact(1.5);
-			const auto gap = style::ConvertScaleExact(over ? 3. : 2.)
+			const auto gap = style::ConvertScaleExact(2. + hover)
 				+ line / 2.;
 			p.setBrush(Qt::NoBrush);
 			p.setPen(QPen(st::windowFgActive->c, line));

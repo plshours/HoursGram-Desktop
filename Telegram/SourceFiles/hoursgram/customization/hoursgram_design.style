@@ -1,0 +1,33 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+using "ui/basic.style";
+using "ui/widgets/widgets.style";
+
+// HORUSGRAM_DESIGN.md: the icon set of HorusGram, drawn on a round graphite
+// plate in the settings. Made by tools/make_icons.py.
+hoursgramIconPlate: windowBgRipple;
+hoursgramIconFg: windowFg;
+
+hoursgramIconAccount: icon {{ "hoursgram/settings_account", hoursgramIconFg }};
+hoursgramIconPrivacy: icon {{ "hoursgram/settings_privacy", hoursgramIconFg }};
+hoursgramIconNotifications: icon {{ "hoursgram/settings_notifications", hoursgramIconFg }};
+hoursgramIconMoney: icon {{ "hoursgram/settings_money", hoursgramIconFg }};
+hoursgramIconChats: icon {{ "hoursgram/settings_chats", hoursgramIconFg }};
+hoursgramIconFolders: icon {{ "hoursgram/settings_folders", hoursgramIconFg }};
+hoursgramIconSound: icon {{ "hoursgram/settings_sound", hoursgramIconFg }};
+hoursgramIconBattery: icon {{ "hoursgram/settings_battery", hoursgramIconFg }};
+hoursgramIconAdvanced: icon {{ "hoursgram/settings_advanced", hoursgramIconFg }};
+hoursgramIconLanguage: icon {{ "hoursgram/settings_language", hoursgramIconFg }};
+hoursgramIconGhost: icon {{ "hoursgram/settings_ghost", hoursgramIconFg }};
+hoursgramIconFilters: icon {{ "hoursgram/settings_filters", hoursgramIconFg }};
+hoursgramIconAppearance: icon {{ "hoursgram/settings_appearance", hoursgramIconFg }};
+hoursgramIconPlugins: icon {{ "hoursgram/settings_plugins", hoursgramIconFg }};
+hoursgramIconMusic: icon {{ "hoursgram/settings_music", hoursgramIconFg }};
+hoursgramIconGifts: icon {{ "hoursgram/settings_gifts", hoursgramIconFg }};
+hoursgramIconMore: icon {{ "hoursgram/settings_more", hoursgramIconFg }};
+hoursgramIconDevices: icon {{ "hoursgram/settings_devices", hoursgramIconFg }};
