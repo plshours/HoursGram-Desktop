@@ -13,6 +13,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_main_menu.h"
 #include "window/window_peer_menu.h"
 #include "window/window_filters_favorite.h"
+#include "hoursgram/customization/graphite_frame.h"
+#include "hoursgram/music/music_player_box.h"
+#include "lang/lang_instance.h"
+#include "ui/widgets/buttons.h"
 #include "main/main_session.h"
 #include "base/event_filter.h"
 #include "base/options.h"
@@ -123,6 +127,7 @@ FiltersMenu::~FiltersMenu() = default;
 void FiltersMenu::setup() {
 	setupDragAndDrop();
 	setupMainMenuIcon();
+	setupHoursGramBottom();
 	_menu.setIsMenuButton(true);
 	_menu.setAccessibleName(tr::lng_main_menu(tr::now));
 
@@ -145,10 +150,23 @@ void FiltersMenu::setup() {
 		// button with three bars is not shown above the folders there.
 		const auto hideMenu = AyuSettings::getInstance().macTheme();
 		_menu.setVisible(!hideMenu);
-		const auto top = hideMenu ? 0 : _menu.height();
-		_scroll.setGeometry({ 0, top, width, height - top });
+		const auto graphite = Ui::HoursGramGraphite() && !hideMenu;
+		_hoursgramBottom->setVisible(graphite);
+		if (graphite) {
+			// Folders from the top, then Saved and Music, and the menu with
+			// the settings at the very bottom.
+			_hoursgramBottom->resizeToWidth(width);
+			const auto bottom = _hoursgramBottom->height() + _menu.height();
+			_menu.move(0, height - _menu.height());
+			_hoursgramBottom->move(0, height - bottom);
+			_scroll.setGeometry({ 0, 0, width, std::max(height - bottom, 0) });
+		} else {
+			const auto top = hideMenu ? 0 : _menu.height();
+			_scroll.setGeometry({ 0, top, width, height - top });
+		}
 		_container->resizeToWidth(width);
 		_container->move(0, 0);
+		_graphiteFrame->refresh();
 	};
 	_parent->heightValue() | rpl::on_next(layout, _outer.lifetime());
 	AyuSettings::getInstance().clientThemeChanges(
@@ -208,6 +226,37 @@ void FiltersMenu::setup() {
 		}
 		refresh();
 	}, _outer.lifetime());
+}
+
+void FiltersMenu::setupHoursGramBottom() {
+	const auto &lang = Lang::GetInstance();
+	const auto russian = lang.id().startsWith(u"ru"_q)
+		|| lang.baseId().startsWith(u"ru"_q);
+	_hoursgramBottom = base::make_unique_q<Ui::VerticalLayout>(&_outer);
+	const auto add = [&](
+			const QString &english,
+			const QString &inRussian,
+			Ui::FilterIcon icon,
+			Fn<void()> callback) {
+		const auto button = _hoursgramBottom->add(
+			object_ptr<Ui::SideBarButton>(
+				_hoursgramBottom.get(),
+				TextWithEntities{ russian ? inRussian : english },
+				buttonStyle()));
+		const auto &icons = Ui::LookupFilterIcon(icon);
+		button->setIconOverride(icons.normal, icons.active);
+		button->setClickedCallback(std::move(callback));
+	};
+	add(u"Saved"_q, u"Избранное"_q, Ui::FilterIcon::Favorite, [=] {
+		_session->showPeerHistory(_session->session().user());
+	});
+	add(u"Music"_q, u"Музыка"_q, Ui::FilterIcon::Note, [=] {
+		HoursGram::Music::ShowPlayer(_session);
+	});
+	_hoursgramBottom->resizeToWidth(st::windowFiltersWidth);
+	_graphiteFrame = base::make_unique_q<
+		HoursGram::Customization::GraphiteFrame
+	>(&_outer, [=] { return std::vector<QRect>{ _outer.rect() }; });
 }
 
 void FiltersMenu::setupDragAndDrop() {
