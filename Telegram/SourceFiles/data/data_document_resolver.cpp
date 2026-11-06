@@ -40,6 +40,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ui/boxes/plugin_info_box.h"
+#include "hoursgram/plugins/plugins.h"
+#include "hoursgram/plugins/plugins_box.h"
 #include <QtCore/QFile>
 
 
@@ -259,6 +261,13 @@ void ResolveDocument(
 	const auto openPluginInfo = [&] {
 		if (document->size >= Images::kReadBytesLimit) {
 			return false;
+		}
+		if (controller
+			&& HoursGram::Plugins::IsPluginFileName(document->filename())
+			&& !document->filepath(true).isEmpty()) {
+			return HoursGram::Plugins::AskInstall(
+				controller,
+				document->location(true).name());
 		}
 		if (controller
 			&& document->filename().endsWith(

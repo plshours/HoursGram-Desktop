@@ -33,6 +33,7 @@ include(cmake/lib_ffmpeg.cmake)
 include(cmake/lib_stripe.cmake)
 include(cmake/lib_tgcalls.cmake)
 include(cmake/lib_prisma.cmake)
+include(cmake/lib_quickjs.cmake)
 include(cmake/lib_fido2.cmake)
 include(cmake/td_export.cmake)
 include(cmake/td_iv.cmake)
@@ -84,6 +85,7 @@ PRIVATE
     desktop-app::lib_webview
     desktop-app::lib_ffmpeg
     desktop-app::lib_stripe
+    desktop-app::lib_quickjs
     desktop-app::external_rlottie
     desktop-app::external_zlib
     desktop-app::external_minizip
@@ -1300,6 +1302,10 @@ PRIVATE
     hoursgram/customization/customization_palette.h
     hoursgram/index/peer_index.cpp
     hoursgram/index/peer_index.h
+    hoursgram/plugins/plugins.cpp
+    hoursgram/plugins/plugins.h
+    hoursgram/plugins/plugins_box.cpp
+    hoursgram/plugins/plugins_box.h
     hoursgram/music/music_lyrics.cpp
     hoursgram/music/music_lyrics.h
     hoursgram/music/music_lyrics_loader.cpp

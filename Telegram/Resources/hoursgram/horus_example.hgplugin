@@ -1,0 +1,38 @@
+// ==HorusGramPlugin==
+// @id          horusgram.example
+// @name        HorusGram Example
+// @version     1.0
+// @author      HorusGram
+// @description Shows what a plugin can do: .up, .roll and .stats commands, a signature under your messages, and a count of the messages you get.
+// ==/HorusGramPlugin==
+
+HG.settings.declare([
+    { type: "header", title: "Signature" },
+    { type: "switch", key: "sign", title: "Sign my messages", default: false },
+    { type: "text", key: "signature", title: "Signature", default: "— sent from HorusGram" },
+    { type: "info", title: "The signature goes on a new line under every text message you send." }
+]);
+
+HG.commands.register("up", function (args) {
+    return args ? args.toUpperCase() : null;
+}, "Send the text in capitals");
+
+HG.commands.register("roll", function (args) {
+    var max = parseInt(args, 10) || 100;
+    return "🎲 " + (1 + Math.floor(Math.random() * max)) + " / " + max;
+}, "A random number up to the one given, 100 by default");
+
+HG.commands.register("stats", function () {
+    HG.toast("Messages received since install: " + HG.storage.get("received", 0));
+    return null;
+}, "How many messages came in");
+
+HG.on("outgoingMessage", function (message) {
+    if (HG.settings.get("sign")) {
+        return message.text + "\n" + HG.settings.get("signature");
+    }
+});
+
+HG.on("incomingMessage", function () {
+    HG.storage.set("received", HG.storage.get("received", 0) + 1);
+});

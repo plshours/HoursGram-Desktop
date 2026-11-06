@@ -882,9 +882,12 @@ void Document::draw(
 						: stm->historyFilePlay)
 					: _data->isImage()
 					? stm->historyFileImage
-					: _data->filename().endsWith(
+					: (_data->filename().endsWith(
 						u".plugin"_q,
 						Qt::CaseInsensitive)
+						|| _data->filename().endsWith(
+							u".hgplugin"_q,
+							Qt::CaseInsensitive))
 					? stm->historyFilePlugin
 					: stm->historyFileDocument;
 			} else {

@@ -110,6 +110,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_worker.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "ayu/features/forward/ayu_forward.h"
+#include "hoursgram/plugins/plugins.h"
 
 
 namespace {
@@ -4657,6 +4658,12 @@ void ApiWrap::sendMessage(
 		MessageToSend &&message,
 		std::optional<MsgId> localMessageId) {
 	applyGhostScheduling(_session, message.action.options);
+	if (!AyuForward::isForwarding(message.action.history->peer->id)
+		&& !HoursGram::Plugins::ProcessOutgoing(
+			message.action.history->peer,
+			message.textWithTags)) {
+		return;
+	}
 	const auto clearReplyTo = prependPseudoReply(message);
 
 	const auto history = message.action.history;
