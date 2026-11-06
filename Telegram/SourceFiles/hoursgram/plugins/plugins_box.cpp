@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "hoursgram/plugins/plugins_box.h"
 
+#include "core/application.h"
 #include "core/file_utilities.h"
 #include "hoursgram/plugins/plugins.h"
 #include "lang/lang_instance.h"
@@ -51,7 +52,7 @@ namespace {
 		(u"["_q + json + u"]"_q).toUtf8()).array();
 	return array.isEmpty()
 		? QJsonValue(QJsonValue::Undefined)
-		: array.front();
+		: array.at(0);
 }
 
 [[nodiscard]] QString EncodeValue(const QJsonValue &value) {
@@ -108,7 +109,7 @@ void AddLabel(
 
 void InstallFromFile(not_null<Window::SessionController*> controller) {
 	FileDialog::GetOpenPath(
-		controller->widget().get(),
+		Core::App().getFileDialogParent(),
 		L(u"Install a plugin"_q, u"Установить плагин"_q),
 		L(
 			u"HorusGram plugins (*.hgplugin);;All files (*)"_q,
@@ -177,7 +178,9 @@ void ShowPluginsBox(not_null<Window::SessionController*> controller) {
 						u"Установить пример плагина"_q)),
 					st::settingsButtonNoIcon));
 				example->setClickedCallback([=] {
-					ShowInstalled(controller, manager.installExample());
+					ShowInstalled(
+						controller,
+						Manager::Instance().installExample());
 				});
 				inner->resizeToWidth(st::boxWideWidth);
 				return;
