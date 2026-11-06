@@ -147,6 +147,10 @@ Edit-Text `
 	'PaintHoursGramEdge' `
 	@(
 		@{
+			Old = "#include `"ui/round_rect.h`"`n";
+			New = "#include `"ui/round_rect.h`"`n#include `"styles/palette.h`"`n";
+		},
+		@{
 			Old = "} // namespace`n`nLinkButton::LinkButton(`n";
 			New = "} // namespace`n`nnamespace {`n`nbool HoursGramGraphiteValue = false;`n`n// The edge of HORUSGRAM_DESIGN.md: under the cursor a button gets a thin`n// line around it, light along the top, as if lit from above.`nvoid PaintHoursGramEdge(`n`t`tQPainter &p,`n`t`tQRectF rect,`n`t`tfloat64 radius,`n`t`tfloat64 opacity) {`n`tif (opacity <= 0.) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto half = line / 2.;`n`tconst auto inner = rect.marginsRemoved({ half, half, half, half });`n`tconst auto r = std::max(radius - half, 0.);`n`tp.save();`n`tp.setOpacity(p.opacity() * opacity);`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::windowBgOver->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.setClipRect(`n`t`tQRectF(rect.x(), rect.y(), rect.width(), rect.height() * 0.4),`n`t`tQt::IntersectClip);`n`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n// A main button keeps its ring at all times: a dark line set in from the`n// edge of the fill, which reads as a ring with a gap around the button and`n// never needs room outside it. Under the cursor the gap grows.`nvoid PaintHoursGramRing(QPainter &p, QRectF rect, float64 radius, bool over) {`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto gap = style::ConvertScaleExact(over ? 3. : 2.) + line / 2.;`n`tconst auto inner = rect.marginsRemoved({ gap, gap, gap, gap });`n`tconst auto r = std::max(radius - gap, 0.);`n`tp.save();`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::activeButtonFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n} // namespace`n`nvoid SetHoursGramGraphite(bool enabled) {`n`tHoursGramGraphiteValue = enabled;`n}`n`nbool HoursGramGraphite() {`n`treturn HoursGramGraphiteValue;`n}`n`nLinkButton::LinkButton(`n";
 		},
