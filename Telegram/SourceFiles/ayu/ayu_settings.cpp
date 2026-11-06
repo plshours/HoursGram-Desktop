@@ -8,6 +8,7 @@
 
 #include "hoursgram/customization/customization_palette.h"
 #include "ui/chat/chat_style_radius.h"
+#include "ui/widgets/buttons.h"
 
 #include "lang_auto.h"
 #include "tray.h"
@@ -801,6 +802,8 @@ void AyuSettings::setClientTheme(int val) {
 		setAvatarCorners(defaults._avatarCorners.current());
 	}
 	Ui::SetAppliedBubbleRadius(_messageBubbleRadius.current());
+	// Before the change goes out, so whoever redraws on it sees the new look.
+	Ui::SetHoursGramGraphite(val == 4);
 	_clientTheme = val;
 	save();
 	HoursGram::Customization::ApplyCustomPalette();

@@ -140,4 +140,32 @@ Edit-Text `
 			New = "`tauto scaled = _size.scaled(size, mode);`n`tif (scaled.width() > kMaxSize || scaled.height() > kMaxSize) {`n`t`t// An extreme aspect ratio expanded to cover the box would need a`n`t`t// surface far larger than any frame, so it is fitted instead.`n`t`tscaled = _size.scaled(size, Qt::KeepAspectRatio);`n`t}`n`tconst auto render = QSize(`n`t`tstd::max(scaled.width(), size.width()),`n`t`tstd::max(scaled.height(), size.height()));`n`tconst auto draw = [&](QImage &into) {`n`t`tauto surface = rlottie::Surface(`n`t`t`treinterpret_cast<uint32_t*>(into.bits()),`n`t`t`trender.width(),`n`t`t`trender.height(),`n`t`t`tinto.bytesPerLine());`n`t`ttry {`n`t`t`t_rlottie->renderSync(index * _multiplier, std::move(surface));`n`t`t} catch (const std::exception &) {`n`t`t`tinto.fill(Qt::transparent);`n`t`t}`n`t};`n`tif (render == size) {`n`t`tdraw(storage);`n`t} else {`n`t`t// Larger than the box: the surface used to start before the storage`n`t`t// and run past it, so rlottie wrote outside of the image. The frame`n`t`t// is rendered whole and cropped instead, as upstream does now.`n`t`tauto expanded = CreateFrameStorage(render);`n`t`texpanded.fill(Qt::transparent);`n`t`tdraw(expanded);`n`t`tauto p = QPainter(&storage);`n`t`tp.setCompositionMode(QPainter::CompositionMode_Source);`n`t`tp.drawImage(`n`t`t`tQPoint(`n`t`t`t`t(size.width() - render.width()) / 2,`n`t`t`t`tsize.height() - render.height()),`n`t`t`texpanded);`n`t}`n";
 		})
 
-Write-Output 'Applied HoursGram fonts, rounded hover states, the GPU renderer and the Lottie bounds to the pinned libraries.'
+# HorusGram Graphite: a light top edge under the cursor for buttons and a
+# ring that main buttons keep. Only drawn while Ui::HoursGramGraphite() is on.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'PaintHoursGramEdge' `
+	@(
+		@{
+			Old = "} // namespace`n`nLinkButton::LinkButton(`n";
+			New = "} // namespace`n`nnamespace {`n`nbool HoursGramGraphiteValue = false;`n`n// The edge of HORUSGRAM_DESIGN.md: under the cursor a button gets a thin`n// line around it, light along the top, as if lit from above.`nvoid PaintHoursGramEdge(`n`t`tQPainter &p,`n`t`tQRectF rect,`n`t`tfloat64 radius,`n`t`tfloat64 opacity) {`n`tif (opacity <= 0.) {`n`t`treturn;`n`t}`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto half = line / 2.;`n`tconst auto inner = rect.marginsRemoved({ half, half, half, half });`n`tconst auto r = std::max(radius - half, 0.);`n`tp.save();`n`tp.setOpacity(p.opacity() * opacity);`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::windowBgOver->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.setClipRect(`n`t`tQRectF(rect.x(), rect.y(), rect.width(), rect.height() * 0.4),`n`t`tQt::IntersectClip);`n`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n// A main button keeps its ring at all times: a dark line set in from the`n// edge of the fill, which reads as a ring with a gap around the button and`n// never needs room outside it. Under the cursor the gap grows.`nvoid PaintHoursGramRing(QPainter &p, QRectF rect, float64 radius, bool over) {`n`tauto hq = PainterHighQualityEnabler(p);`n`tconst auto line = style::ConvertScaleExact(1.5);`n`tconst auto gap = style::ConvertScaleExact(over ? 3. : 2.) + line / 2.;`n`tconst auto inner = rect.marginsRemoved({ gap, gap, gap, gap });`n`tconst auto r = std::max(radius - gap, 0.);`n`tp.save();`n`tp.setBrush(Qt::NoBrush);`n`tp.setPen(QPen(st::activeButtonFg->c, line));`n`tp.drawRoundedRect(inner, r, r);`n`tp.restore();`n}`n`n} // namespace`n`nvoid SetHoursGramGraphite(bool enabled) {`n`tHoursGramGraphiteValue = enabled;`n}`n`nbool HoursGramGraphite() {`n`treturn HoursGramGraphiteValue;`n}`n`nLinkButton::LinkButton(`n";
+		},
+		@{
+			Old = "`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n`tconst auto overIconOpacity = iconOverOpacity();`n";
+			New = "`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n`tconst auto overIconOpacity = iconOverOpacity();`n`tif (HoursGramGraphite() && _st.rippleAreaSize > 0) {`n`t`tconst auto size = float64(_st.rippleAreaSize);`n`t`tPaintHoursGramEdge(`n`t`t`tp,`n`t`t`tQRectF(QPointF(_st.rippleAreaPosition), QSizeF(size, size)),`n`t`t`tsize / 2.,`n`t`t`toverIconOpacity);`n`t}`n";
+		},
+		@{
+			Old = "`tauto over = isOver();`n`tauto down = isDown();`n`tif (!_brushOverride && (over || down)) {`n`t`tdrawRect(_roundRectOver);`n`t}`n";
+			New = "`tauto over = isOver();`n`tauto down = isDown();`n`tif (!_brushOverride && (over || down)) {`n`t`tdrawRect(_roundRectOver);`n`t}`n`tif (HoursGramGraphite() && !_cornerRadii) {`n`t`tconst auto fill = QRectF(myrtlrect(rounded));`n`t`tconst auto radius = _fullRadius`n`t`t`t? (rounded.height() / 2.)`n`t`t`t: float64(_st.radius ? _st.radius : st::buttonRadius);`n`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, over || down);`n`t`t} else if (over || down) {`n`t`t`tPaintHoursGramEdge(p, fill, radius, 1.);`n`t`t}`n`t}`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.h') `
+	'SetHoursGramGraphite' `
+	@(
+		@{
+			Old = "namespace Ui {`n`nclass RippleAnimation;`n";
+			New = "namespace Ui {`n`n// HorusGram: while the Graphite theme is on, buttons are drawn with the`n// edges and rings of HORUSGRAM_DESIGN.md.`nvoid SetHoursGramGraphite(bool enabled);`n[[nodiscard]] bool HoursGramGraphite();`n`nclass RippleAnimation;`n";
+		})
+
+Write-Output 'Applied HoursGram fonts, rounded hover states, the Graphite button edges, the GPU renderer and the Lottie bounds to the pinned libraries.'

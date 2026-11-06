@@ -91,6 +91,7 @@ private:
 	void paintSave(QPainter &p, bool over);
 	void paintCancel(QPainter &p, bool over);
 	void paintSend(QPainter &p, bool over);
+	void paintGraphiteSend(QPainter &p, bool over);
 	void paintSchedule(QPainter &p, bool over);
 	void paintSlowmode(QPainter &p);
 	void paintStarsToSend(QPainter &p, bool over);

@@ -296,6 +296,10 @@ void SendButton::paintCancel(QPainter &p, bool over) {
 }
 
 void SendButton::paintSend(QPainter &p, bool over) {
+	if (HoursGramGraphite() && _st.sendIconFillPadding <= 0) {
+		paintGraphiteSend(p, over);
+		return;
+	}
 	const auto &sendIcon = over ? _st.inner.iconOver : _st.inner.icon;
 	if (const auto padding = _st.sendIconFillPadding; padding > 0) {
 		const auto ellipse = sendEllipseRect();
@@ -328,6 +332,50 @@ void SendButton::paintSend(QPainter &p, bool over) {
 		sendIcon.paint(p, _st.sendIconPosition, width(), color);
 	} else {
 		sendIcon.paint(p, _st.sendIconPosition, width());
+	}
+}
+
+// HORUSGRAM_DESIGN.md: with Graphite the button is a light circle with the
+// plane dark on it, and keeps a ring that opens up under the cursor.
+void SendButton::paintGraphiteSend(QPainter &p, bool over) {
+	const auto size = std::min(width(), height())
+		- 2 * st::historySendGraphiteSkip;
+	if (size <= 0) {
+		return;
+	}
+	const auto circle = QRectF(
+		(width() - size) / 2.,
+		(height() - size) / 2.,
+		size,
+		size);
+	{
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		if (isDisabled()) {
+			p.setBrush(st::windowBgOver);
+		} else if (_state.fillBgOverride.isValid()) {
+			p.setBrush(_state.fillBgOverride);
+		} else {
+			p.setBrush(st::windowBgActive);
+		}
+		p.drawEllipse(circle);
+		if (!isDisabled()) {
+			const auto line = style::ConvertScaleExact(1.5);
+			const auto gap = style::ConvertScaleExact(over ? 3. : 2.)
+				+ line / 2.;
+			p.setBrush(Qt::NoBrush);
+			p.setPen(QPen(st::windowFgActive->c, line));
+			p.drawEllipse(circle.marginsRemoved({ gap, gap, gap, gap }));
+		}
+	}
+	const auto &icon = st::historySendGraphiteIcon;
+	const auto position = QPoint(
+		int(circle.x() + (circle.width() - icon.width()) / 2.),
+		int(circle.y() + (circle.height() - icon.height()) / 2.));
+	if (isDisabled()) {
+		icon.paint(p, position, width(), st::historyRecordVoiceFg->c);
+	} else {
+		icon.paint(p, position, width());
 	}
 }
 
