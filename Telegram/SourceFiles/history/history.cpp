@@ -85,6 +85,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 // AyuGram includes
 #include "ayu/ayu_settings.h"
 #include "ayu/ayu_state.h"
+#include "hoursgram/plugins/plugins.h"
 
 
 namespace {
@@ -1675,6 +1676,7 @@ void History::newItemAdded(not_null<HistoryItem*> item, NewAddType type) {
 		item->notificationThread()->pushNotification(notification);
 	}
 	owner().notifyNewItemAdded(item);
+	HoursGram::Plugins::ProcessIncoming(item);
 	const auto stillShow = item->showNotification(); // Could be read already.
 	if (stillShow) {
 		Core::App().notifications().schedule(notification);

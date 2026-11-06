@@ -1,0 +1,3 @@
+QuickJS-ng v0.10.1 (https://github.com/quickjs-ng/quickjs), the files the
+engine itself needs, copied unchanged. HorusGram plugins run on it; see
+SourceFiles/hoursgram/plugins.

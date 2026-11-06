@@ -19,6 +19,7 @@
 #include "ayu/ui/settings/settings_general.h"
 #include "ayu/ui/settings/settings_other.h"
 #include "core/version.h"
+#include "hoursgram/plugins/plugins_box.h"
 #include "lang/lang_instance.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
@@ -158,6 +159,16 @@ void BuildCategories(SectionBuilder &builder) {
 		.title = Label(u"Chats and messages"_q, u"Чаты и сообщения"_q),
 		.targetSection = AyuChats::Id(),
 		.icon = { &st::menuIconChatBubble },
+	});
+	builder.addButton({
+		.id = u"hoursgram/plugins"_q,
+		.title = Label(u"Plugins"_q, u"Плагины"_q),
+		.icon = { &st::menuIconBotCommands },
+		.onClick = [controller = builder.controller()] {
+			if (controller) {
+				HoursGram::Plugins::ShowPluginsBox(controller);
+			}
+		},
 	});
 	builder.addSectionButton({
 		.title = Label(u"More"_q, u"Прочее"_q),
