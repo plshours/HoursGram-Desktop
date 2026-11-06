@@ -1750,7 +1750,7 @@ void Widget::setupMainMenuToggle() {
 	) | rpl::on_next([=] {
 		const auto filtersHidden = !controller()->filtersWidth();
 		const auto shown = filtersHidden
-			&& (AyuSettings::getInstance().clientTheme() < 2);
+			&& !AyuSettings::getInstance().macTheme();
 		_mainMenu.toggle->setVisible(shown);
 		_mainMenu.under->setVisible(shown);
 		_searchForNarrowLayout->setVisible(!filtersHidden);
@@ -2642,7 +2642,7 @@ void Widget::refreshMacTabBar() {
 	// The macOS themes carry the bar of tabs the macOS client has under its
 	// chat list. It is the main list only: a child list has no room for it.
 	const auto wanted = (_layout != Layout::Child)
-		&& (AyuSettings::getInstance().clientTheme() >= 2);
+		&& AyuSettings::getInstance().macTheme();
 	if (!wanted) {
 		if (_macTabBar) {
 			_macTabBar = nullptr;
@@ -4631,7 +4631,7 @@ void Widget::updateControlsGeometry() {
 	auto filterLeft = (controller()->filtersWidth()
 		? st::dialogsFilterSkip
 		: (st::dialogsFilterPadding.x()
-			+ ((AyuSettings::getInstance().clientTheme() >= 2)
+			+ (AyuSettings::getInstance().macTheme()
 				? 0
 				: _mainMenu.toggle->width())))
 		+ st::dialogsFilterPadding.x();

@@ -143,7 +143,7 @@ void FiltersMenu::setup() {
 		_menu.move(0, 0);
 		// The macOS themes keep settings in the bar at the bottom, so the
 		// button with three bars is not shown above the folders there.
-		const auto hideMenu = (AyuSettings::getInstance().clientTheme() >= 2);
+		const auto hideMenu = AyuSettings::getInstance().macTheme();
 		_menu.setVisible(!hideMenu);
 		const auto top = hideMenu ? 0 : _menu.height();
 		_scroll.setGeometry({ 0, top, width, height - top });

@@ -26,6 +26,7 @@ namespace {
 	switch (AyuSettings::getInstance().clientTheme()) {
 	case 2: return u":/gui/hoursgram-macos-dark.tdesktop-palette"_q;
 	case 3: return u":/gui/hoursgram-macos.tdesktop-palette"_q;
+	case 4: return u":/gui/hoursgram-graphite.tdesktop-palette"_q;
 	}
 	return u":/gui/hoursgram.tdesktop-palette"_q;
 }
@@ -78,8 +79,27 @@ const std::vector<PaletteSlot> &PaletteSlots() {
 			return tr::hoursgram_ColorSubtitle();
 		} },
 	};
+	static const auto graphite = std::vector<PaletteSlot>{
+		{ u"graphite/windowBg"_q, u"181818"_q, [] {
+			return tr::hoursgram_ColorWindowBg();
+		} },
+		{ u"graphite/modalBg"_q, u"121212"_q, [] {
+			return tr::hoursgram_ColorModalBg();
+		} },
+		{ u"graphite/accent"_q, u"E8E6E1"_q, [] {
+			return tr::hoursgram_ColorAccent();
+		} },
+		{ u"graphite/accentLight"_q, u"F7F6F2"_q, [] {
+			return tr::hoursgram_ColorAccentLight();
+		} },
+		{ u"graphite/subtitle"_q, u"8E8E8E"_q, [] {
+			return tr::hoursgram_ColorSubtitle();
+		} },
+	};
 	const auto theme = AyuSettings::getInstance().clientTheme();
-	if (theme == 2) {
+	if (theme == 4) {
+		return graphite;
+	} else if (theme == 2) {
 		return macDark;
 	} else if (theme == 3) {
 		return macLight;

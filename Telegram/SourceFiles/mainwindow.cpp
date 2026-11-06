@@ -365,12 +365,12 @@ void MainWindow::setupMain(
 		sessionController()->show(Ui::MakeConfirmBox({
 			.text = tr::hoursgram_ThemeChoiceText(),
 			.confirmed = [] {
-				AyuSettings::getInstance().setClientTheme(1);
+				AyuSettings::getInstance().setClientTheme(4);
 			},
 			.cancelled = [] {
 				AyuSettings::getInstance().setClientTheme(0);
 			},
-			.confirmText = tr::hoursgram_ThemeHoursGram(tr::now),
+			.confirmText = tr::hoursgram_ThemeGraphite(tr::now),
 			.cancelText = tr::hoursgram_ThemeTelegram(tr::now),
 			.title = tr::hoursgram_ThemeChoiceTitle(),
 			.strictCancel = true,
