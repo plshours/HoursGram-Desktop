@@ -164,11 +164,61 @@ jobs:
         id: cmake-build-cache
         uses: actions/cache/restore@v6
         with:
-          path: out
-          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            out
+            !out/**/*.pdb
+            !out/**/*.ilk
+            !out/**/*.iobj
+            !out/**/*.ipdb
+          key: ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
-            ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-main-
+            ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
+            ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-main-
+
+      # A fresh checkout dates every source file now, later than any restored
+      # object file, so MSBuild would rebuild everything. Files whose content
+      # matches the fingerprints saved with the restored build get an old
+      # date instead, and only the ones that really changed (including the
+      # lib_ui files patched above) stay newer than their objects.
+      - name: Date unchanged sources before the restored build
+        if: steps.cmake-build-cache.outputs.cache-matched-key != ''
+        shell: pwsh
+        run: |
+          $manifest = 'out/hoursgram-source-fingerprints.tsv'
+          if (!(Test-Path -LiteralPath $manifest)) {
+            Write-Output 'The restored build has no fingerprints, everything is rebuilt.'
+            return
+          }
+          $known = @{}
+          foreach ($line in [System.IO.File]::ReadLines((Resolve-Path $manifest))) {
+            $parts = $line.Split("`t")
+            if ($parts.Count -eq 2) {
+              $known[$parts[0]] = $parts[1]
+            }
+          }
+          $old = [datetime]::new(2000, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
+          $unchanged = 0
+          $changed = [System.Collections.Generic.List[string]]::new()
+          foreach ($path in (git -c core.quotepath=off ls-files --recurse-submodules)) {
+            if (!(Test-Path -LiteralPath $path -PathType Leaf)) {
+              continue
+            }
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+              $hash = [Convert]::ToHexString([System.Security.Cryptography.SHA1]::HashData($stream))
+            } finally {
+              $stream.Dispose()
+            }
+            if ($known[$path] -eq $hash) {
+              [System.IO.File]::SetLastWriteTimeUtc($path, $old)
+              $unchanged++
+            } else {
+              $changed.Add($path)
+            }
+          }
+          Write-Output "Unchanged: $unchanged, changed or new: $($changed.Count)"
+          "### Sources changed since the restored build: $($changed.Count)" >> $env:GITHUB_STEP_SUMMARY
+          $changed | Select-Object -First 50 | ForEach-Object { "- ``$_``" } >> $env:GITHUB_STEP_SUMMARY
 
       - name: Configure HorusGram
         shell: cmd
@@ -182,6 +232,31 @@ jobs:
           set BUILD_RESULT=%ERRORLEVEL%
           type "%RUNNER_TEMP%\build.log"
           exit /b %BUILD_RESULT%
+
+      # Only a build that went through records what it was built from. After a
+      # failed one the restored fingerprints stay, so everything changed since
+      # the last good build is compiled again next time.
+      - name: Record source fingerprints
+        if: success()
+        shell: pwsh
+        run: |
+          $lines = [System.Collections.Generic.List[string]]::new()
+          foreach ($path in (git -c core.quotepath=off ls-files --recurse-submodules)) {
+            if (!(Test-Path -LiteralPath $path -PathType Leaf)) {
+              continue
+            }
+            $stream = [System.IO.File]::OpenRead($path)
+            try {
+              $hash = [Convert]::ToHexString([System.Security.Cryptography.SHA1]::HashData($stream))
+            } finally {
+              $stream.Dispose()
+            }
+            $lines.Add("$path`t$hash")
+          }
+          [System.IO.File]::WriteAllLines(
+            (Join-Path (Resolve-Path out) 'hoursgram-source-fingerprints.tsv'),
+            $lines)
+          Write-Output "Fingerprinted $($lines.Count) files."
 
       - name: Report build errors
         if: failure()
@@ -223,10 +298,19 @@ jobs:
         uses: actions/cache/save@v6
         continue-on-error: true
         with:
-          path: out
-          key: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          path: |
+            out
+            !out/**/*.pdb
+            !out/**/*.ilk
+            !out/**/*.iobj
+            !out/**/*.ipdb
+          key: ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
 
-      - name: Remove previous incremental CMake caches for this ref
+      # The repository has 10 GB of cache in all. Build outputs of other
+      # branches and of older cache versions pushed the dependencies or this
+      # branch's outputs out, so every run started from nothing. Only the
+      # outputs of this branch and of main are kept now.
+      - name: Remove other incremental CMake caches
         if: >-
           !cancelled() &&
           (steps.save-cmake-build-cache.outcome == 'success' ||
@@ -235,24 +319,54 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          CACHE_KEY_PREFIX: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-
-          CURRENT_CACHE_KEY: ${{ runner.os }}-hoursgram-x64-ninja-msvc2022-v4-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
-          CACHE_REF: ${{ github.ref }}
+          CURRENT_CACHE_KEY: ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-${{ github.ref_name }}-${{ github.sha }}
+          MAIN_CACHE_PREFIX: ${{ runner.os }}-hoursgram-x64-msbuild-v5-${{ env.BUILD_CONFIGURATION }}-main-
         run: |
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
             Accept = 'application/vnd.github+json'
             'X-GitHub-Api-Version' = '2022-11-28'
           }
-          $encodedRef = [System.Uri]::EscapeDataString($env:CACHE_REF)
-          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches?ref=$encodedRef&per_page=100"
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches?per_page=100&sort=last_accessed_at&direction=desc"
           $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop
-          $oldCaches = $response.actions_caches | Where-Object {
-            $_.key.StartsWith($env:CACHE_KEY_PREFIX) -and $_.key -ne $env:CURRENT_CACHE_KEY
-          }
-          foreach ($cache in $oldCaches) {
+          $outputs = @($response.actions_caches | Where-Object {
+            $_.key -match '-hoursgram-x64-(ninja|msbuild)-'
+          })
+          $keepMain = $outputs |
+            Where-Object { $_.key.StartsWith($env:MAIN_CACHE_PREFIX) } |
+            Select-Object -First 1
+          foreach ($cache in $outputs) {
+            if ($cache.key -eq $env:CURRENT_CACHE_KEY -or ($keepMain -and $cache.id -eq $keepMain.id)) {
+              continue
+            }
+            $size = [math]::Round($cache.size_in_bytes / 1GB, 2)
+            Write-Output "Removing $($cache.key) ($size GB)"
             $deleteUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches/$($cache.id)"
             Invoke-RestMethod -Method Delete -Uri $deleteUri -Headers $headers -ErrorAction Stop | Out-Null
+          }
+
+      - name: Report cache usage
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $uri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/caches?per_page=100"
+          $caches = (Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop).actions_caches
+          $total = ($caches | Measure-Object -Property size_in_bytes -Sum).Sum
+          '### Actions cache' >> $env:GITHUB_STEP_SUMMARY
+          "Restored build outputs: ``${{ steps.cmake-build-cache.outputs.cache-matched-key || 'none' }}``" >> $env:GITHUB_STEP_SUMMARY
+          "Total: $([math]::Round($total / 1GB, 2)) GB of 10 GB" >> $env:GITHUB_STEP_SUMMARY
+          '| Key | Ref | GB |' >> $env:GITHUB_STEP_SUMMARY
+          '|---|---|---|' >> $env:GITHUB_STEP_SUMMARY
+          foreach ($cache in $caches) {
+            "| $($cache.key) | $($cache.ref) | $([math]::Round($cache.size_in_bytes / 1GB, 2)) |" >> $env:GITHUB_STEP_SUMMARY
           }
 
       - name: Remove superseded dependency caches
