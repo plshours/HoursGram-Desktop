@@ -115,7 +115,7 @@ void TopBarActionButton::onStateChanged(
 		// HORUSGRAM_DESIGN.md: down quickly, back with a spring.
 		_graphitePress.start(
 			[=] { update(); },
-			isDown() ? 0. : 1.,
+			_graphitePress.value(wasDown ? 1. : 0.),
 			isDown() ? 1. : 0.,
 			isDown() ? 120 : 380,
 			isDown() ? anim::easeOutCubic : anim::easeOutBack);
@@ -129,7 +129,7 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		const auto press = _graphitePress.value(isDown() ? 1. : 0.);
 		if (press != 0.) {
 			const auto center = QPointF(width() / 2., height() / 2.);
-			const auto scale = 1. - 0.08 * press;
+			const auto scale = 1. - 0.12 * press;
 			p.translate(center);
 			p.scale(scale, scale);
 			p.translate(-center);

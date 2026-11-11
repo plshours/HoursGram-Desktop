@@ -7,10 +7,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "hoursgram/customization/graphite_frame.h"
 
+#include "base/event_filter.h"
 #include "ui/painter.h"
 #include "ui/widgets/buttons.h"
 
 #include <QtGui/QPainterPath>
+#include <QtGui/QRegion>
 #include <QtGui/QtEvents>
 
 namespace HoursGram::Customization {
@@ -31,6 +33,14 @@ GraphiteFrame::GraphiteFrame(
 , _panels(std::move(panels)) {
 	setAttribute(Qt::WA_TransparentForMouseEvents);
 	setAttribute(Qt::WA_NoSystemBackground);
+
+	base::install_event_filter(this, parent, [=](not_null<QEvent*> e) {
+		if (e->type() == QEvent::ChildAdded && !isHidden()) {
+			crl::on_main(this, [=] { raise(); });
+		}
+		return base::EventFilterResult::Continue;
+	});
+
 	refresh();
 }
 
@@ -39,10 +49,33 @@ void GraphiteFrame::refresh() {
 	const auto on = Ui::HoursGramGraphite();
 	if (on && parent) {
 		setGeometry(parent->rect());
+		updateMask();
 		raise();
 	}
 	setVisible(on);
 	update();
+}
+
+void GraphiteFrame::updateMask() {
+	const auto gap = style::ConvertScale(kHalfGap);
+	const auto radius = style::ConvertScale(kRadius);
+	auto mask = QRegion(rect());
+	for (const auto &panel : _panels()) {
+		const auto inner = panel.marginsRemoved({ gap, gap, gap, gap });
+		if (inner.width() <= 0 || inner.height() <= 0) {
+			continue;
+		}
+		const auto r = std::min(
+			radius,
+			std::min(inner.width(), inner.height()) / 2);
+		mask -= QRegion(inner.marginsRemoved({ r, 0, r, 0 }));
+		mask -= QRegion(inner.marginsRemoved({ 0, r, 0, r }));
+	}
+	if (mask.isEmpty()) {
+		clearMask();
+	} else {
+		setMask(mask);
+	}
 }
 
 void GraphiteFrame::paintEvent(QPaintEvent *e) {

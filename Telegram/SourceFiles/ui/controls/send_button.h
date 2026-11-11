@@ -95,6 +95,7 @@ private:
 	void paintCancel(QPainter &p, bool over);
 	void paintSend(QPainter &p, bool over);
 	void paintGraphiteSend(QPainter &p, bool over);
+	void paintGraphiteLaunchAway(QPainter &p);
 	void paintSchedule(QPainter &p, bool over);
 	void paintSlowmode(QPainter &p);
 	void paintStarsToSend(QPainter &p, bool over);
@@ -116,6 +117,7 @@ private:
 	// ring opens up under the cursor.
 	Ui::Animations::Simple _graphitePress;
 	Ui::Animations::Simple _graphiteOver;
+	Ui::Animations::Simple _graphiteLaunch;
 
 	QString _slowmodeDelayText;
 	Ui::Text::String _starsToSendText;

@@ -227,3 +227,117 @@ Edit-Text `
 			Old = "`tbool _showIcon = true;`n`tbool _showText = true;`n";
 			New = "`tbool _showIcon = true;`n`tbool _showText = true;`n`tUi::Animations::Simple _hoursgramOver;`n";
 		})
+
+# HorusGram Graphite, animation fixes. Runs over the result of the blocks
+# above, so every fragment here is the text those blocks leave behind.
+#
+# - A hover or press animation that is cut short starts the opposite one
+#   from where it is, not from its end, so a quick pass of the cursor or a
+#   quick click no longer makes the pill, the edge or the icon jump.
+# - The ring of a main button and the edge of a round button ease in under
+#   the cursor (350 ms, ring 2 -> 4 px) instead of switching at once.
+# - Ripples of settings rows and side bar buttons stay inside their rounded
+#   pills instead of showing square corners around them.
+# - The side bar icon rises smoothly instead of in whole-pixel steps, and
+#   the pill of the active folder fades in and out when the folder changes.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'HoursGramClipRipple' `
+	@(
+		@{
+			Old = "#include <QtGui/QtEvents>`n";
+			New = "#include <QtGui/QtEvents>`n#include <QtGui/QPainterPath>`n";
+		},
+		@{
+			Old = "void PaintHoursGramRing(QPainter &p, QRectF rect, float64 radius, bool over) {`n";
+			New = "void PaintHoursGramRing(`n`t`tQPainter &p,`n`t`tQRectF rect,`n`t`tfloat64 radius,`n`t`tfloat64 progress) {`n";
+		},
+		@{
+			Old = "`tconst auto gap = style::ConvertScaleExact(over ? 3. : 2.) + line / 2.;`n";
+			New = "`tconst auto gap = style::ConvertScaleExact(2. + 2. * progress)`n`t`t+ line / 2.;`n";
+		},
+		@{
+			Old = "} // namespace`n`nvoid SetHoursGramGraphite(bool enabled) {`n";
+			New = "template <typename Paint>`nvoid HoursGramClipRipple(`n`t`tQPainter &p,`n`t`tQRectF pill,`n`t`tfloat64 radius,`n`t`tPaint &&paint) {`n`tauto path = QPainterPath();`n`tpath.addRoundedRect(pill, radius, radius);`n`tp.save();`n`tp.setClipPath(path, Qt::IntersectClip);`n`tpaint();`n`tp.restore();`n}`n`n} // namespace`n`nvoid SetHoursGramGraphite(bool enabled) {`n";
+		},
+		@{
+			Old = "`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, over || down);`n`t`t} else if (over || down) {`n`t`t`tPaintHoursGramEdge(p, fill, radius, 1.);`n`t`t}`n";
+			New = "`t`tconst auto shown = _hoursgramOver.value((over || down) ? 1. : 0.);`n`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, shown);`n`t`t} else if (shown > 0.) {`n`t`t`tPaintHoursGramEdge(p, fill, radius, std::min(shown, 1.));`n`t`t}`n";
+		},
+		@{
+			Old = "void RoundButton::paintEvent(QPaintEvent *e) {`n";
+			New = "void RoundButton::onStateChanged(State was, StateChangeSource source) {`n`tRippleButton::onStateChanged(was, source);`n`tif (!HoursGramGraphite()) {`n`t`treturn;`n`t}`n`tconst auto over = isOver() || isDown();`n`tconst auto wasOver = !!(was & StateFlag::Over)`n`t`t|| !!(was & StateFlag::Down);`n`tif (over != wasOver) {`n`t`t_hoursgramOver.start(`n`t`t`t[=] { update(); },`n`t`t`t_hoursgramOver.value(wasOver ? 1. : 0.),`n`t`t`tover ? 1. : 0.,`n`t`t`tover ? 350 : 200,`n`t`t`tover ? anim::easeOutBack : anim::easeOutCirc);`n`t}`n}`n`nvoid RoundButton::paintEvent(QPaintEvent *e) {`n";
+		},
+		@{
+			Old = "`t`t`t_hoursgramOver.start(`n`t`t`t`t[=] { update(); },`n`t`t`t`tover ? 0. : 1.,`n`t`t`t`tover ? 1. : 0.,`n`t`t`t`tover ? 180 : 260,`n";
+			New = "`t`t`t_hoursgramOver.start(`n`t`t`t`t[=] { update(); },`n`t`t`t`t_hoursgramOver.value(wasOver ? 1. : 0.),`n`t`t`t`tover ? 1. : 0.,`n`t`t`t`tover ? 180 : 260,`n";
+		},
+		@{
+			Old = "`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n`n`tpaintRipple(p, 0, 0);`n";
+			New = "`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n`n`tif (HoursGramGraphite()) {`n`t`tconst auto full = QRectF(rect());`n`t`tconst auto scaled = float64(`n`t`t`tstyle::ConvertScale(kSettingsButtonRadius));`n`t`tconst auto radius = (full.height() > 2 * scaled)`n`t`t`t? scaled`n`t`t`t: (full.height() / 2.);`n`t`tHoursGramClipRipple(p, full, radius, [&] {`n`t`t`tpaintRipple(p, 0, 0);`n`t`t});`n`t} else {`n`t`tpaintRipple(p, 0, 0);`n`t}`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.h') `
+	'the ring and the edge of a round button' `
+	@(
+		@{
+			Old = "protected:`n`tvoid paintEvent(QPaintEvent *e) override;`n`n`tQImage prepareRippleMask() const override;`n`tQPoint prepareRippleStartPosition() const override;`n`nprivate:`n`tvoid setNumbersText(";
+			New = "protected:`n`tvoid paintEvent(QPaintEvent *e) override;`n`tvoid onStateChanged(State was, StateChangeSource source) override;`n`n`tQImage prepareRippleMask() const override;`n`tQPoint prepareRippleStartPosition() const override;`n`nprivate:`n`tvoid setNumbersText(";
+		},
+		@{
+			Old = "`tRoundButtonTextTransform _transform = RoundButtonTextTransform::NoTransform;`n`tbool _fullRadius = false;`n";
+			New = "`tRoundButtonTextTransform _transform = RoundButtonTextTransform::NoTransform;`n`tbool _fullRadius = false;`n`t// HorusGram: the ring and the edge of a round button ease in and out.`n`tUi::Animations::Simple _hoursgramOver;`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.cpp') `
+	'_hoursgramActive' `
+	@(
+		@{
+			Old = "#include <QtGui/QtEvents>`n";
+			New = "#include <QtGui/QtEvents>`n#include <QtGui/QPainterPath>`n";
+		},
+		@{
+			Old = "`t_active = active;`n`tif (isListItem()) {`n";
+			New = "`t_active = active;`n`tif (HoursGramGraphite()) {`n`t`t_hoursgramActive.start(`n`t`t`t[=] { update(); },`n`t`t`t_hoursgramActive.value(active ? 0. : 1.),`n`t`t`tactive ? 1. : 0.,`n`t`t`t220,`n`t`t`tanim::easeOutCirc);`n`t}`n`tif (isListItem()) {`n";
+		},
+		@{
+			Old = "`tauto hoursgramLift = 0;`n";
+			New = "`tauto hoursgramLift = 0.;`n";
+		},
+		@{
+			Old = "`t`tconst auto shown = _active ? 1. : std::clamp(value, 0., 1.);`n";
+			New = "`t`tconst auto active = _hoursgramActive.value(_active ? 1. : 0.);`n`t`tconst auto shown = std::max(`n`t`t`tstd::clamp(active, 0., 1.),`n`t`t`tstd::clamp(value, 0., 1.));`n";
+		},
+		@{
+			Old = "`t`tif (!_active) {`n`t`t`thoursgramLift = -int(std::round(style::ConvertScale(2) * value));`n`t`t}`n";
+			New = "`t`thoursgramLift = -style::ConvertScaleExact(2.)`n`t`t`t* value`n`t`t`t* (1. - std::clamp(active, 0., 1.));`n";
+		},
+		@{
+			Old = "`tRippleButton::paintRipple(p, 0, 0);`n`n`tif (_lock.locked) {`n";
+			New = "`tif (HoursGramGraphite()) {`n`t`tconst auto side = float64(style::ConvertScale(7));`n`t`tconst auto top = float64(style::ConvertScale(2));`n`t`tconst auto pill = QRectF(rect()).marginsRemoved(`n`t`t`t{ side, top, side, top });`n`t`tconst auto radius = std::min(`n`t`t`tfloat64(style::ConvertScale(16)),`n`t`t`tpill.height() / 2.);`n`t`tauto path = QPainterPath();`n`t`tpath.addRoundedRect(pill, radius, radius);`n`t`tp.save();`n`t`tp.setClipPath(path, Qt::IntersectClip);`n`t`tRippleButton::paintRipple(p, 0, 0);`n`t`tp.restore();`n`t} else {`n`t`tRippleButton::paintRipple(p, 0, 0);`n`t}`n`n`tif (_lock.locked) {`n";
+		},
+		@{
+			Old = "`t`tconst auto y = iconTop() + hoursgramLift;`n";
+			New = "`t`tconst auto y = iconTop();`n`t`tif (hoursgramLift != 0.) {`n`t`t`tp.translate(0., hoursgramLift);`n`t`t}`n";
+		},
+		@{
+			Old = "`t`t`ticon.paint(p, x, y, width());`n`t`t}`n`t}`n";
+			New = "`t`t`ticon.paint(p, x, y, width());`n`t`t}`n`t`tif (hoursgramLift != 0.) {`n`t`t`tp.translate(0., -hoursgramLift);`n`t`t}`n`t}`n";
+		},
+		@{
+			Old = "`t`t_hoursgramOver.start(`n`t`t`t[=] { update(); },`n`t`t`tover ? 0. : 1.,`n";
+			New = "`t`t_hoursgramOver.start(`n`t`t`t[=] { update(); },`n`t`t`t_hoursgramOver.value(over ? 0. : 1.),`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.h') `
+	'_hoursgramActive' `
+	@(
+		@{
+			Old = "`tUi::Animations::Simple _hoursgramOver;`n";
+			New = "`tUi::Animations::Simple _hoursgramOver;`n`tUi::Animations::Simple _hoursgramActive;`n";
+		})
+
+Write-Output 'Applied the Graphite animation fixes to lib_ui.'

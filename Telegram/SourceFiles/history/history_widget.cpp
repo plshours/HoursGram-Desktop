@@ -7403,7 +7403,8 @@ void HistoryWidget::moveFieldControls() {
 	if (graphite) {
 		_tabbedSelectorToggle->moveToLeft(left, buttonsBottom);
 		_botKeyboardHide->moveToLeft(left, buttonsBottom);
-		if (settings.showEmojiButtonInMessageField()) {
+		if (settings.showEmojiButtonInMessageField()
+			|| !_botKeyboardHide->isHidden()) {
 			left += _tabbedSelectorToggle->width();
 		}
 	} else {

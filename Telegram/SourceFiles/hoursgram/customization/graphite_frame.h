@@ -30,6 +30,8 @@ protected:
 	void paintEvent(QPaintEvent *e) override;
 
 private:
+	void updateMask();
+
 	Fn<std::vector<QRect>()> _panels;
 
 };
