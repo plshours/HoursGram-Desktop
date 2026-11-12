@@ -354,4 +354,43 @@ Edit-Text `
 			New = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`n`t// HoursGram: opaque webview host, a layered one gets no input.`n`tauto format = result->format();`n`tformat.setAlphaBufferSize(0);`n`tresult->setFormat(format);`n`treturn result;`n";
 		})
 
+# Popup menus have 12px corners with Graphite, but many of them keep only
+# 0-3px above the first row and below the last one, so the corners ate into
+# those rows. While Graphite is on, the space above and below the rows is at
+# least half of the radius.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/popup_menu.h') `
+	'_hoursgramScrollPadding' `
+	@(
+		@{
+			Old = "`tconst style::PopupMenu &_st;`n`n`tRoundRect _roundRect;`n";
+			New = "`tconst style::PopupMenu &_st;`n`tconst style::margins _hoursgramScrollPadding;`n`n`tRoundRect _roundRect;`n";
+		})
+
+$popupMenu = Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/popup_menu.cpp'
+$popupText = [System.IO.File]::ReadAllText($popupMenu).Replace("`r`n", "`n")
+if (!$popupText.Contains('HoursGramScrollPadding')) {
+	$popupText = $popupText.Replace('_st.scrollPadding', '_hoursgramScrollPadding')
+	[System.IO.File]::WriteAllText(
+		$popupMenu,
+		$popupText,
+		[System.Text.UTF8Encoding]::new($false))
+	Edit-Text `
+		$popupMenu `
+		'HoursGramScrollPadding' `
+		@(
+			@{
+				Old = "#include `"ui/widgets/shadow.h`"`n";
+				New = "#include `"ui/widgets/shadow.h`"`n#include `"ui/widgets/buttons.h`"`n";
+			},
+			@{
+				Old = "namespace Ui {`n`nPopupMenu::PopupMenu(QWidget *parent, const style::PopupMenu &st)`n: RpWidget(parent)`n, _st(st)`n";
+				New = "namespace Ui {`nnamespace {`n`n[[nodiscard]] style::margins HoursGramScrollPadding(`n`t`tconst style::PopupMenu &st) {`n`tauto result = st.scrollPadding;`n`tif (HoursGramGraphite()) {`n`t`tconst auto least = st.radius / 2;`n`t`tresult.setTop(std::max(result.top(), least));`n`t`tresult.setBottom(std::max(result.bottom(), least));`n`t}`n`treturn result;`n}`n`n} // namespace`n`nPopupMenu::PopupMenu(QWidget *parent, const style::PopupMenu &st)`n: RpWidget(parent)`n, _st(st)`n, _hoursgramScrollPadding(HoursGramScrollPadding(st))`n";
+			},
+			@{
+				Old = "PopupMenu::PopupMenu(QWidget *parent, QMenu *menu, const style::PopupMenu &st)`n: RpWidget(parent)`n, _st(st)`n";
+				New = "PopupMenu::PopupMenu(QWidget *parent, QMenu *menu, const style::PopupMenu &st)`n: RpWidget(parent)`n, _st(st)`n, _hoursgramScrollPadding(HoursGramScrollPadding(st))`n";
+			})
+}
+
 Write-Output 'Applied the Graphite animation fixes to lib_ui.'

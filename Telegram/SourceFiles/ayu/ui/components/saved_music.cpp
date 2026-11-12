@@ -16,6 +16,7 @@
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
 #include "styles/palette.h"
+#include "styles/style_chat.h"
 #include "styles/style_info.h"
 #include "ui/effects/ripple_animation.h"
 #include "ui/painter.h"
@@ -38,7 +39,7 @@ QColor GetNoCoverBgColor(std::optional<QColor> overrideBg) {
 			st::infoProfileTopBarActionButtonBgOpacity);
 	}
 
-	return st::windowBgOver->c;
+	return st::windowBg->c;
 }
 
 struct Cover
@@ -181,7 +182,7 @@ void AyuMusicButton::downloadAndMakeCover(FullMsgId msgId) {
 
 void AyuMusicButton::makeCover() {
 	const auto weak = base::make_weak(this);
-	const auto size = st::infoMusicButtonTitle.style.font->height;
+	const auto size = st::infoMusicButtonCover;
 	const auto bgColor = GetNoCoverBgColor(_overrideBg);
 	const auto theme = CoverTheme{
 		.glyphFg = st::windowBoldFg->c,
@@ -214,7 +215,7 @@ void AyuMusicButton::makeCover() {
 
 				const auto target = QSize(size, size);
 				const auto args = Images::PrepareArgs{
-					.options = Images::Option::RoundSmall,
+					.options = Images::Option::RoundLarge,
 					.outer = target,
 				};
 				strong->_currentCover = {
@@ -239,28 +240,41 @@ void AyuMusicButton::makeCover() {
 		});
 }
 
+// A card like the sections under it: the cover on the left, the title and
+// the performer on two lines next to it and an arrow to the whole list.
 void AyuMusicButton::paintEvent(QPaintEvent *e) {
-	if (!_currentCover) {
-		return;
-	}
-
 	auto p = Painter(this);
-
-	const auto size = st::infoMusicButtonTitle.style.font->height;
-	const auto cover = _currentCover.value();
-	const auto radius = st::infoProfileMusicRadius;
 	auto hq = PainterHighQualityEnabler(p);
+
+	const auto radius = st::infoProfileMusicRadius;
 	p.setPen(Qt::NoPen);
-	p.setBrush(cover.bg);
+	p.setBrush(_currentCover ? _currentCover->bg : st::windowBg->c);
 	p.drawRoundedRect(rect(), radius, radius);
 	paintRipple(p, QPoint());
 
-	if (!cover.pix.isNull()) {
-		auto hq = PainterHighQualityEnabler(p);
-		p.drawPixmap(
-			QRect(_coverLeft, st::infoMusicButtonPadding.top(), size, size),
-			cover.pix);
+	const auto size = st::infoMusicButtonCover;
+	const auto cover = QRect(
+		_coverLeft,
+		(height() - size) / 2,
+		size,
+		size);
+	if (_currentCover && !_currentCover->pix.isNull()) {
+		p.drawPixmap(cover, _currentCover->pix);
+	} else {
+		p.setBrush(st::windowBgOver);
+		p.drawRoundedRect(
+			cover,
+			st::infoMusicButtonCoverRadius,
+			st::infoMusicButtonCoverRadius);
 	}
+
+	const auto &arrow = st::topicButtonArrow;
+	arrow.paint(
+		p,
+		width() - st::infoMusicButtonPadding.right() - arrow.width(),
+		(height() - arrow.height()) / 2,
+		width(),
+		st::windowSubTextFg->c);
 }
 
 // Keeps the ripple inside the rounded shape of the button.
@@ -272,28 +286,41 @@ QImage AyuMusicButton::prepareRippleMask() const {
 
 int AyuMusicButton::resizeGetHeight(int newWidth) {
 	const auto padding = st::infoMusicButtonPadding;
-	const auto &font = st::infoMusicButtonTitle.style.font;
-	const auto coverSize = font->height;
+	const auto coverSize = st::infoMusicButtonCover;
 	const auto skip = st::infoMusicButtonSkip;
+	const auto result = padding.top() + coverSize + padding.bottom();
 
-	_performer->hide();
+	_coverLeft = padding.left();
+	const auto textLeft = _coverLeft + coverSize + skip;
 	const auto available = newWidth
-		- padding.left()
-		- padding.right()
-		- coverSize
-		- skip;
+		- textLeft
+		- skip
+		- st::topicButtonArrow.width()
+		- padding.right();
 	if (available <= 0) {
-		return padding.top() + font->height + padding.bottom();
+		_title->hide();
+		_performer->hide();
+		return result;
 	}
+	_title->show();
 	_title->resizeToNaturalWidth(available);
-	const auto used = coverSize + skip + _title->width();
-	_coverLeft = std::max((newWidth - used) / 2, padding.left());
-	_title->moveToLeft(
-		_coverLeft + coverSize + skip,
-		padding.top(),
-		newWidth);
-
-	return padding.top() + font->height + padding.bottom();
+	const auto withPerformer = !_performerText.isEmpty();
+	_performer->setVisible(withPerformer);
+	if (withPerformer) {
+		_performer->resizeToNaturalWidth(available);
+	}
+	const auto lines = _title->height() + (withPerformer
+		? (st::infoMusicButtonLinesSkip + _performer->height())
+		: 0);
+	const auto top = (result - lines) / 2;
+	_title->moveToLeft(textLeft, top, newWidth);
+	if (withPerformer) {
+		_performer->moveToLeft(
+			textLeft,
+			top + _title->height() + st::infoMusicButtonLinesSkip,
+			newWidth);
+	}
+	return result;
 }
 
 } // namespace Info::Profile

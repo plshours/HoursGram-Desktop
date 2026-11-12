@@ -67,6 +67,7 @@ private:
 	Queue() = default;
 
 	void playAt(int index, int direction, int attemptsLeft);
+	void prefetchAfter(int index);
 	[[nodiscard]] int stepFrom(int index, int delta, bool repeatAll) const;
 
 	base::weak_ptr<Main::Session> _session;

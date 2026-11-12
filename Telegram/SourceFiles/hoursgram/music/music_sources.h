@@ -53,12 +53,18 @@ void LoadSavedMusic(
 	not_null<Main::Session*> session,
 	Fn<void(std::vector<AudioMsgId>)> done);
 
-// Finds the chart song among the Telegram audio. `done` gets an empty
+// Finds the chart song among the Telegram audio. Several spellings of the
+// query are tried, from the full one to the bare title, and files of
+// verified channels win among equal matches. `done` gets an empty
 // AudioMsgId when nothing close enough was found.
 void ResolveChartTrack(
 	not_null<Main::Session*> session,
 	const ChartTrack &track,
 	Fn<void(AudioMsgId)> done);
+
+// Starts downloading the file of the track into the cache, so that it plays
+// at once when its turn comes.
+void Prefetch(const AudioMsgId &audio);
 
 // Downloads cover art by URL, at most once per run for every address.
 // `done` runs on the main thread, with a null image when it failed.

@@ -1300,8 +1300,6 @@ PRIVATE
     hoursgram/customization/customization_palette.h
     hoursgram/customization/graphite_frame.cpp
     hoursgram/customization/graphite_frame.h
-    hoursgram/customization/motion_cascade.cpp
-    hoursgram/customization/motion_cascade.h
     hoursgram/index/peer_index.cpp
     hoursgram/index/peer_index.h
     hoursgram/music/music_common.cpp

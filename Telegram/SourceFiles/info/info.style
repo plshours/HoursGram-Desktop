@@ -533,11 +533,11 @@ infoProfileSkip: 7px;
 // Every profile section is drawn as a rounded card: the padding carries
 // the inset of that card from the sides of the panel and the skip is the
 // gap under it.
-infoProfileCardPadding: margins(11px, 0px, 11px, 0px);
-infoProfileCardRadius: 28px;
-infoProfileCardSkip: 12px;
-infoProfileMusicPadding: margins(11px, 18px, 11px, 4px);
-infoProfileMusicRadius: 16px;
+infoProfileCardPadding: margins(12px, 0px, 12px, 0px);
+infoProfileCardRadius: 20px;
+infoProfileCardSkip: 10px;
+infoProfileMusicPadding: margins(12px, 16px, 12px, 6px);
+infoProfileMusicRadius: 20px;
 
 infoProfileLabeledButtonQr: IconButton(defaultIconButton) {
 	width: 34px;
@@ -1336,8 +1336,11 @@ earnTonIconSize: 16px;
 earnTonIconMargin: margins(0px, 2px, 0px, 0px);
 
 infoMusicButtonRipple: universalRippleAnimation;
-infoMusicButtonPadding: margins(14px, 7px, 14px, 7px);
-infoMusicButtonSkip: 10px;
+infoMusicButtonPadding: margins(12px, 12px, 16px, 12px);
+infoMusicButtonSkip: 14px;
+infoMusicButtonCover: 44px;
+infoMusicButtonCoverRadius: 12px;
+infoMusicButtonLinesSkip: 2px;
 infoMusicButtonPerformer: FlatLabel(defaultFlatLabel) {
 	textFg: windowSubTextFg;
 	maxHeight: 20px;

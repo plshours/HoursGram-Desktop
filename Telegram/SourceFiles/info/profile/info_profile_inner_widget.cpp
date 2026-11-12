@@ -53,11 +53,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/wrap/vertical_layout.h"
 #include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/slide_wrap.h"
-#include "hoursgram/customization/motion_cascade.h"
 #include "ui/painter.h"
 #include "ui/vertical_list.h"
 #include "ui/ui_utility.h"
-#include "styles/style_hoursgram_design.h"
 #include "styles/style_info.h"
 
 // AyuGram includes
@@ -194,11 +192,6 @@ InnerWidget::InnerWidget(
 			updateDesiredHeight();
 		}
 	}, lifetime());
-	_hoursgramCascade = HoursGram::Motion::PrepareCascade(
-		this,
-		_content.data(),
-		st::boxBg,
-		QPoint(0, st::hoursgramProfileAppearShift));
 }
 
 rpl::producer<> InnerWidget::backRequest() const {
@@ -549,9 +542,6 @@ void InnerWidget::enableBackButton() {
 }
 
 void InnerWidget::showFinished() {
-	if (const auto cascade = base::take(_hoursgramCascade)) {
-		cascade();
-	}
 	_showFinished.fire({});
 }
 

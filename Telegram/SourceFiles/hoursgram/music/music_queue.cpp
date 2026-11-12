@@ -110,6 +110,7 @@ void Queue::playAt(int index, int direction, int attemptsLeft) {
 		_current = track.audio;
 		_changes.fire({});
 		Media::Player::instance()->play(track.audio);
+		prefetchAfter(index);
 		return;
 	}
 	_resolving = true;
@@ -124,6 +125,7 @@ void Queue::playAt(int index, int direction, int attemptsLeft) {
 			_current = audio;
 			_changes.fire({});
 			Media::Player::instance()->play(audio);
+			prefetchAfter(index);
 			return;
 		}
 		_notFound.fire_copy(_tracks[index].chart);
@@ -135,6 +137,34 @@ void Queue::playAt(int index, int direction, int attemptsLeft) {
 			}
 		}
 		_changes.fire({});
+	});
+}
+
+// The next song of the list is looked up and downloaded while this one
+// plays, so a chart song missing from the cache does not make a pause
+// between two tracks.
+void Queue::prefetchAfter(int index) {
+	const auto session = _session.get();
+	const auto next = stepFrom(index, 1, false);
+	if (!session || next < 0) {
+		return;
+	}
+	const auto &track = _tracks[next];
+	if (track.resolved()) {
+		Prefetch(track.audio);
+		return;
+	}
+	const auto generation = _generation;
+	ResolveChartTrack(session, track.chart, [=](AudioMsgId audio) {
+		if (!audio
+			|| generation != _generation
+			|| next >= int(_tracks.size())) {
+			return;
+		}
+		if (!_tracks[next].resolved()) {
+			_tracks[next].audio = audio;
+		}
+		Prefetch(_tracks[next].audio);
 	});
 }
 

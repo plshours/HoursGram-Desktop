@@ -11,7 +11,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/flat_map.h"
 #include "base/flat_set.h"
 #include "data/data_audio_msg_id.h"
+#include "base/weak_ptr.h"
 #include "data/data_document.h"
+#include "data/data_file_origin.h"
+#include "history/history.h"
 #include "data/data_media_types.h"
 #include "data/data_messages.h"
 #include "data/data_peer.h"
@@ -256,6 +259,108 @@ struct ArtworkEntry {
 	return score;
 }
 
+// A file posted by a verified channel or bot is the full release far more
+// often than a re-upload in a random chat, so among equal matches it wins.
+[[nodiscard]] int SourceScore(
+		not_null<Main::Session*> session,
+		const AudioMsgId &audio) {
+	const auto item = session->data().message(audio.contextId());
+	const auto peer = item ? item->history()->peer.get() : nullptr;
+	if (!peer) {
+		return 0;
+	}
+	auto result = 0;
+	if (peer->isVerified()) {
+		result += 3;
+	}
+	if (peer->isBroadcast()) {
+		result += 1;
+	}
+	return result;
+}
+
+[[nodiscard]] QString CleanTitle(const QString &title) {
+	static const auto brackets = QRegularExpression(
+		u"\\s*[\\(\\[][^\\)\\]]*[\\)\\]]"_q);
+	auto result = title;
+	result.replace(brackets, QString());
+	return result.trimmed();
+}
+
+[[nodiscard]] QString FirstArtist(const QString &artist) {
+	static const auto separators = QRegularExpression(
+		u"[,&]|\\sx\\s|\\sfeat\\.?\\s|\\sft\\.?\\s"_q,
+		QRegularExpression::CaseInsensitiveOption);
+	return artist.split(separators).value(0).trimmed();
+}
+
+struct ResolveAttempt {
+	QString query;
+	int threshold = 0;
+};
+
+[[nodiscard]] std::vector<ResolveAttempt> ResolveAttempts(
+		const ChartTrack &track) {
+	const auto title = CleanTitle(track.title);
+	const auto artist = FirstArtist(track.artist);
+	auto result = std::vector<ResolveAttempt>();
+	const auto push = [&](QString query, int threshold) {
+		query = query.simplified();
+		if (query.isEmpty()) {
+			return;
+		}
+		for (const auto &existing : result) {
+			if (existing.query.compare(query, Qt::CaseInsensitive) == 0) {
+				return;
+			}
+		}
+		result.push_back({ std::move(query), threshold });
+	};
+	push(track.artist + ' ' + track.title, 0);
+	push(artist + ' ' + title, 0);
+	push(title + ' ' + artist, 0);
+	push(title, 4);
+	return result;
+}
+
+void ResolveStep(
+		not_null<Main::Session*> session,
+		ChartTrack track,
+		std::shared_ptr<std::vector<ResolveAttempt>> attempts,
+		int index,
+		Fn<void(AudioMsgId)> done) {
+	if (index >= int(attempts->size())) {
+		done(AudioMsgId());
+		return;
+	}
+	const auto attempt = (*attempts)[index];
+	const auto weak = base::make_weak(session);
+	SearchMusic(session, attempt.query, [=](std::vector<AudioMsgId> found) {
+		const auto strong = weak.get();
+		if (!strong) {
+			return;
+		}
+		auto best = AudioMsgId();
+		auto bestScore = attempt.threshold;
+		for (const auto &audio : found) {
+			const auto match = MatchScore(track, audio.audio());
+			if (match <= 0) {
+				continue;
+			}
+			const auto score = match + SourceScore(strong, audio);
+			if (score > bestScore) {
+				best = audio;
+				bestScore = score;
+			}
+		}
+		if (best) {
+			done(best);
+		} else {
+			ResolveStep(strong, track, attempts, index + 1, done);
+		}
+	});
+}
+
 } // namespace
 
 void LoadFreshWave(Fn<void(FreshWave)> done) {
@@ -364,34 +469,20 @@ void ResolveChartTrack(
 		not_null<Main::Session*> session,
 		const ChartTrack &track,
 		Fn<void(AudioMsgId)> done) {
-	const auto query = track.artist + ' ' + track.title;
-	SearchMusic(session, query, [=](std::vector<AudioMsgId> found) {
-		auto best = AudioMsgId();
-		auto bestScore = 0;
-		for (const auto &audio : found) {
-			const auto score = MatchScore(track, audio.audio());
-			if (score > bestScore) {
-				best = audio;
-				bestScore = score;
-			}
-		}
-		if (best) {
-			done(best);
-			return;
-		}
-		SearchMusic(session, track.title, [=](std::vector<AudioMsgId> found) {
-			auto best = AudioMsgId();
-			auto bestScore = 4;
-			for (const auto &audio : found) {
-				const auto score = MatchScore(track, audio.audio());
-				if (score > bestScore) {
-					best = audio;
-					bestScore = score;
-				}
-			}
-			done(best);
-		});
-	});
+	ResolveStep(
+		session,
+		track,
+		std::make_shared<std::vector<ResolveAttempt>>(ResolveAttempts(track)),
+		0,
+		std::move(done));
+}
+
+void Prefetch(const AudioMsgId &audio) {
+	const auto document = audio.audio();
+	if (!document || document->loading()) {
+		return;
+	}
+	document->save(Data::FileOriginMessage(audio.contextId()), QString());
 }
 
 void LoadArtwork(const QString &url, Fn<void(QImage)> done) {

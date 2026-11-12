@@ -114,7 +114,6 @@ private:
 	rpl::event_stream<> _backClicks;
 	rpl::event_stream<int> _onlineCount;
 	rpl::event_stream<> _showFinished;
-	Fn<void()> _hoursgramCascade;
 
 	std::shared_ptr<Data::PhotoMedia> _nonPersonalView;
 

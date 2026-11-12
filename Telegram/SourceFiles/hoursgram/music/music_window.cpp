@@ -75,9 +75,6 @@ constexpr auto kType = AudioMsgId::Type::Song;
 constexpr auto kSlideDuration = crl::time(280);
 constexpr auto kHoverDuration = crl::time(170);
 constexpr auto kSelectDuration = crl::time(260);
-constexpr auto kAppearDuration = crl::time(340);
-constexpr auto kAppearStagger = crl::time(26);
-constexpr auto kAppearMaxDelay = crl::time(380);
 constexpr auto kPopDuration = crl::time(320);
 constexpr auto kCoverDuration = crl::time(420);
 constexpr auto kLyricsScrollDuration = crl::time(450);
@@ -402,32 +399,6 @@ void Artwork::paint(
 	p.drawPixmap(rect.topLeft(), _cache);
 }
 
-// Rows and cards fade in one after another when a page is built, which
-// makes a freshly loaded list feel like it arrives rather than pops up.
-class Appearing {
-public:
-	void appear(not_null<QWidget*> widget, crl::time delay) {
-		_pending = true;
-		base::call_delayed(delay, widget.get(), [=] {
-			_pending = false;
-			_animation.start(
-				[=] { widget->update(); },
-				0.,
-				1.,
-				kAppearDuration,
-				anim::easeOutCubic);
-		});
-	}
-	[[nodiscard]] float64 value() const {
-		return _pending ? 0. : _animation.value(1.);
-	}
-
-private:
-	Ui::Animations::Simple _animation;
-	bool _pending = false;
-
-};
-
 class TrackRow final : public Ui::RippleButton {
 public:
 	TrackRow(QWidget *parent, QueueTrack track, int number);
@@ -437,7 +408,6 @@ public:
 	}
 	void setTrack(QueueTrack track);
 	void refreshState();
-	void appear(crl::time delay);
 	void setMenuCallback(Fn<void()> callback);
 
 protected:
@@ -456,7 +426,6 @@ private:
 	object_ptr<Ui::IconButton> _menu;
 	Ui::Animations::Simple _over;
 	Ui::Animations::Basic _equalizer;
-	Appearing _appearing;
 	PlayState _state;
 	bool _wasOver = false;
 
@@ -491,11 +460,6 @@ void TrackRow::setTrack(QueueTrack track) {
 void TrackRow::setMenuCallback(Fn<void()> callback) {
 	_menu->setClickedCallback(std::move(callback));
 	_menu->show();
-}
-
-void TrackRow::appear(crl::time delay) {
-	_appearing.appear(this, delay);
-	update();
 }
 
 void TrackRow::refreshState() {
@@ -542,14 +506,6 @@ QImage TrackRow::prepareRippleMask() const {
 
 void TrackRow::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
-	const auto appear = _appearing.value();
-	if (appear <= 0.) {
-		return;
-	} else if (appear < 1.) {
-		p.setOpacity(appear);
-		p.translate(0, (1. - appear) * st::hoursgramMusicSlideShift / 2.);
-	}
-
 	const auto over = _over.value(isOver() ? 1. : 0.);
 	const auto radius = st::hoursgramMusicRowRadius;
 	if (over > 0. || _state.current) {
@@ -595,7 +551,7 @@ void TrackRow::paintEvent(QPaintEvent *e) {
 		st::hoursgramMusicRowCoverRadius,
 		st::hoursgramMusicRowCoverIcon,
 		st::windowBgRipple->c);
-	p.setOpacity(appear);
+	p.setOpacity(1.);
 	left += size + st::hoursgramMusicRowCoverSkip;
 
 	const auto menu = _menu->isHidden() ? 0 : _menu->width();
@@ -607,20 +563,29 @@ void TrackRow::paintEvent(QPaintEvent *e) {
 	if (available <= 0) {
 		return;
 	}
+	const auto &titleFont = st::hoursgramMusicRowTitle;
+	const auto &subFont = st::hoursgramMusicRowSub;
+	const auto skip = st::hoursgramMusicRowLinesSkip;
+	const auto lines = _performer.isEmpty()
+		? titleFont->height
+		: (titleFont->height + skip + subFont->height);
+	const auto titleTop = (height() - lines) / 2;
 	p.setPen(_state.current ? st::windowActiveTextFg : st::windowBoldFg);
-	p.setFont(st::hoursgramMusicRowTitle);
+	p.setFont(titleFont);
 	p.drawTextLeft(
 		left,
-		st::hoursgramMusicRowTitleTop,
+		titleTop,
 		width(),
-		st::hoursgramMusicRowTitle->elided(_title, available));
+		titleFont->elided(_title, available));
 	p.setPen(st::windowSubTextFg);
-	p.setFont(st::hoursgramMusicRowSub);
-	p.drawTextLeft(
-		left,
-		st::hoursgramMusicRowSubTop,
-		width(),
-		st::hoursgramMusicRowSub->elided(_performer, available));
+	p.setFont(subFont);
+	if (!_performer.isEmpty()) {
+		p.drawTextLeft(
+			left,
+			titleTop + titleFont->height + skip,
+			width(),
+			subFont->elided(_performer, available));
+	}
 	if (sideWidth) {
 		p.drawText(
 			QRect(
@@ -640,7 +605,6 @@ public:
 	ChartCard(QWidget *parent, QueueTrack track);
 
 	void refreshState();
-	void appear(crl::time delay);
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -654,7 +618,6 @@ private:
 	Artwork _artwork;
 	Ui::Animations::Simple _over;
 	Ui::Animations::Basic _equalizer;
-	Appearing _appearing;
 	PlayState _state;
 	bool _wasOver = false;
 	bool _new = false;
@@ -669,11 +632,6 @@ ChartCard::ChartCard(QWidget *parent, QueueTrack track)
 	_equalizer.init([=] { update(); });
 	_artwork.setTrack(_track);
 	refreshState();
-}
-
-void ChartCard::appear(crl::time delay) {
-	_appearing.appear(this, delay);
-	update();
 }
 
 void ChartCard::refreshState() {
@@ -718,13 +676,6 @@ QImage ChartCard::prepareRippleMask() const {
 
 void ChartCard::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
-	const auto appear = _appearing.value();
-	if (appear <= 0.) {
-		return;
-	} else if (appear < 1.) {
-		p.setOpacity(appear);
-		p.translate(0, (1. - appear) * st::hoursgramMusicSlideShift);
-	}
 	const auto over = _over.value(isOver() ? 1. : 0.);
 	const auto radius = st::hoursgramMusicCardRadius2;
 	const auto lift = int(base::SafeRound(over * st::hoursgramMusicGap / 2.));
@@ -802,7 +753,7 @@ void ChartCard::paintEvent(QPaintEvent *e) {
 		p.restore();
 	}
 
-	const auto textTop = cover.y() + cover.height() + st::hoursgramMusicGap;
+	const auto textTop = coverRect().height() + st::hoursgramMusicGap;
 	p.setPen(_state.current ? st::windowActiveTextFg : st::windowBoldFg);
 	p.setFont(st::hoursgramMusicCardTitle);
 	p.drawTextLeft(
@@ -814,7 +765,9 @@ void ChartCard::paintEvent(QPaintEvent *e) {
 	p.setFont(st::hoursgramMusicCardSub);
 	p.drawTextLeft(
 		0,
-		textTop + st::hoursgramMusicCardTitle->height + 2,
+		textTop
+			+ st::hoursgramMusicCardTitle->height
+			+ st::hoursgramMusicRowLinesSkip,
 		width(),
 		st::hoursgramMusicCardSub->elided(_track.chart.artist, width()));
 }
@@ -842,6 +795,7 @@ protected:
 			1);
 		const auto textHeight = st::hoursgramMusicGap
 			+ st::hoursgramMusicCardTitle->height
+			+ st::hoursgramMusicRowLinesSkip
 			+ st::hoursgramMusicCardSub->height
 			+ st::hoursgramMusicGap;
 		const auto cardHeight = cardWidth + textHeight;
@@ -1087,31 +1041,50 @@ void HeroBanner::paintEvent(QPaintEvent *e) {
 	p.drawRoundedRect(rect(), radius, radius);
 
 	const auto padding = st::hoursgramMusicHeroPadding;
+	const auto size = st::hoursgramMusicHeroCoverSize;
+	const auto count = int(_covers.size());
+	const auto fanWidth = count
+		? int(size + (count - 1) * st::hoursgramMusicHeroCoverShift * 1.1)
+		: 0;
+	const auto fanFits = count
+		&& (width() - padding.left() - padding.right() - fanWidth
+			>= st::hoursgramMusicCardWidth * 2);
+	const auto textWidth = std::max(
+		width()
+			- padding.left()
+			- padding.right()
+			- (fanFits ? (fanWidth + st::hoursgramMusicSectionSkip) : 0),
+		0);
+	const auto &titleFont = st::hoursgramMusicHeroTitle;
+	const auto &aboutFont = st::hoursgramMusicHeroAbout;
 	p.setPen(st::activeButtonFg);
-	p.setFont(st::hoursgramMusicHeroTitle);
+	p.setFont(titleFont);
 	p.drawText(
 		padding.left(),
-		padding.top() + st::hoursgramMusicHeroTitle->ascent,
-		Tr("Fresh wave", "Свежая волна"));
-	p.setFont(st::hoursgramMusicHeroAbout);
+		padding.top() + titleFont->ascent,
+		titleFont->elided(Tr("Fresh wave", "Свежая волна"), textWidth));
+	p.setFont(aboutFont);
 	p.setOpacity(0.8);
 	p.drawText(
 		padding.left(),
 		padding.top()
-			+ st::hoursgramMusicHeroTitle->height
+			+ titleFont->height
 			+ st::hoursgramMusicPageAboutSkip
-			+ st::hoursgramMusicHeroAbout->ascent,
-		Tr(
-			"New songs that everybody listens to right now",
-			"Новинки, которые слушают прямо сейчас"));
+			+ aboutFont->ascent,
+		aboutFont->elided(
+			Tr(
+				"New songs that everybody listens to right now",
+				"Новинки, которые слушают прямо сейчас"),
+			textWidth));
 	p.setOpacity(1.);
+	if (!fanFits) {
+		return;
+	}
 
 	const auto shown = _shown.value(1.);
 	const auto spread = _spread.value(_over ? 1. : 0.);
-	const auto size = st::hoursgramMusicHeroCoverSize;
 	const auto shift = st::hoursgramMusicHeroCoverShift
 		* (0.85 + 0.25 * spread);
-	const auto count = int(_covers.size());
 	const auto right = width() - padding.right();
 	const auto top = (height() - size) / 2;
 	for (auto i = count; i != 0;) {
@@ -2201,20 +2174,25 @@ void PlayerBar::paintEvent(QPaintEvent *e) {
 	const auto left = cover.x() + size + st::hoursgramMusicRowCoverSkip;
 	const auto available = _info->x() + _info->width() - left;
 	if (available > 0) {
+		const auto &titleFont = st::hoursgramMusicBarTitle;
+		const auto &subFont = st::hoursgramMusicBarSub;
+		const auto skip = st::hoursgramMusicRowLinesSkip;
+		const auto top = (height()
+			- titleFont->height
+			- skip
+			- subFont->height) / 2;
 		p.setPen(st::windowBoldFg);
-		p.setFont(st::hoursgramMusicBarTitle);
+		p.setFont(titleFont);
 		p.drawText(
 			left,
-			height() / 2 - st::hoursgramMusicGap / 4,
-			st::hoursgramMusicBarTitle->elided(_title, available));
+			top + titleFont->ascent,
+			titleFont->elided(_title, available));
 		p.setPen(st::windowSubTextFg);
-		p.setFont(st::hoursgramMusicBarSub);
+		p.setFont(subFont);
 		p.drawText(
 			left,
-			height() / 2
-				+ st::hoursgramMusicBarSub->height
-				- st::hoursgramMusicGap / 4,
-			st::hoursgramMusicBarSub->elided(_performer, available));
+			top + titleFont->height + skip + subFont->ascent,
+			subFont->elided(_performer, available));
 	}
 
 	const auto pop = _pop.animating()
@@ -2245,8 +2223,9 @@ void PlayerBar::paintEvent(QPaintEvent *e) {
 	}
 }
 
-// The logo in the title of the window. It lets the mouse through, so that
-// the window can still be dragged by it.
+// The name of the window in its title: the brand and the section on one
+// line, in two weights. It lets the mouse through, so that the window can
+// still be dragged by it.
 class Logo final : public Ui::RpWidget {
 public:
 	explicit Logo(QWidget *parent) : RpWidget(parent) {
@@ -2257,39 +2236,22 @@ public:
 protected:
 	void paintEvent(QPaintEvent *e) override {
 		auto p = QPainter(this);
-		auto hq = PainterHighQualityEnabler(p);
-		const auto size = st::hoursgramMusicLogoSize;
-		auto gradient = QLinearGradient(0, 0, size, size);
-		gradient.setColorAt(0., st::windowBgActive->c);
-		gradient.setColorAt(
-			1.,
-			anim::color(st::windowBgActive, st::windowBgRipple, 0.45));
-		p.setPen(Qt::NoPen);
-		p.setBrush(gradient);
-		p.drawRoundedRect(
-			QRect(0, 0, size, size),
-			st::hoursgramMusicLogoRadius,
-			st::hoursgramMusicLogoRadius);
-		const auto &icon = st::hoursgramMusicLogoIcon;
-		icon.paint(
-			p,
-			(size - icon.width()) / 2,
-			(size - icon.height()) / 2,
-			width());
-
-		const auto left = size + st::hoursgramMusicLogoSkip;
 		const auto &title = st::hoursgramMusicLogoTitle;
 		const auto &sub = st::hoursgramMusicLogoSub;
-		const auto top = (height() - title->height - sub->height) / 2;
+		const auto brand = u"HorusGram"_q;
+		const auto brandWidth = title->width(brand) + title->spacew;
+		const auto baseline = (height() - title->height) / 2 + title->ascent;
 		p.setPen(st::windowBoldFg);
 		p.setFont(title);
-		p.drawText(left, top + title->ascent, u"HorusGram"_q);
+		p.drawText(0, baseline, brand);
 		p.setPen(st::windowSubTextFg);
 		p.setFont(sub);
 		p.drawText(
-			left,
-			top + title->height + sub->ascent,
-			Tr("Music", "Музыка"));
+			brandWidth,
+			baseline,
+			sub->elided(
+				Tr("Music", "Музыка"),
+				std::max(width() - brandWidth, 0)));
 	}
 
 };
@@ -2449,7 +2411,6 @@ void FillTracks(
 				menu(row->track(), playlistId);
 			});
 		}
-		row->appear(std::min(index * kAppearStagger, kAppearMaxDelay));
 		rows->push_back(row);
 		++index;
 	}
@@ -2523,7 +2484,6 @@ void FillTracks(
 			card->setClickedCallback([=] {
 				ActivateTrack(session, *freshShared, index);
 			});
-			card->appear(std::min(index * kAppearStagger, kAppearMaxDelay));
 			card->show();
 			grid->add(card);
 			++index;

@@ -135,6 +135,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QCoreApplication>
 #include <QtCore/QMimeData>
 
+#include <cmath>
+
 // AyuGram includes
 #include "ayu/ayu_settings.h"
 #include "ayu/features/filters/filters_cache_controller.h"
@@ -147,7 +149,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 constexpr auto kScrollDateHideTimeout = 800;
-constexpr auto kHoursGramAppearDuration = crl::time(380);
+constexpr auto kHoursGramAppearDuration = crl::time(460);
+constexpr auto kHoursGramAppearStiffness = 7.5;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
@@ -2580,33 +2583,26 @@ float64 HistoryInner::hoursgramAppearProgress(
 		1.);
 }
 
-// A message that was just sent rises from under the field and settles with
-// a short spring from its own corner. Applied to the painter around
-// Element::draw, so the message itself knows nothing about it. Incoming
-// messages stay still, as HORUSGRAM_DESIGN.md asks.
+// A message that was just sent rises out of the field onto its place. The
+// motion is a critically damped spring: fast at first, then settling
+// without any bounce, so the text never wobbles. Nothing is scaled, which
+// keeps the glyphs crisp all the way; the message only moves and fades in
+// during the first third of the way. Applied to the painter around
+// Element::draw, so the message itself knows nothing about it.
 void HistoryInner::hoursgramPaintAppearing(
 		Painter &p,
 		not_null<const HistoryItem*> item,
 		int height,
 		float64 progress) const {
-	const auto out = item->out();
-	const auto eased = anim::easeOutCubic(1., progress);
-	const auto spring = anim::easeOutBack(1., progress);
-	const auto shift = st::hoursgramMessageAppearShift;
-	p.setOpacity(std::min(progress * 1.8, 1.));
-	if (out) {
-		const auto scale = 0.9 + 0.1 * spring;
-		p.translate(0, (1. - eased) * shift);
-		p.translate(width(), height);
-		p.scale(scale, scale);
-		p.translate(-width(), -height);
-	} else {
-		const auto scale = 0.96 + 0.04 * eased;
-		p.translate(-(1. - eased) * shift / 2., 0);
-		p.translate(0, height);
-		p.scale(scale, scale);
-		p.translate(0, -height);
-	}
+	const auto spring = [](float64 t) {
+		const auto x = kHoursGramAppearStiffness * t;
+		return 1. - (1. + x) * std::exp(-x);
+	};
+	const auto settled = spring(progress) / spring(1.);
+	const auto shift = st::hoursgramMessageAppearShift
+		+ std::min(height, st::hoursgramMessageAppearShift);
+	p.setOpacity(std::clamp(progress * 3., 0., 1.));
+	p.translate(0, std::round((1. - settled) * shift));
 }
 
 void HistoryInner::itemRemoved(not_null<const HistoryItem*> item) {

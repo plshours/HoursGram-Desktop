@@ -40,6 +40,4 @@ hoursgramSideBarMusic: icon {{ "hoursgram/sidebar_music", sideBarIconFg }};
 hoursgramSideBarMusicActive: icon {{ "hoursgram/sidebar_music", sideBarIconFgActive }};
 
 // Motion of HorusGram: how far things travel while they appear.
-hoursgramMessageAppearShift: 26px;
-hoursgramMenuCascadeShift: 34px;
-hoursgramProfileAppearShift: 22px;
+hoursgramMessageAppearShift: 34px;

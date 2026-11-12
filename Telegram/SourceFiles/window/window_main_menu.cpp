@@ -28,7 +28,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge.h"
 #include "settings/settings_common.h"
-#include "hoursgram/customization/motion_cascade.h"
 #include "hoursgram/music/music_window.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "info/saved/info_saved_music_widget.h"
@@ -72,7 +71,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
 #include "styles/style_chat.h" // popupMenuExpandedSeparator
-#include "styles/style_hoursgram_design.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
 #include "styles/style_window.h"
@@ -362,11 +360,6 @@ MainMenu::MainMenu(
 	setupAccounts();
 	setupArchive();
 	setupMenu();
-	_hoursgramCascade = HoursGram::Motion::PrepareCascade(
-		_inner,
-		_menu,
-		st::mainMenuBg,
-		QPoint(-st::hoursgramMenuCascadeShift, 0));
 
 	const auto shadow = Ui::CreateChild<Ui::PlainShadow>(this);
 	widthValue(
@@ -704,9 +697,6 @@ void MainMenu::parentResized() {
 
 void MainMenu::showFinished() {
 	_showFinished = true;
-	if (const auto cascade = base::take(_hoursgramCascade)) {
-		cascade();
-	}
 
 	_controller->checkHighlightControl(
 		u"main-menu/emoji-status"_q,

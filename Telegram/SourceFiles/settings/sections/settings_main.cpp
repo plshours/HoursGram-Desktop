@@ -391,9 +391,9 @@ void Cover::refreshQrButtonGeometry(int newWidth) {
 	_qrButton->moveToRight(buttonRight - inset, buttonTop, newWidth);
 }
 
-// HORUSGRAM_DESIGN.md: with Graphite the sections are two groups, Account
-// and App, the sections of HorusGram among those of Telegram, each with an
-// icon of the HorusGram set on a round plate.
+// HORUSGRAM_DESIGN.md: with Graphite the sections are short groups, the
+// account, the chats and their look, the device and HorusGram itself, each
+// row with an icon of the HorusGram set on a round plate.
 [[nodiscard]] bool UsesRussianLabels() {
 	const auto &lang = Lang::GetInstance();
 	return lang.id().startsWith(u"ru"_q) || lang.baseId().startsWith(u"ru"_q);
@@ -413,6 +413,12 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 	const auto session = builder.session();
 	const auto controller = builder.controller();
 	const auto showOther = builder.showOther();
+	const auto addGroup = [&](const QString &english, const QString &russian) {
+		builder.addSkip();
+		builder.addDivider();
+		builder.addSkip();
+		builder.addSubsectionTitle(HoursGramLabel(english, russian));
+	};
 
 	builder.addSubsectionTitle(HoursGramLabel(u"Account"_q, u"Аккаунт"_q));
 	if (!session->supportMode()) {
@@ -442,10 +448,7 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 		.keywords = { u"ghost"_q, u"ayu"_q },
 	});
 
-	builder.addSkip();
-	builder.addDivider();
-	builder.addSkip();
-	builder.addSubsectionTitle(HoursGramLabel(u"App"_q, u"Приложение"_q));
+	addGroup(u"Chats and look"_q, u"Чаты и оформление"_q);
 	builder.addSectionButton({
 		.title = tr::lng_settings_section_chat_settings(),
 		.targetSection = ChatId(),
@@ -476,12 +479,8 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 		.icon = HoursGramIcon(st::hoursgramIconAdvanced),
 		.keywords = { u"fonts"_q, u"palette"_q },
 	});
-	builder.addSectionButton({
-		.title = tr::lng_settings_advanced(),
-		.targetSection = AdvancedId(),
-		.icon = HoursGramIcon(st::hoursgramIconAdvanced),
-		.keywords = { u"performance"_q, u"proxy"_q, u"experimental"_q },
-	});
+
+	addGroup(u"Device"_q, u"Устройство"_q);
 	builder.addSectionButton({
 		.title = tr::lng_settings_section_devices(),
 		.targetSection = CallsId(),
@@ -512,6 +511,14 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 		},
 		.keywords = { u"translate"_q, u"localization"_q, u"language"_q },
 	});
+	builder.addSectionButton({
+		.title = tr::lng_settings_advanced(),
+		.targetSection = AdvancedId(),
+		.icon = HoursGramIcon(st::hoursgramIconDevices),
+		.keywords = { u"performance"_q, u"proxy"_q, u"experimental"_q },
+	});
+
+	addGroup(u"HorusGram"_q, u"HorusGram"_q);
 	builder.addButton({
 		.id = u"hoursgram/music"_q,
 		.title = HoursGramLabel(u"Music"_q, u"Музыка"_q),

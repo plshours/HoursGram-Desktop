@@ -117,7 +117,6 @@ private:
 	Ui::Controls::SwipeBackResult _swipeBackData;
 
 	rpl::variable<bool> _showFinished = false;
-	Fn<void()> _hoursgramCascade;
 	bool _insideEventRedirect = false;
 	bool _emojiStatusDismissSetup = false;
 
