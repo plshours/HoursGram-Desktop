@@ -1691,7 +1691,7 @@ private:
 	void refreshActive();
 	void refreshPlaying();
 	[[nodiscard]] NavButton *buttonFor(Choice choice) const;
-	[[nodiscard]] NavButton *addItem(
+	NavButton *addItem(
 		Choice choice,
 		QString text,
 		const style::icon &icon,
@@ -1985,6 +1985,8 @@ private:
 	crl::time _durationMs = 0;
 	crl::time _seekPositionMs = -1;
 	bool _playing = false;
+	rpl::event_stream<> _openRequests;
+	rpl::event_stream<> _addRequests;
 
 };
 
