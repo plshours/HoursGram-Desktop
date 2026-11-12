@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "ayu/ayu_settings.h"
 #include "hoursgram/customization/graphite_frame.h"
+#include "hoursgram/music/music_window.h"
 
 #include "api/api_updates.h"
 #include "api/api_views.h"
@@ -923,6 +924,11 @@ void MainWidget::createPlayer() {
 			_player->lifetime());
 		_player->entity()->setCloseCallback([=] {
 			Media::Player::instance()->stopAndClose();
+		});
+		_player->entity()->setOpenMusicCallback([=] {
+			HoursGram::Music::ShowMusic(
+				_controller,
+				HoursGram::Music::Section::NowPlaying);
 		});
 		_player->entity()->setShowItemCallback([=](
 				not_null<const HistoryItem*> item) {

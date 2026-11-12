@@ -98,7 +98,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ui/settings/settings_filters.h"
 #include "ayu/ui/settings/settings_local_nft.h"
 #include "ayu/ui/settings/settings_other.h"
-#include "hoursgram/music/music_player_box.h"
+#include "hoursgram/music/music_window.h"
 #include "styles/style_hoursgram_design.h"
 #include "ayu/ui/utils/ayu_profile_values.h"
 #include "ayu/utils/telegram_helpers.h"
@@ -518,7 +518,7 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 		.icon = HoursGramIcon(st::hoursgramIconMusic),
 		.onClick = [=] {
 			if (controller) {
-				HoursGram::Music::ShowPlayer(controller);
+				HoursGram::Music::ShowMusic(controller);
 			}
 		},
 		.keywords = { u"music"_q, u"player"_q, u"lyrics"_q },

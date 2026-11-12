@@ -127,6 +127,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "dialogs/ui/dialogs_video_userpic.h"
 #include "styles/style_chat.h"
+#include "styles/style_hoursgram_design.h"
 #include "styles/style_menu_icons.h"
 
 #include <QtGui/QClipboard>
@@ -146,6 +147,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 constexpr auto kScrollDateHideTimeout = 800;
+constexpr auto kHoursGramAppearDuration = crl::time(380);
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
@@ -467,6 +469,27 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next(
 		[this](auto item) { itemRemoved(item); },
 		lifetime());
+
+	_hoursgramAppearAnimation.init([=](crl::time now) {
+		for (auto i = begin(_hoursgramAppearing)
+			; i != end(_hoursgramAppearing);) {
+			if (now - i->second >= kHoursGramAppearDuration) {
+				i = _hoursgramAppearing.erase(i);
+			} else {
+				++i;
+			}
+		}
+		update();
+		return !_hoursgramAppearing.empty();
+	});
+	session().data().newItemAdded(
+	) | rpl::filter([=](not_null<HistoryItem*> item) {
+		return (item->history() == _history)
+			&& item->out()
+			&& !item->isService();
+	}) | rpl::on_next([=](not_null<HistoryItem*> item) {
+		hoursgramStartAppear(item);
+	}, lifetime());
 	session().data().newItemAdded(
 	) | rpl::filter([=](not_null<HistoryItem*> item) {
 		const auto history = item->history();
@@ -1755,7 +1778,17 @@ void HistoryInner::paintEvent(QPaintEvent *e) {
 				context.fullMessageSelected = selection.fullMessageSelected;
 				context.messageSelection = selection.messageSelection;
 				context.highlight = _widget->itemHighlight(item);
+				const auto appear = _hoursgramAppearing.empty()
+					? 1.
+					: hoursgramAppearProgress(item, crl::now());
+				if (appear < 1.) {
+					p.save();
+					hoursgramPaintAppearing(p, item, height, appear);
+				}
 				view->draw(p, context);
+				if (appear < 1.) {
+					p.restore();
+				}
 				processPainted(view, top, height);
 			}
 			top += height;
@@ -2524,7 +2557,60 @@ void HistoryInner::performDrag() {
 	}
 }
 
+void HistoryInner::hoursgramStartAppear(not_null<const HistoryItem*> item) {
+	if (anim::Disabled()) {
+		return;
+	}
+	_hoursgramAppearing[item] = crl::now();
+	if (!_hoursgramAppearAnimation.animating()) {
+		_hoursgramAppearAnimation.start();
+	}
+}
+
+float64 HistoryInner::hoursgramAppearProgress(
+		not_null<const HistoryItem*> item,
+		crl::time now) const {
+	const auto i = _hoursgramAppearing.find(item);
+	if (i == end(_hoursgramAppearing)) {
+		return 1.;
+	}
+	return std::clamp(
+		float64(now - i->second) / kHoursGramAppearDuration,
+		0.,
+		1.);
+}
+
+// A message that was just sent rises from under the field and settles with
+// a short spring from its own corner. Applied to the painter around
+// Element::draw, so the message itself knows nothing about it. Incoming
+// messages stay still, as HORUSGRAM_DESIGN.md asks.
+void HistoryInner::hoursgramPaintAppearing(
+		Painter &p,
+		not_null<const HistoryItem*> item,
+		int height,
+		float64 progress) const {
+	const auto out = item->out();
+	const auto eased = anim::easeOutCubic(1., progress);
+	const auto spring = anim::easeOutBack(1., progress);
+	const auto shift = st::hoursgramMessageAppearShift;
+	p.setOpacity(std::min(progress * 1.8, 1.));
+	if (out) {
+		const auto scale = 0.9 + 0.1 * spring;
+		p.translate(0, (1. - eased) * shift);
+		p.translate(width(), height);
+		p.scale(scale, scale);
+		p.translate(-width(), -height);
+	} else {
+		const auto scale = 0.96 + 0.04 * eased;
+		p.translate(-(1. - eased) * shift / 2., 0);
+		p.translate(0, height);
+		p.scale(scale, scale);
+		p.translate(0, -height);
+	}
+}
+
 void HistoryInner::itemRemoved(not_null<const HistoryItem*> item) {
+	_hoursgramAppearing.remove(item);
 	if (_pinnedItem == item) {
 		_pinnedItem = nullptr;
 	}

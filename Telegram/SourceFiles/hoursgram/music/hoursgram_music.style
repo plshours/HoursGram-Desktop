@@ -166,3 +166,214 @@ hoursgramPlaylistEmpty: FlatLabel(defaultFlatLabel) {
 		font: font(14px);
 	}
 }
+
+hoursgramMusicWindowSize: size(1080px, 720px);
+hoursgramMusicSideWidth: 232px;
+hoursgramMusicBarHeight: 84px;
+hoursgramMusicGap: 10px;
+hoursgramMusicCardRadius: 22px;
+
+hoursgramMusicLogoLeft: 22px;
+hoursgramMusicLogoSize: 38px;
+hoursgramMusicLogoRadius: 12px;
+hoursgramMusicLogoSkip: 12px;
+hoursgramMusicLogoIcon: icon {{ "info/info_media_audio", activeButtonFg }};
+hoursgramMusicLogoTitle: font(16px semibold);
+hoursgramMusicLogoSub: font(12px);
+hoursgramMusicLogoWidth: 196px;
+hoursgramMusicSearchRight: 64px;
+hoursgramMusicSearchHeight: 40px;
+hoursgramMusicSearchIcon: icon {{ "menu/search", placeholderFg }};
+hoursgramMusicSearchIconLeft: 14px;
+hoursgramMusicSearch: InputField(defaultInputField) {
+	textBg: transparent;
+	textBgActive: transparent;
+	textMargins: margins(44px, 10px, 16px, 8px);
+	placeholderFg: placeholderFg;
+	placeholderFgActive: placeholderFgActive;
+	placeholderFgError: placeholderFgActive;
+	placeholderMargins: margins(2px, 0px, 2px, 0px);
+	placeholderScale: 0.;
+	placeholderShift: -50px;
+	placeholderFont: font(14px);
+	borderFg: transparent;
+	borderFgActive: transparent;
+	borderFgError: transparent;
+	border: 0px;
+	borderActive: 0px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+	}
+	heightMin: 40px;
+}
+
+hoursgramMusicNavPadding: margins(10px, 10px, 10px, 10px);
+hoursgramMusicNavHeight: 42px;
+hoursgramMusicNavRadius: 13px;
+hoursgramMusicNavIconLeft: 12px;
+hoursgramMusicNavTextLeft: 46px;
+hoursgramMusicNavFont: font(14px semibold);
+hoursgramMusicNavCountFont: font(12px);
+hoursgramMusicNavHome: icon {{ "menu/star", windowBoldFg }};
+hoursgramMusicNavSearch: icon {{ "menu/search", windowBoldFg }};
+hoursgramMusicNavSaved: icon {{ "menu/saved_messages", windowBoldFg }};
+hoursgramMusicNavNow: icon {{ "player/player_mini_full", windowBoldFg }};
+hoursgramMusicNavPlaylist: icon {{ "menu/all_media", windowBoldFg }};
+hoursgramMusicNavHomeActive: icon {{ "menu/star", activeButtonFg }};
+hoursgramMusicNavSearchActive: icon {{ "menu/search", activeButtonFg }};
+hoursgramMusicNavSavedActive: icon {{ "menu/saved_messages", activeButtonFg }};
+hoursgramMusicNavNowActive: icon {{ "player/player_mini_full", activeButtonFg }};
+hoursgramMusicNavPlaylistActive: icon {{ "menu/all_media", activeButtonFg }};
+hoursgramMusicNavSection: font(11px semibold);
+hoursgramMusicNavSectionHeight: 38px;
+hoursgramMusicNavSectionLeft: 12px;
+hoursgramMusicNavAdd: IconButton {
+	width: 30px;
+	height: 30px;
+	icon: icon {{ "menu/add", windowSubTextFg }};
+	iconOver: icon {{ "menu/add", windowBoldFg }};
+	iconPosition: point(3px, 3px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 30px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+
+hoursgramMusicPagePadding: margins(28px, 22px, 28px, 28px);
+hoursgramMusicPageTitle: font(26px semibold);
+hoursgramMusicPageTitleHeight: 36px;
+hoursgramMusicPageAbout: font(13px);
+hoursgramMusicPageAboutSkip: 6px;
+hoursgramMusicSectionSkip: 28px;
+hoursgramMusicSectionTitle: font(18px semibold);
+hoursgramMusicSectionTitleHeight: 34px;
+hoursgramMusicHeaderButtonsSkip: 16px;
+hoursgramMusicHeroHeight: 168px;
+hoursgramMusicHeroRadius: 26px;
+hoursgramMusicHeroPadding: margins(28px, 26px, 28px, 24px);
+hoursgramMusicHeroTitle: font(30px semibold);
+hoursgramMusicHeroAbout: font(14px);
+hoursgramMusicHeroCovers: 4;
+hoursgramMusicHeroCoverSize: 96px;
+hoursgramMusicHeroCoverShift: 52px;
+
+hoursgramMusicCardWidth: 156px;
+hoursgramMusicCardCover: 156px;
+hoursgramMusicCardSkip: 18px;
+hoursgramMusicCardHeight: 214px;
+hoursgramMusicCardRadius2: 18px;
+hoursgramMusicCardTitle: font(14px semibold);
+hoursgramMusicCardSub: font(12px);
+hoursgramMusicCardTextTop: 166px;
+hoursgramMusicCardSubTop: 186px;
+hoursgramMusicCardPlaySize: 44px;
+hoursgramMusicCardPlayIcon: icon {{ "media_play", activeButtonFg }};
+hoursgramMusicCardBadge: font(10px semibold);
+
+hoursgramMusicRowHeight: 58px;
+hoursgramMusicRowRadius: 14px;
+hoursgramMusicRowPadding: margins(12px, 0px, 6px, 0px);
+hoursgramMusicRowIndexWidth: 34px;
+hoursgramMusicRowCover: 42px;
+hoursgramMusicRowCoverRadius: 11px;
+hoursgramMusicRowCoverSkip: 14px;
+hoursgramMusicRowTitle: font(14px semibold);
+hoursgramMusicRowSub: font(12px);
+hoursgramMusicRowIndex: font(13px);
+hoursgramMusicRowTitleTop: 11px;
+hoursgramMusicRowSubTop: 31px;
+hoursgramMusicRowDurationWidth: 56px;
+hoursgramMusicRowEqWidth: 3px;
+hoursgramMusicRowEqSkip: 2px;
+hoursgramMusicRowEqHeight: 14px;
+hoursgramMusicRowCoverIcon: icon {{ "player/player_mini_full", windowSubTextFg }};
+
+hoursgramMusicActionHeight: 38px;
+hoursgramMusicAction: RoundButton(defaultActiveButton) {
+	height: 38px;
+	textTop: 10px;
+	radius: 19px;
+	padding: margins(20px, 0px, 20px, 0px);
+}
+hoursgramMusicActionSecondary: RoundButton(hoursgramMusicAction) {
+	textFg: windowBoldFg;
+	textFgOver: windowBoldFg;
+	textBg: windowBgOver;
+	textBgOver: windowBgRipple;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+hoursgramMusicActionSkip: 10px;
+
+hoursgramMusicEmpty: FlatLabel(defaultFlatLabel) {
+	align: align(top);
+	textFg: windowSubTextFg;
+	minWidth: 240px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(14px);
+		lineHeight: 21px;
+	}
+}
+hoursgramMusicEmptyPadding: margins(24px, 80px, 24px, 40px);
+hoursgramMusicSkeleton: 6;
+
+hoursgramMusicBarPadding: margins(16px, 0px, 16px, 0px);
+hoursgramMusicBarCover: 52px;
+hoursgramMusicBarCoverRadius: 14px;
+hoursgramMusicBarInfoWidth: 250px;
+hoursgramMusicBarTitle: font(14px semibold);
+hoursgramMusicBarSub: font(12px);
+hoursgramMusicBarControlsWidth: 210px;
+hoursgramMusicBarPlay: IconButton(hoursgramPlayerPlay) {
+	width: 46px;
+	height: 46px;
+	iconPosition: point(15px, 14px);
+	rippleAreaSize: 46px;
+}
+hoursgramMusicBarPauseIcon: icon {{ "media_pause", activeButtonFg }};
+hoursgramMusicBarSide: IconButton(hoursgramPlayerSide) {
+	width: 38px;
+	height: 38px;
+	iconPosition: point(10px, 11px);
+	rippleAreaSize: 38px;
+}
+hoursgramMusicBarPrevious: IconButton(hoursgramMusicBarSide) {
+	icon: icon {{ "player/player_backward", windowBoldFg }};
+	iconOver: icon {{ "player/player_backward", windowBoldFg }};
+}
+hoursgramMusicBarSliderWidth: 360px;
+hoursgramMusicBarTimeWidth: 46px;
+hoursgramMusicBarSliderTop: 50px;
+hoursgramMusicBarActionsWidth: 190px;
+hoursgramMusicBarAction: RoundButton(hoursgramMusicActionSecondary) {
+	height: 34px;
+	textTop: 8px;
+	radius: 17px;
+	padding: margins(14px, 0px, 14px, 0px);
+}
+
+hoursgramMusicNowCover: 280px;
+hoursgramMusicNowCoverRadius: 30px;
+hoursgramMusicNowLeftWidth: 340px;
+hoursgramMusicNowTitle: FlatLabel(hoursgramPlayerTitle) {
+	minWidth: 280px;
+	maxHeight: 64px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(22px semibold);
+	}
+}
+hoursgramMusicNowPerformer: FlatLabel(hoursgramPlayerPerformer) {
+	minWidth: 280px;
+	style: TextStyle(defaultTextStyle) {
+		font: font(15px);
+	}
+}
+hoursgramMusicLyricsActive: TextStyle(defaultTextStyle) {
+	font: font(22px semibold);
+	lineHeight: 31px;
+}
+hoursgramMusicLyricsPadding: margins(16px, 80px, 16px, 80px);
+hoursgramMusicLyricsLineSkip: 16px;
+hoursgramMusicSlideShift: 28px;

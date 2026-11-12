@@ -14,7 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_peer_menu.h"
 #include "window/window_filters_favorite.h"
 #include "hoursgram/customization/graphite_frame.h"
-#include "hoursgram/music/music_player_box.h"
+#include "hoursgram/music/music_window.h"
 #include "lang/lang_instance.h"
 #include "ui/widgets/buttons.h"
 #include "main/main_session.h"
@@ -257,7 +257,7 @@ void FiltersMenu::setupHoursGramBottom() {
 		_session->showPeerHistory(_session->session().user());
 	});
 	add(u"Music"_q, u"Музыка"_q, st::hoursgramSideBarMusic, st::hoursgramSideBarMusicActive, [=] {
-		HoursGram::Music::ShowPlayer(_session);
+		HoursGram::Music::ShowMusic(_session);
 	});
 	_hoursgramBottom->resizeToWidth(st::windowFiltersWidth);
 	_graphiteFrame = base::make_unique_q<

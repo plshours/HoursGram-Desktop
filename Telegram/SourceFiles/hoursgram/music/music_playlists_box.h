@@ -9,16 +9,22 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 class AudioMsgId;
 
+namespace Main {
+class Session;
+} // namespace Main
+
+namespace Ui {
+class Show;
+} // namespace Ui
+
 namespace Window {
 class SessionController;
 } // namespace Window
 
 namespace HoursGram::Music {
 
-// The list of playlists of the current account.
+// The playlists live in the music window now; these open it.
 void ShowPlaylists(not_null<Window::SessionController*> controller);
-
-// The tracks of one playlist, in playback order.
 void ShowPlaylist(
 	not_null<Window::SessionController*> controller,
 	uint64 playlistId);
@@ -27,5 +33,21 @@ void ShowPlaylist(
 void ShowAddToPlaylist(
 	not_null<Window::SessionController*> controller,
 	const AudioMsgId &audioId);
+void ShowAddToPlaylist(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Main::Session*> session,
+	const AudioMsgId &audioId);
+
+// Asks for a playlist name. `done` gets the trimmed, non-empty name.
+void PromptPlaylistName(
+	std::shared_ptr<Ui::Show> show,
+	rpl::producer<QString> title,
+	const QString &initial,
+	Fn<void(QString)> done);
+
+void ConfirmDeletePlaylist(
+	std::shared_ptr<Ui::Show> show,
+	not_null<Main::Session*> session,
+	uint64 playlistId);
 
 } // namespace HoursGram::Music

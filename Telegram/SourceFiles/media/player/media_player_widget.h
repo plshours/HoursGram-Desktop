@@ -53,6 +53,7 @@ public:
 
 	void setCloseCallback(Fn<void()> callback);
 	void setShowItemCallback(Fn<void(not_null<const HistoryItem*>)> callback);
+	void setOpenMusicCallback(Fn<void()> callback);
 	void stopAndClose();
 	void setShadowGeometryToLeft(int x, int y, int w, int h);
 	void hideShadowAndDropdowns();
@@ -131,6 +132,7 @@ private:
 	bool _voiceIsActive = false;
 	Fn<void()> _closeCallback;
 	Fn<void(not_null<const HistoryItem*>)> _showItemCallback;
+	Fn<void()> _openMusicCallback;
 
 	bool _labelsOver = false;
 	bool _labelsDown = false;
