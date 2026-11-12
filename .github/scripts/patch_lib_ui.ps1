@@ -340,4 +340,18 @@ Edit-Text `
 			New = "`tUi::Animations::Simple _hoursgramOver;`n`tUi::Animations::Simple _hoursgramActive;`n";
 		})
 
+# Mini apps did not take any clicks. The patch above gives the default
+# surface format an alpha channel, so Qt made the native window that hosts
+# WebView2 a layered one, and an empty layered window is skipped by mouse
+# hit-testing: the input never reached the page. The same fix as upstream
+# lib_webview 48c7292, which the pinned lib_webview does not have yet.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_webview/webview/platform/win/webview_win.cpp') `
+	'HoursGram: opaque webview host' `
+	@(
+		@{
+			Old = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`treturn result;`n";
+			New = "`tauto result = base::make_unique_q<QWindow>();`n`tresult->setFlag(Qt::FramelessWindowHint);`n`n`t// HoursGram: opaque webview host, a layered one gets no input.`n`tauto format = result->format();`n`tformat.setAlphaBufferSize(0);`n`tresult->setFormat(format);`n`treturn result;`n";
+		})
+
 Write-Output 'Applied the Graphite animation fixes to lib_ui.'
