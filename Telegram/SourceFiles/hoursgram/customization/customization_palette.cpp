@@ -86,10 +86,10 @@ const std::vector<PaletteSlot> &PaletteSlots() {
 		{ u"graphite/modalBg"_q, u"121212"_q, [] {
 			return tr::hoursgram_ColorModalBg();
 		} },
-		{ u"graphite/accent"_q, u"E8E6E1"_q, [] {
+		{ u"graphite/accent"_q, u"5B8CF5"_q, [] {
 			return tr::hoursgram_ColorAccent();
 		} },
-		{ u"graphite/accentLight"_q, u"F7F6F2"_q, [] {
+		{ u"graphite/accentLight"_q, u"8EB2FA"_q, [] {
 			return tr::hoursgram_ColorAccentLight();
 		} },
 		{ u"graphite/subtitle"_q, u"8E8E8E"_q, [] {

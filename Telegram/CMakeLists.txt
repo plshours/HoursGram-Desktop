@@ -1296,6 +1296,8 @@ PRIVATE
     history/history_view_swipe_back_session.h
     history/history_widget.cpp
     history/history_widget.h
+    hoursgram/customization/custom_cursor.cpp
+    hoursgram/customization/custom_cursor.h
     hoursgram/customization/customization_palette.cpp
     hoursgram/customization/customization_palette.h
     hoursgram/customization/graphite_frame.cpp

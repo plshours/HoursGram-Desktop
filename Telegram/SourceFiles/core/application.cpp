@@ -70,6 +70,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/clip/media_clip_reader.h" // For Media::Clip::Finish().
 #include "media/system_media_controls_manager.h"
 #include "window/notifications_manager.h"
+#include "hoursgram/customization/custom_cursor.h"
 #include "hoursgram/customization/customization_palette.h"
 #include "window/themes/window_theme.h"
 #include "ui/widgets/tooltip.h"
@@ -347,6 +348,7 @@ void Application::run() {
 	Ui::Emoji::Init();
 	Ui::PreloadTextSpoilerMask();
 	startShortcuts();
+	HoursGram::Customization::StartCustomCursor();
 	startEmojiImageLoader();
 	startSystemDarkModeViewer();
 	Media::Player::start(_audio.get());
