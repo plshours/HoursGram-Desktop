@@ -62,7 +62,7 @@ Edit-Text `
 	@(
 		@{
 			Old = "namespace Ui::Menu {`nnamespace {`n";
-			New = "namespace Ui::Menu {`nnamespace {`n`nconstexpr auto kHoursGramMenuRadius = 12;`nconstexpr auto kHoursGramMenuMargin = 6;`n";
+			New = "namespace Ui::Menu {`nnamespace {`n`nconstexpr auto kHoursGramMenuRadius = 12;`nconstexpr auto kHoursGramMenuMargin = 8;`n";
 		},
 		@{
 			Old = "void Action::paintBackground(QPainter &p, bool selected) {`n`tif (selected && _st.itemBgOver->c.alpha() < 255) {`n`t`tp.fillRect(0, 0, width(), _height, _st.itemBg);`n`t}`n`tp.fillRect(`n`t`tQRect(0, 0, width(), _height),`n`t`tselected ? _st.itemBgOver : _st.itemBg);`n}`n";
@@ -429,6 +429,22 @@ Edit-Text `
 		@{
 			Old = "`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, shown);`n`t`t} else if (shown > 0.) {`n";
 			New = "`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`t// Main buttons are a plain rounded fill, without a ring.`n`t`t} else if (shown > 0.) {`n";
+		})
+
+# HorusGram: menus with icons get roomy items, like the drawer and the
+# settings: 40px rows, the icon further in and the caption after it, with
+# a little more room above the first item and under the last one.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/widgets.style') `
+	'itemIconPosition: point(22px, 8px);' `
+	@(
+		@{
+			Old = "menuWithIcons: Menu(defaultMenu) {`n`titemIconPosition: point(15px, 5px);`n`titemPadding: margins(54px, 8px, 17px, 8px);`n";
+			New = "menuWithIcons: Menu(defaultMenu) {`n`titemIconPosition: point(22px, 8px);`n`titemPadding: margins(62px, 11px, 22px, 10px);`n";
+		},
+		@{
+			Old = "popupMenuWithIcons: PopupMenu(defaultPopupMenu) {`n`tscrollPadding: margins(0px, 5px, 0px, 5px);`n";
+			New = "popupMenuWithIcons: PopupMenu(defaultPopupMenu) {`n`tscrollPadding: margins(0px, 8px, 0px, 8px);`n";
 		})
 
 # Mini apps did not take any clicks. The patch above gives the default
