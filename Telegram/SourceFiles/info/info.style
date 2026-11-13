@@ -728,7 +728,9 @@ infoProfileTabsStrip: ProfileTabsStrip {
 	fg: windowSubTextFg;
 	fgActive: lightButtonFg;
 	bg: windowBg;
-	bgActive: lightButtonBgOver;
+	// HoursGram: lightButtonBgOver is the color of the panel in Graphite,
+	// which left the chosen tile without a visible highlight.
+	bgActive: windowBgOver;
 	ripple: RippleAnimation(defaultRippleAnimation) {
 		color: lightButtonBgRipple;
 	}
