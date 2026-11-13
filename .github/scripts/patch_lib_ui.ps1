@@ -340,6 +340,56 @@ Edit-Text `
 			New = "`tUi::Animations::Simple _hoursgramOver;`n`tUi::Animations::Simple _hoursgramActive;`n";
 		})
 
+# HorusGram Graphite: the folder menu marks the active folder with one
+# highlight that slides from folder to folder. A button only lets the menu
+# paint that highlight over its background through an underlay, fades in a
+# plain pill under the cursor and keeps its icon still: no edges, no spring.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.cpp') `
+	'_hoursgramUnderlay' `
+	@(
+		@{
+			Old = "`tconst auto &bg = _active ? _st.textBgActive : _st.textBg;`n`tp.fillRect(clip, bg);`n`n`tauto hoursgramLift = 0.;`n`tif (HoursGramGraphite()) {`n`t`t// A pill with a light top edge fades in under the cursor and the`n`t`t// icon springs up a little; the active folder keeps the pill.`n";
+			New = "`tconst auto &bg = (_active && !HoursGramGraphite())`n`t`t? _st.textBgActive`n`t`t: _st.textBg;`n`tp.fillRect(clip, bg);`n`tif (HoursGramGraphite() && _hoursgramUnderlay) {`n`t`t_hoursgramUnderlay(p);`n`t}`n`n`tauto hoursgramLift = 0.;`n`tif (HoursGramGraphite()) {`n`t`t// A plain pill fades in under the cursor. The active folder is`n`t`t// marked by the highlight the folder menu slides under it.`n";
+		},
+		@{
+			Old = "`t`tconst auto shown = std::max(`n`t`t`tstd::clamp(active, 0., 1.),`n`t`t`tstd::clamp(value, 0., 1.));`n";
+			New = "`t`tconst auto shown = 0.6`n`t`t`t* std::clamp(value, 0., 1.)`n`t`t`t* (1. - std::clamp(active, 0., 1.));`n";
+		},
+		@{
+			Old = "`t`t`tconst auto line = style::ConvertScaleExact(1.5);`n`t`t`tconst auto half = line / 2.;`n`t`t`tconst auto inner = pill.marginsRemoved({ half, half, half, half });`n`t`t`tp.save();`n";
+			New = "`t`t`tp.save();`n";
+		},
+		@{
+			Old = "`t`t`tp.setBrush(Qt::NoBrush);`n`t`t`tp.setPen(QPen(st::windowBgRipple->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.setClipRect(`n`t`t`t`tQRectF(pill.x(), pill.y(), pill.width(), pill.height() * 0.4),`n`t`t`t`tQt::IntersectClip);`n`t`t`tp.setPen(QPen(st::windowSubTextFg->c, line));`n`t`t`tp.drawRoundedRect(inner, radius - half, radius - half);`n`t`t`tp.restore();`n";
+			New = "`t`t`tp.restore();`n";
+		},
+		@{
+			Old = "`t`thoursgramLift = -style::ConvertScaleExact(2.)`n`t`t`t* value`n`t`t`t* (1. - std::clamp(active, 0., 1.));`n";
+			New = "";
+		},
+		@{
+			Old = "`t`t`tover ? 320 : 220,`n`t`t`tover ? anim::easeOutBack : anim::easeOutCirc);`n";
+			New = "`t`t`tover ? 150 : 220,`n`t`t`tanim::easeOutCirc);`n";
+		},
+		@{
+			Old = "void SideBarButton::onStateChanged(State was, StateChangeSource source) {`n";
+			New = "void SideBarButton::setHoursGramUnderlay(Fn<void(QPainter&)> paint) {`n`t_hoursgramUnderlay = std::move(paint);`n`tupdate();`n}`n`nvoid SideBarButton::onStateChanged(State was, StateChangeSource source) {`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/side_bar_button.h') `
+	'_hoursgramUnderlay' `
+	@(
+		@{
+			Old = "`tvoid setActive(bool active);`n";
+			New = "`tvoid setActive(bool active);`n`t// HorusGram: painted over the background and under everything else.`n`tvoid setHoursGramUnderlay(Fn<void(QPainter&)> paint);`n";
+		},
+		@{
+			Old = "`tUi::Animations::Simple _hoursgramActive;`n";
+			New = "`tUi::Animations::Simple _hoursgramActive;`n`tFn<void(QPainter&)> _hoursgramUnderlay;`n";
+		})
+
 # Mini apps did not take any clicks. The patch above gives the default
 # surface format an alpha channel, so Qt made the native window that hosts
 # WebView2 a layered one, and an empty layered window is skipped by mouse

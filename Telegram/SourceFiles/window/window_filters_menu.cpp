@@ -40,6 +40,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/power_saving.h"
 #include "ui/screen_reader_mode.h"
 #include "ui/ui_utility.h"
+#include "ui/painter.h"
+#include "ui/effects/animation_value.h"
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/choose_filter_box.h"
 #include "boxes/premium_limits_box.h"
@@ -199,11 +201,13 @@ void FiltersMenu::setup() {
 			_activeFilterId = id;
 			return;
 		}
+		const auto from = currentHighlight();
 		const auto i = _filters.find(_activeFilterId);
 		if (i != end(_filters)) {
 			i->second->setActive(false);
 		}
 		_activeFilterId = id;
+		slideHighlight(from);
 		const auto j = _filters.find(_activeFilterId);
 		if (j != end(_filters)) {
 			j->second->setActive(true);
@@ -232,6 +236,84 @@ void FiltersMenu::setup() {
 		}
 		refresh();
 	}, _outer.lifetime());
+}
+
+QRect FiltersMenu::highlightFor(FilterId id) const {
+	const auto i = _filters.find(id);
+	if (i == end(_filters) || !_list) {
+		return QRect();
+	}
+	const auto side = style::ConvertScale(7);
+	const auto top = style::ConvertScale(2);
+	return i->second->geometry().marginsRemoved({ side, top, side, top });
+}
+
+// At rest the highlight takes the place of the active folder as it is now,
+// so it follows the folders when they are dragged or the list is resized.
+// While it slides it goes from where it was to that place.
+QRect FiltersMenu::currentHighlight() const {
+	const auto to = highlightFor(_activeFilterId);
+	if (!_highlightAnimation.animating()
+		|| _highlightFrom.isEmpty()
+		|| to.isEmpty()) {
+		return to;
+	}
+	const auto progress = _highlightAnimation.value(1.);
+	const auto mix = [&](int a, int b) {
+		return int(base::SafeRound(a + (b - a) * progress));
+	};
+	return QRect(
+		QPoint(
+			mix(_highlightFrom.x(), to.x()),
+			mix(_highlightFrom.y(), to.y())),
+		QSize(
+			mix(_highlightFrom.width(), to.width()),
+			mix(_highlightFrom.height(), to.height())));
+}
+
+void FiltersMenu::slideHighlight(QRect from) {
+	_highlightFrom = from;
+	_highlightAnimation.stop();
+	if (!from.isEmpty() && !anim::Disabled()) {
+		_highlightAnimation.start(
+			[=] { repaintFolders(); },
+			0.,
+			1.,
+			crl::time(260),
+			anim::easeOutCubic);
+	}
+	repaintFolders();
+}
+
+void FiltersMenu::repaintFolders() {
+	for (const auto &[id, button] : _filters) {
+		button->update();
+	}
+}
+
+void FiltersMenu::paintHighlight(
+		QPainter &p,
+		not_null<Ui::SideBarButton*> button) {
+	if (!Ui::HoursGramGraphite()) {
+		return;
+	}
+	const auto highlight = currentHighlight();
+	if (highlight.isEmpty()) {
+		return;
+	}
+	const auto local = QRectF(highlight.translated(-button->pos()));
+	if (!local.intersects(QRectF(button->rect()))) {
+		return;
+	}
+	const auto radius = std::min(
+		float64(style::ConvertScale(16)),
+		local.height() / 2.);
+	auto color = st::windowBgActive->c;
+	color.setAlphaF(0.2);
+	auto hq = PainterHighQualityEnabler(p);
+	p.setPen(Qt::NoPen);
+	p.setBrush(color);
+	p.drawRoundedRect(local, radius, radius);
 }
 
 void FiltersMenu::setupHoursGramBottom() {
@@ -761,6 +843,11 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		});
 	}
 	raw->setActive(_session->activeChatsFilterCurrent() == id);
+	if (id >= 0) {
+		raw->setHoursGramUnderlay([=](QPainter &p) {
+			paintHighlight(p, raw);
+		});
+	}
 	raw->setClickedCallback([=] {
 		if (_reordering) {
 			return;

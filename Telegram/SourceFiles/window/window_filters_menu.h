@@ -84,6 +84,13 @@ private:
 	// HORUSGRAM_DESIGN.md: with Graphite the bar keeps Saved and Music at
 	// its bottom, over the menu button, and floats as a card.
 	void setupHoursGramBottom();
+	// HORUSGRAM_DESIGN.md: one highlight slides under the active folder
+	// instead of every folder fading in a pill of its own.
+	[[nodiscard]] QRect highlightFor(FilterId id) const;
+	[[nodiscard]] QRect currentHighlight() const;
+	void slideHighlight(QRect from);
+	void paintHighlight(QPainter &p, not_null<Ui::SideBarButton*> button);
+	void repaintFolders();
 
 	const not_null<SessionController*> _session;
 	const not_null<Ui::RpWidget*> _parent;
@@ -114,6 +121,8 @@ private:
 	} _drag;
 
 	Ui::Animations::Simple _scrollToAnimation;
+	Ui::Animations::Simple _highlightAnimation;
+	QRect _highlightFrom;
 
 };
 
