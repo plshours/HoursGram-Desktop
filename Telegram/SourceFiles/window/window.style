@@ -88,11 +88,16 @@ mainMenuUserpic: UserpicButton(defaultUserpicButton) {
 	size: size(64px, 64px);
 	photoSize: 64px;
 }
+// HoursGram: tall rows with a bigger caption; the menu is inset from the
+// sides by mainMenuItemSide, so the pill under the cursor floats.
+mainMenuItemSide: 8px;
 mainMenuButton: SettingsButton(defaultSettingsButton) {
-	style: semiboldTextStyle;
-	padding: margins(60px, 11px, 24px, 9px);
-	toggleSkip: 19px;
-	iconLeft: 20px;
+	style: TextStyle(semiboldTextStyle) {
+		font: font(15px semibold);
+	}
+	padding: margins(58px, 15px, 16px, 14px);
+	toggleSkip: 12px;
+	iconLeft: 16px;
 }
 mainMenuAddAccountButton: SettingsButton(mainMenuButton) {
 	iconLeft: 23px;

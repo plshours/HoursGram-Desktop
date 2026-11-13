@@ -347,7 +347,7 @@ MainMenu::MainMenu(
 	object_ptr<Ui::PlainShadow>(_inner.get()))))
 , _menu(_inner->add(
 	object_ptr<Ui::VerticalLayout>(_inner.get()),
-	{ 0, st::mainMenuSkip, 0, 0 }))
+	{ st::mainMenuItemSide, st::mainMenuSkip, st::mainMenuItemSide, 0 }))
 , _footer(_inner->add(object_ptr<Ui::RpWidget>(_inner.get())))
 , _telegram(
 	Ui::CreateChild<Ui::FlatLabel>(_footer.get(), st::mainMenuTelegramLabel))

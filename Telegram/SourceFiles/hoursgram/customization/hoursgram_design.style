@@ -11,6 +11,14 @@ using "ui/widgets/widgets.style";
 // HORUSGRAM_DESIGN.md: the icon set of HorusGram, drawn on a round graphite
 // plate in the settings. Made by tools/make_icons.py.
 hoursgramIconPlate: windowBgRipple;
+
+// HORUSGRAM_DESIGN.md: with Graphite the groups of settings are cards with
+// a soft rounded outline, the way the details of a gift are shown.
+hoursgramSettingsCardMargin: margins(12px, 0px, 12px, 0px);
+hoursgramSettingsCardPadding: margins(4px, 4px, 4px, 4px);
+hoursgramSettingsCardRadius: 16px;
+hoursgramSettingsCardSkip: 12px;
+hoursgramSettingsCardBorder: windowBgRipple;
 hoursgramIconFg: windowFg;
 
 hoursgramIconAccount: icon {{ "hoursgram/settings_account", hoursgramIconFg }};

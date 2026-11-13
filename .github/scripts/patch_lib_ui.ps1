@@ -47,7 +47,7 @@ Edit-Text `
 	@(
 		@{
 			Old = "namespace Ui {`nnamespace {`n";
-			New = "namespace Ui {`nnamespace {`n`nconstexpr auto kSettingsButtonRadius = 14;`n";
+			New = "namespace Ui {`nnamespace {`n`nconstexpr auto kSettingsButtonRadius = 18;`n";
 		},
 		@{
 			Old = "void SettingsButton::paintBg(Painter &p, const QRect &rect, bool over) const {`n`tp.fillRect(rect, over ? _st.textBgOver : _st.textBg);`n}`n";
