@@ -57,8 +57,16 @@ constexpr auto kUserAgent = "HoursGram Desktop "
 	return *result;
 }
 
+// Addresses of covers come inside the answers of the platforms. Only https
+// is fetched: QNetworkAccessManager opens file: and qrc: as well, and an
+// address like that must never make the client read a local file.
 void Get(const QString &url, int limit, Fn<void(QByteArray)> done) {
-	auto request = QNetworkRequest(QUrl(url));
+	const auto parsed = QUrl(url);
+	if (!parsed.isValid() || parsed.scheme() != u"https"_q) {
+		done(QByteArray());
+		return;
+	}
+	auto request = QNetworkRequest(parsed);
 	request.setRawHeader("User-Agent", kUserAgent);
 	request.setAttribute(
 		QNetworkRequest::RedirectPolicyAttribute,
