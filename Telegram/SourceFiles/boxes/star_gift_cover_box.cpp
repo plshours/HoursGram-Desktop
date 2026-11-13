@@ -197,7 +197,7 @@ UniqueGiftCoverWidget::UniqueGiftCoverWidget(
 		) | rpl::filter([&to] {
 			return to.media->loaded();
 		}) | rpl::on_next([this, &to] {
-			const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
+			const auto lottieSize = st::uniqueGiftModelSize;
 			to.lottie = ChatHelpers::LottiePlayerFromDocument(
 				to.media.get(),
 				ChatHelpers::StickerLottieSize::MessageHistory,
@@ -913,7 +913,7 @@ bool UniqueGiftCoverWidget::paintModel(
 		const PaintContext &context,
 		float64 scale,
 		bool paused) {
-	const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
+	const auto lottieSize = st::uniqueGiftModelSize;
 	const auto lottie = model.lottie.get();
 	const auto factor = style::DevicePixelRatio();
 	const auto request = Lottie::FrameRequest{
@@ -995,7 +995,7 @@ QRect UniqueGiftCoverWidget::prepareCraftFrame(
 		p.fillRect(rect, gradient);
 	}
 
-	const auto lottieSize = st::creditsHistoryEntryStarGiftSize;
+	const auto lottieSize = st::uniqueGiftModelSize;
 	const auto paused = (expand == 0.);
 	const auto modelScale = expand
 		+ ((st::giftBoxStickerTiny.width() / float64(lottieSize))

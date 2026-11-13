@@ -401,6 +401,36 @@ Edit-Text `
 			New = "`t`t`t// A plain rounded pill under the cursor, no lit edge.`n`t`t}`n`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n";
 		})
 
+# HorusGram: rounder buttons everywhere, and tables (gift details, gift
+# codes) as one soft rounded card with faint lines instead of a hard grid.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/widgets.style') `
+	'buttonRadius: 12px;' `
+	@(
+		@{
+			Old = "buttonRadius: 4px;`n";
+			New = "buttonRadius: 12px;`n";
+		},
+		@{
+			Old = "defaultTable: Table {`n`theaderBg: windowBgOver;`n`tborderFg: inputBorderFg;`n`tborder: 1px;`n`tradius: 6px;`n";
+			New = "defaultTable: Table {`n`theaderBg: windowBgOver;`n`tborderFg: windowBgRipple;`n`tborder: 1px;`n`tradius: 16px;`n";
+		})
+
+# HorusGram Graphite: a main button is a plain rounded fill. The dark ring
+# set into it read as a black outline around every main button.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'Main buttons are a plain rounded fill' `
+	@(
+		@{
+			Old = "void PaintHoursGramRing(`n`t`tQPainter &p,`n";
+			New = "[[maybe_unused]] void PaintHoursGramRing(`n`t`tQPainter &p,`n";
+		},
+		@{
+			Old = "`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`tPaintHoursGramRing(p, fill, radius, shown);`n`t`t} else if (shown > 0.) {`n";
+			New = "`t`tif (_st.textBg->c == st::activeButtonBg->c) {`n`t`t`t// Main buttons are a plain rounded fill, without a ring.`n`t`t} else if (shown > 0.) {`n";
+		})
+
 # Mini apps did not take any clicks. The patch above gives the default
 # surface format an alpha channel, so Qt made the native window that hosts
 # WebView2 a layered one, and an empty layered window is skipped by mouse
