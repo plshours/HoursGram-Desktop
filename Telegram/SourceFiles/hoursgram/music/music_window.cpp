@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_utilities.h"
 #include "data/data_document.h"
 #include "data/data_document_media.h"
+#include "data/data_file_click_handler.h"
 #include "data/data_file_origin.h"
 #include "data/data_peer.h"
 #include "data/data_session.h"
@@ -3488,6 +3489,19 @@ void MusicWindow::showTrackMenu(QueueTrack track, uint64 playlistId) {
 			});
 		},
 		&st::menuIconPlaylists);
+	_popup->addAction(
+		Tr("Download", "Скачать"),
+		[=] {
+			withAudio([=](AudioMsgId audio) {
+				if (const auto document = audio.audio()) {
+					DocumentSaveClickHandler::SaveAndTrack(
+						audio.contextId(),
+						document,
+						DocumentSaveClickHandler::Mode::ToNewFile);
+				}
+			});
+		},
+		&st::menuIconDownload);
 	if (playlistId && track.resolved()) {
 		const auto account = AccountOf(session);
 		const auto documentId = track.audio.audio()->id;
