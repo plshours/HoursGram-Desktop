@@ -62,7 +62,7 @@ Edit-Text `
 	@(
 		@{
 			Old = "namespace Ui::Menu {`nnamespace {`n";
-			New = "namespace Ui::Menu {`nnamespace {`n`nconstexpr auto kHoursGramMenuRadius = 10;`nconstexpr auto kHoursGramMenuMargin = 6;`n";
+			New = "namespace Ui::Menu {`nnamespace {`n`nconstexpr auto kHoursGramMenuRadius = 12;`nconstexpr auto kHoursGramMenuMargin = 6;`n";
 		},
 		@{
 			Old = "void Action::paintBackground(QPainter &p, bool selected) {`n`tif (selected && _st.itemBgOver->c.alpha() < 255) {`n`t`tp.fillRect(0, 0, width(), _height, _st.itemBg);`n`t}`n`tp.fillRect(`n`t`tQRect(0, 0, width(), _height),`n`t`tselected ? _st.itemBgOver : _st.itemBg);`n}`n";
@@ -72,20 +72,20 @@ Edit-Text `
 # Rounder boxes and popup menus.
 Edit-Text `
 	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/layers/layers.style') `
-	'boxRadius: 14px;' `
+	'boxRadius: 20px;' `
 	@(
 		@{
 			Old = "boxRadius: 6px;`n";
-			New = "boxRadius: 14px;`n";
+			New = "boxRadius: 20px;`n";
 		})
 
 Edit-Text `
 	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/widgets.style') `
-	'radius: 12px;' `
+	'radius: 14px;' `
 	@(
 		@{
 			Old = "`tradius: 6px;`n`tduration: 150;`n";
-			New = "`tradius: 12px;`n`tduration: 150;`n";
+			New = "`tradius: 14px;`n`tduration: 150;`n";
 		})
 
 # The main window is drawn on the GPU through Qt RHI (Direct3D 11) on Windows
@@ -388,6 +388,17 @@ Edit-Text `
 		@{
 			Old = "`tUi::Animations::Simple _hoursgramActive;`n";
 			New = "`tUi::Animations::Simple _hoursgramActive;`n`tFn<void(QPainter&)> _hoursgramUnderlay;`n";
+		})
+
+# HorusGram Graphite: settings and drawer rows show a plain rounded pill
+# under the cursor, without the lit edge, like the cards of the boxes.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'plain rounded pill under the cursor' `
+	@(
+		@{
+			Old = "`t`t`tPaintHoursGramEdge(p, full, radius, shown);`n`t`t}`n`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n";
+			New = "`t`t`t// A plain rounded pill under the cursor, no lit edge.`n`t`t}`n`t} else {`n`t`tpaintBg(p, e->rect(), paintOver);`n`t}`n";
 		})
 
 # Mini apps did not take any clicks. The patch above gives the default

@@ -785,26 +785,13 @@ void MainMenu::setupMenu() {
 			controller->showPeerHistory(controller->session().user());
 		});
 
+		// One entry for music: the window it opens has the saved music,
+		// the playlists and the player in it.
 		addAction(
 			tr::lng_all_music(),
 			{ &st::menuIconMusic }
 		)->setClickedCallback([=] {
-			controller->showSection(
-				Info::Saved::MakeMusic(controller->session().user()));
-		});
-
-		addAction(
-			tr::hoursgram_Playlists(),
-			{ &st::menuIconPlaylists }
-		)->setClickedCallback([=] {
-			HoursGram::Music::ShowPlaylists(controller);
-		});
-
-		addAction(
-			tr::hoursgram_PlayerTitle(),
-			{ &st::menuIconNowPlaying }
-		)->setClickedCallback([=] {
-			HoursGram::Music::ShowPlayer(controller);
+			HoursGram::Music::ShowMusic(controller);
 		});
 
 		if (settings.showLReadToggleInDrawer()) {
