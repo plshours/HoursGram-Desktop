@@ -40,6 +40,8 @@ constexpr auto kMaxResponseSize = 4 * 1024 * 1024;
 constexpr auto kMaxArtworkSize = 2 * 1024 * 1024;
 constexpr auto kChartLimit = 100;
 constexpr auto kSearchLimit = 50;
+constexpr auto kCatalogPerSource = 25;
+constexpr auto kCatalogLimit = 40;
 constexpr auto kSavedLimit = 100;
 constexpr auto kFreshDays = 45;
 constexpr auto kMinFresh = 12;
@@ -118,6 +120,79 @@ void Get(const QString &url, int limit, Fn<void(QByteArray)> done) {
 		if (!track.title.isEmpty() && !track.artist.isEmpty()) {
 			result.push_back(std::move(track));
 		}
+	}
+	return result;
+}
+
+// The answer of the iTunes Search API, which is the Apple Music catalog.
+[[nodiscard]] std::vector<ChartTrack> ParseAppleSearch(
+		const QByteArray &bytes) {
+	auto result = std::vector<ChartTrack>();
+	const auto root = QJsonDocument::fromJson(bytes).object();
+	auto rank = 0;
+	for (const auto &value : root.value(u"results"_q).toArray()) {
+		const auto entry = value.toObject();
+		if (entry.value(u"kind"_q).toString() != u"song"_q) {
+			continue;
+		}
+		auto track = ChartTrack{
+			.title = entry.value(u"trackName"_q).toString().trimmed(),
+			.artist = entry.value(u"artistName"_q).toString().trimmed(),
+			.artworkUrl = entry.value(u"artworkUrl100"_q).toString(),
+			.released = QDate::fromString(
+				entry.value(u"releaseDate"_q).toString().left(10),
+				Qt::ISODate),
+			.rank = ++rank,
+		};
+		if (track.title.isEmpty() || track.artist.isEmpty()) {
+			continue;
+		}
+		track.artworkUrl.replace(u"/100x100bb."_q, u"/300x300bb."_q);
+		result.push_back(std::move(track));
+	}
+	return result;
+}
+
+// The same song is spelled a little differently by the platforms: case,
+// "feat." parts and remaster notes in brackets.
+[[nodiscard]] QString CatalogKey(const ChartTrack &track) {
+	static const auto brackets = QRegularExpression(
+		u"\\s*[\\(\\[][^\\)\\]]*[\\)\\]]"_q);
+	auto title = track.title.toLower();
+	title.remove(brackets);
+	auto artist = track.artist.toLower();
+	for (const auto separator : { u","_q, u"&"_q, u" feat"_q, u" ft."_q }) {
+		const auto index = artist.indexOf(separator);
+		if (index > 0) {
+			artist = artist.left(index);
+		}
+	}
+	return title.simplified() + QChar('\n') + artist.simplified();
+}
+
+// Takes the platforms by turns, so the best matches of both come first.
+[[nodiscard]] std::vector<ChartTrack> MergeCatalogs(
+		std::vector<ChartTrack> apple,
+		std::vector<ChartTrack> deezer) {
+	auto result = std::vector<ChartTrack>();
+	result.reserve(apple.size() + deezer.size());
+	auto keys = base::flat_set<QString>();
+	const auto push = [&](ChartTrack &track) {
+		if (keys.insert(CatalogKey(track)).second) {
+			track.rank = int(result.size()) + 1;
+			result.push_back(std::move(track));
+		}
+	};
+	for (auto i = size_t(0); i < std::max(apple.size(), deezer.size()); ++i) {
+		if (i < apple.size()) {
+			push(apple[i]);
+		}
+		if (i < deezer.size()) {
+			push(deezer[i]);
+		}
+	}
+	if (int(result.size()) > kCatalogLimit) {
+		result.resize(kCatalogLimit);
 	}
 	return result;
 }
@@ -424,6 +499,44 @@ void SearchMusic(
 	}).fail([=](const MTP::Error &) {
 		done({});
 	}).send();
+}
+
+void SearchCatalog(
+		const QString &query,
+		Fn<void(std::vector<ChartTrack>)> done) {
+	const auto trimmed = query.trimmed();
+	if (trimmed.isEmpty()) {
+		done({});
+		return;
+	}
+	struct State {
+		std::optional<std::vector<ChartTrack>> apple;
+		std::optional<std::vector<ChartTrack>> deezer;
+	};
+	const auto state = std::make_shared<State>();
+	const auto check = [=] {
+		if (state->apple && state->deezer) {
+			done(MergeCatalogs(
+				std::move(*state->apple),
+				std::move(*state->deezer)));
+		}
+	};
+	const auto encoded = QString::fromLatin1(
+		QUrl::toPercentEncoding(trimmed));
+	const auto apple = u"https://itunes.apple.com/search"_q
+		+ u"?media=music&entity=song&limit=%1&country=%2&term=%3"_q
+			.arg(kCatalogPerSource)
+			.arg(AppleCountry(), encoded);
+	Get(apple, kMaxResponseSize, [=](QByteArray bytes) {
+		state->apple = ParseAppleSearch(bytes);
+		check();
+	});
+	const auto deezer = u"https://api.deezer.com/search/track"_q
+		+ u"?limit=%1&q=%2"_q.arg(kCatalogPerSource).arg(encoded);
+	Get(deezer, kMaxResponseSize, [=](QByteArray bytes) {
+		state->deezer = ParseDeezer(bytes);
+		check();
+	});
 }
 
 void LoadSavedMusic(

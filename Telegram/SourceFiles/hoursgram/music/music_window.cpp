@@ -2600,6 +2600,104 @@ void FillTracks(
 	return std::move(page.widget);
 }
 
+// The search asks the catalogs of the streaming platforms and Telegram at
+// once. The platforms know the songs by name, so their results come first;
+// what is found among the audio of public chats follows them.
+[[nodiscard]] object_ptr<Ui::RpWidget> CreateSearchPage(
+		QWidget *parent,
+		const Context &context,
+		QString query) {
+	auto page = MakeScrollPage(parent);
+	const auto content = page.content;
+	AddSkipTo(content, st::hoursgramMusicPagePadding.top());
+	content->add(
+		object_ptr<PageHeader>(
+			content,
+			Tr("Search", "Поиск"),
+			query,
+			true),
+		PageMargins());
+	AddSkipTo(content, st::hoursgramMusicSectionSkip);
+	const auto body = content->add(object_ptr<Ui::VerticalLayout>(content));
+	if (query.isEmpty()) {
+		AddEmptyText(body, Tr(
+			"Type a song or an artist in the field above.",
+			"Введите название трека или исполнителя в поле выше."));
+		return std::move(page.widget);
+	}
+	body->add(
+		object_ptr<Skeleton>(body, st::hoursgramMusicSkeleton),
+		PageMargins());
+
+	struct State {
+		std::optional<std::vector<ChartTrack>> catalog;
+		std::optional<std::vector<AudioMsgId>> telegram;
+	};
+	const auto state = std::make_shared<State>();
+	const auto addSection = [=](QString title, QString about) {
+		body->add(
+			object_ptr<PageHeader>(body, title, about, false),
+			PageMargins());
+		AddSkipTo(body, st::hoursgramMusicHeaderButtonsSkip);
+	};
+	const auto fill = [=] {
+		if (!state->catalog || !state->telegram) {
+			return;
+		}
+		body->clear();
+		const auto &catalog = *state->catalog;
+		const auto &telegram = *state->telegram;
+		if (catalog.empty() && telegram.empty()) {
+			AddEmptyText(body, Tr(
+				"Nothing found. Try other words.",
+				"Ничего не нашлось. Попробуйте другие слова."));
+			return;
+		}
+		if (!catalog.empty()) {
+			addSection(
+				Tr("On the platforms", "На площадках"),
+				Tr(
+					"Apple Music and Deezer, played from Telegram",
+					"Apple Music и Deezer, играет из Telegram"));
+			auto tracks = std::vector<QueueTrack>();
+			tracks.reserve(catalog.size());
+			for (const auto &track : catalog) {
+				tracks.push_back(FromChart(track));
+			}
+			FillTracks(body, context, std::move(tracks), 0, true);
+		}
+		if (!telegram.empty()) {
+			if (!catalog.empty()) {
+				AddSkipTo(body, st::hoursgramMusicSectionSkip);
+			}
+			addSection(
+				Tr("In Telegram", "В Telegram"),
+				Tr(
+					"Songs posted in public Telegram chats",
+					"Треки из публичных чатов и каналов Telegram"));
+			auto tracks = std::vector<QueueTrack>();
+			tracks.reserve(telegram.size());
+			for (const auto &audio : telegram) {
+				tracks.push_back(FromAudio(audio));
+			}
+			FillTracks(body, context, std::move(tracks), 0, true);
+		}
+		AddSkipTo(body, st::hoursgramMusicPagePadding.bottom());
+	};
+	SearchCatalog(query, crl::guard(body, [=](std::vector<ChartTrack> found) {
+		state->catalog = std::move(found);
+		fill();
+	}));
+	SearchMusic(
+		context.session,
+		query,
+		crl::guard(body, [=](std::vector<AudioMsgId> found) {
+			state->telegram = std::move(found);
+			fill();
+		}));
+	return std::move(page.widget);
+}
+
 // A playlist only remembers which message a track came from. When that
 // message is not loaded yet, it is asked for, so the playlist plays after
 // a restart too, without opening the chat it was added from.
@@ -3287,28 +3385,8 @@ object_ptr<Ui::RpWidget> MusicWindow::createPage(
 	switch (section) {
 	case Section::Home:
 		return CreateHomePage(_pages, context);
-	case Section::Search: {
-		const auto query = _query;
-		return CreateListPage(
-			_pages,
-			context,
-			Tr("Search", "Поиск"),
-			Tr(
-				"Songs posted in public Telegram chats",
-				"Треки из публичных чатов и каналов Telegram"),
-			query.isEmpty()
-				? Fn<void(Fn<void(std::vector<AudioMsgId>)>)>()
-				: [=](Fn<void(std::vector<AudioMsgId>)> done) {
-					SearchMusic(session, query, std::move(done));
-				},
-			query.isEmpty()
-				? Tr(
-					"Type a song or an artist in the field above.",
-					"Введите название трека или исполнителя в поле выше.")
-				: Tr(
-					"Nothing found. Try other words.",
-					"Ничего не нашлось. Попробуйте другие слова."));
-	}
+	case Section::Search:
+		return CreateSearchPage(_pages, context, _query);
 	case Section::Saved:
 		return CreateListPage(
 			_pages,

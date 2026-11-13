@@ -48,6 +48,14 @@ void SearchMusic(
 	const QString &query,
 	Fn<void(std::vector<AudioMsgId>)> done);
 
+// Songs found by name in the catalogs of the streaming platforms: Apple
+// Music and Deezer are asked at once and their answers are merged, the
+// same song from both of them kept once. Like a chart song, each one is
+// looked up among Telegram audio only when it is played.
+void SearchCatalog(
+	const QString &query,
+	Fn<void(std::vector<ChartTrack>)> done);
+
 // Audio files the user keeps in Saved Messages, newest first.
 void LoadSavedMusic(
 	not_null<Main::Session*> session,
