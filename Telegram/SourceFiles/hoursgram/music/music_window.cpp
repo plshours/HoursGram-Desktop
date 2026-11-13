@@ -1138,11 +1138,12 @@ private:
 	};
 
 	void relayout();
+	void validateLayout();
 	void setActive(int index);
 	void scrollTo(int top, bool animated);
 	[[nodiscard]] int currentScrollTop() const;
 	[[nodiscard]] int maxScrollTop() const;
-	[[nodiscard]] int lineAt(QPoint point) const;
+	[[nodiscard]] int lineAt(QPoint point);
 
 	std::vector<Line> _lines;
 	Ui::Text::String _placeholder;
@@ -1150,6 +1151,7 @@ private:
 	Ui::Animations::Simple _activeChange;
 	Fn<void(crl::time)> _seek;
 	crl::time _manualUntil = 0;
+	QSize _layoutSize;
 	int _contentHeight = 0;
 	int _scrollTop = 0;
 	int _active = -1;
@@ -1189,6 +1191,7 @@ void LyricsView::setLyrics(Lyrics lyrics) {
 	_scroll.stop();
 	_scrollTop = 0;
 	_manualUntil = 0;
+	_layoutSize = QSize();
 	relayout();
 	update();
 }
@@ -1197,12 +1200,24 @@ void LyricsView::resizeEvent(QResizeEvent *e) {
 	relayout();
 }
 
+// Line tops and heights are only valid for the size they were counted for.
+// A wrapped line drawn with another width than it was measured with takes
+// more rows than were reserved for it and runs into the next line, so every
+// user of the layout checks the size first.
+void LyricsView::validateLayout() {
+	if (_layoutSize != size()) {
+		relayout();
+	}
+}
+
 void LyricsView::relayout() {
 	const auto padding = st::hoursgramMusicLyricsPadding;
 	const auto available = width() - padding.left() - padding.right();
 	if (available <= 0) {
+		_layoutSize = QSize();
 		return;
 	}
+	_layoutSize = size();
 	auto top = std::max(padding.top(), height() / 3);
 	for (auto &line : _lines) {
 		line.top = top;
@@ -1212,6 +1227,16 @@ void LyricsView::relayout() {
 		top += line.height + st::hoursgramMusicLyricsLineSkip;
 	}
 	_contentHeight = top + std::max(padding.bottom(), height() / 2);
+
+	// Keep the line in play in the middle after the lines were rewrapped,
+	// unless the view is held by hand.
+	if (_active >= 0
+		&& _active < int(_lines.size())
+		&& crl::now() >= _manualUntil) {
+		const auto &line = _lines[_active];
+		_scroll.stop();
+		_scrollTop = line.top + line.height / 2 - height() / 2;
+	}
 	_scrollTop = std::clamp(_scrollTop, 0, maxScrollTop());
 }
 
@@ -1231,6 +1256,7 @@ void LyricsView::setActive(int index) {
 	if (_active == index) {
 		return;
 	}
+	validateLayout();
 	_previous = _active;
 	_active = index;
 	_activeChange.stop();
@@ -1275,12 +1301,14 @@ void LyricsView::wheelEvent(QWheelEvent *e) {
 	if (_lines.empty()) {
 		return;
 	}
+	validateLayout();
 	_manualUntil = crl::now() + kLyricsManualPause;
 	scrollTo(currentScrollTop() - e->angleDelta().y() / 2, false);
 	e->accept();
 }
 
-int LyricsView::lineAt(QPoint point) const {
+int LyricsView::lineAt(QPoint point) {
+	validateLayout();
 	const auto y = point.y() + currentScrollTop();
 	for (auto i = 0, count = int(_lines.size()); i != count; ++i) {
 		const auto &line = _lines[i];
@@ -1323,6 +1351,7 @@ void LyricsView::paintEvent(QPaintEvent *e) {
 			style::al_top);
 		return;
 	}
+	validateLayout();
 	const auto shift = currentScrollTop();
 	const auto change = _activeChange.value(1.);
 	const auto clip = e->rect();
