@@ -97,8 +97,13 @@ mainMenuButton: SettingsButton(defaultSettingsButton) {
 	}
 	padding: margins(58px, 15px, 16px, 14px);
 	toggleSkip: 12px;
-	iconLeft: 16px;
+	iconLeft: 12px;
 }
+// With Graphite the icons sit on round plates and the rows on a card with
+// a soft outline, like the settings.
+mainMenuIconPlate: 32px;
+mainMenuCardInset: 4px;
+mainMenuCardRadius: 22px;
 mainMenuAddAccountButton: SettingsButton(mainMenuButton) {
 	iconLeft: 23px;
 }

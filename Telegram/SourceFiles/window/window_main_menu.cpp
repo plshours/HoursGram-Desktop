@@ -55,6 +55,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/snowflakes.h"
 #include "ui/effects/toggle_arrow.h"
 #include "ui/painter.h"
+#include "ui/widgets/buttons.h"
+#include "styles/style_hoursgram_design.h"
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
@@ -360,6 +362,7 @@ MainMenu::MainMenu(
 	setupAccounts();
 	setupArchive();
 	setupMenu();
+	setupMenuCard();
 
 	const auto shadow = Ui::CreateChild<Ui::PlainShadow>(this);
 	widthValue(
@@ -707,12 +710,45 @@ void MainMenu::showFinished() {
 		_nightThemeToggle);
 }
 
+void MainMenu::setupMenuCard() {
+	// HORUSGRAM_DESIGN.md: with Graphite the rows of the drawer are one
+	// card with a soft rounded outline, like a group of settings.
+	_inner->paintRequest() | rpl::on_next([=] {
+		if (!Ui::HoursGramGraphite()) {
+			return;
+		}
+		auto p = QPainter(_inner.get());
+		auto hq = PainterHighQualityEnabler(p);
+		const auto inset = st::mainMenuCardInset;
+		const auto line = float64(st::lineWidth);
+		const auto half = line / 2.;
+		const auto card = QRectF(_menu->geometry()).marginsAdded(
+			{ inset - half, inset - half, inset - half, inset - half });
+		const auto radius = st::mainMenuCardRadius - half;
+		p.setPen(QPen(st::hoursgramSettingsCardBorder->c, line));
+		p.setBrush(Qt::NoBrush);
+		p.drawRoundedRect(card, radius, radius);
+	}, _inner->lifetime());
+	_menu->geometryValue() | rpl::on_next([=] {
+		_inner->update();
+	}, _menu->lifetime());
+}
+
 void MainMenu::setupMenu() {
 	using namespace Settings;
 
 	const auto &settings = AyuSettings::getInstance();
 
 	const auto controller = _controller;
+	// HORUSGRAM_DESIGN.md: with Graphite the icons of the drawer sit on
+	// round plates, like the icons of the settings.
+	const auto plated = [](IconDescriptor &&descriptor) {
+		if (Ui::HoursGramGraphite()) {
+			descriptor.background = &st::hoursgramIconPlate;
+			descriptor.plate = st::mainMenuIconPlate;
+		}
+		return std::move(descriptor);
+	};
 	const auto addAction = [&](
 			rpl::producer<QString> text,
 			IconDescriptor &&descriptor) {
@@ -720,7 +756,7 @@ void MainMenu::setupMenu() {
 			_menu,
 			std::move(text),
 			st::mainMenuButton,
-			std::move(descriptor));
+			plated(std::move(descriptor)));
 	};
 	if (!_controller->session().supportMode()) {
 		if (settings.showMyProfileInDrawer())
@@ -729,7 +765,7 @@ void MainMenu::setupMenu() {
 				_menu,
 				tr::lng_menu_my_profile(),
 				st::mainMenuButton,
-				{ &st::menuIconProfile })
+				plated({ &st::menuIconProfile }))
 		)->setClickedCallback([=] {
 			controller->showSection(
 				Info::Stories::Make(controller->session().user()));
