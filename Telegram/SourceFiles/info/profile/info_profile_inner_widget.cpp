@@ -44,6 +44,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "ui/text/custom_emoji_helper.h"
 #include "ui/text/format_song_document_name.h"
+#include "ui/text/text_utilities.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/labels.h"
@@ -172,6 +173,76 @@ void AddUnofficialSecurityRiskWarning(
 		anim::type::instant);
 }
 
+// HoursGram: the media tabs of a profile are tiles with an icon, and the
+// caption says how much is inside: "6 gifts", "1 photo", "1 video".
+void Decorate(MediaTabDescriptor &tab, const style::icon &icon) {
+	tab.icon = &icon;
+}
+
+void Decorate(
+		MediaTabDescriptor &tab,
+		const style::icon &icon,
+		rpl::producer<int> count,
+		Fn<QString(int)> caption) {
+	tab.icon = &icon;
+	tab.title = rpl::combine(
+		std::move(tab.title),
+		std::move(count)
+	) | rpl::map([=](TextWithEntities title, int value) {
+		return (value > 0)
+			? Ui::Text::WithEntities(caption(value))
+			: title;
+	});
+}
+
+[[nodiscard]] const style::icon &MediaTabIcon(Storage::SharedMediaType type) {
+	using Type = Storage::SharedMediaType;
+	switch (type) {
+	case Type::Video: return st::infoIconMediaVideo;
+	case Type::File: return st::infoIconMediaFile;
+	case Type::Link: return st::infoIconMediaLink;
+	case Type::MusicFile: return st::infoIconMediaAudio;
+	case Type::RoundVoiceFile: return st::infoIconMediaVoice;
+	case Type::GIF: return st::infoIconMediaGif;
+	case Type::Poll: return st::infoIconMediaPoll;
+	default: break;
+	}
+	return st::infoIconMediaPhoto;
+}
+
+[[nodiscard]] Fn<QString(int)> MediaTabCaption(
+		Storage::SharedMediaType type) {
+	using Type = Storage::SharedMediaType;
+	switch (type) {
+	case Type::Photo: return [](int count) {
+		return tr::lng_profile_photos(tr::now, lt_count, count);
+	};
+	case Type::Video: return [](int count) {
+		return tr::lng_profile_videos(tr::now, lt_count, count);
+	};
+	case Type::File: return [](int count) {
+		return tr::lng_profile_files(tr::now, lt_count, count);
+	};
+	case Type::Link: return [](int count) {
+		return tr::lng_profile_shared_links(tr::now, lt_count, count);
+	};
+	case Type::MusicFile: return [](int count) {
+		return tr::lng_profile_songs(tr::now, lt_count, count);
+	};
+	case Type::RoundVoiceFile: return [](int count) {
+		return tr::lng_profile_audios(tr::now, lt_count, count);
+	};
+	case Type::GIF: return [](int count) {
+		return tr::lng_profile_gifs(tr::now, lt_count, count);
+	};
+	case Type::Poll: return [](int count) {
+		return tr::lng_profile_polls(tr::now, lt_count, count);
+	};
+	default: break;
+	}
+	return [](int count) { return QString::number(count); };
+}
+
 } // namespace
 
 InnerWidget::InnerWidget(
@@ -285,6 +356,11 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			tabs.push_back(MakeMediaTabDescriptor(
 				type,
 				countValue(type) | rpl::map(_1 > 0)));
+			Decorate(
+				tabs.back(),
+				MediaTabIcon(type),
+				countValue(type),
+				MediaTabCaption(type));
 		};
 		const auto addMediaTabs = [&] {
 			using Type = Storage::SharedMediaType;
@@ -297,6 +373,7 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 				) | rpl::map([](bool expanded, int photos, int videos) {
 					return !expanded && (photos + videos > 0);
 				})));
+			Decorate(tabs.back(), st::infoIconMediaPhoto);
 			const auto addSplit = [&](Type type) {
 				tabs.push_back(MakeMediaTabDescriptor(
 					type,
@@ -306,14 +383,30 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 					) | rpl::map([](bool expanded, int count) {
 						return expanded && (count > 0);
 					})));
+				Decorate(
+					tabs.back(),
+					MediaTabIcon(type),
+					countValue(type),
+					MediaTabCaption(type));
 			};
 			addSplit(Type::Photo);
 			addSplit(Type::Video);
 		};
 		if (!_topic) {
 			tabs.push_back(MakeStoriesTabDescriptor(tabsPeer));
+			Decorate(tabs.back(), st::infoIconMediaStories);
 			if (!_sublist) {
 				tabs.push_back(MakeGiftsTabDescriptor(_peer));
+				Decorate(
+					tabs.back(),
+					st::infoIconMediaGifts,
+					PeerGiftsCountValue(_peer),
+					[](int count) {
+						return tr::lng_profile_peer_gifts(
+							tr::now,
+							lt_count,
+							count);
+					});
 			}
 		}
 		if ((_peer->isChat() || _peer->isMegagroup())
@@ -323,10 +416,12 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			tabs.push_back(MakeMembersTabDescriptor(
 				_peer,
 				MembersInTabValue(_peer)));
+			Decorate(tabs.back(), st::infoIconMediaGroup);
 		}
 		addMediaTabs();
 		if (!_topic) {
 			tabs.push_back(MakeSavedTabDescriptor(tabsPeer));
+			Decorate(tabs.back(), st::infoIconMediaSaved);
 		}
 		addTab(Storage::SharedMediaType::File);
 		addTab(Storage::SharedMediaType::Link);
@@ -337,15 +432,22 @@ object_ptr<Ui::RpWidget> InnerWidget::setupContent(
 			monoforumPeerId,
 			_migrated,
 			Storage::SharedMediaType::Poll) | rpl::map(_1 > 0)));
+		Decorate(
+			tabs.back(),
+			MediaTabIcon(Storage::SharedMediaType::Poll),
+			countValue(Storage::SharedMediaType::Poll),
+			MediaTabCaption(Storage::SharedMediaType::Poll));
 		addTab(Storage::SharedMediaType::RoundVoiceFile);
 		addTab(Storage::SharedMediaType::GIF);
 		if (!_topic && !_sublist) {
 			if (const auto user = _peer->asUser()) {
 				tabs.push_back(MakeCommonGroupsTabDescriptor(user));
+				Decorate(tabs.back(), st::infoIconMediaGroup);
 			}
 			if ((_peer->asBot() || _peer->asBroadcast())
 				&& !AyuSettings::getInstance().hideSimilarChannels()) {
 				tabs.push_back(MakeSimilarPeersTabDescriptor(_peer));
+				Decorate(tabs.back(), st::infoIconMediaChannel);
 			}
 		}
 		auto tabsHost = object_ptr<TabsHost>(

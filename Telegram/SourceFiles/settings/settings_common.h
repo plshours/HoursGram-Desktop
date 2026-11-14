@@ -228,6 +228,10 @@ struct IconDescriptor {
 	std::optional<QBrush> backgroundBrush; // Can be useful for gradients.
 	bool newBadge = false;
 
+	// HoursGram: when set, the icon is drawn in the middle of a round plate
+	// of this size in the `background` color, which leaves room around it.
+	int plate = 0;
+
 	explicit operator bool() const {
 		return (icon != nullptr);
 	}

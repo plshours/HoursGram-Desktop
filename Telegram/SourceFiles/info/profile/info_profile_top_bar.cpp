@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 
 #include "api/api_peer_colors.h"
+#include "ui/widgets/buttons.h"
 #include "api/api_peer_photo.h"
 #include "api/api_premium.h"
 #include "api/api_user_privacy.h"
@@ -715,6 +716,8 @@ void TopBar::updateCollectibleStatus() {
 		? *_localPatternEmojiId
 		: collectible && collectible->patternDocumentId
 		? collectible->patternDocumentId
+		: Ui::HoursGramGraphite()
+		? DocumentId()
 		: _peer->profileBackgroundEmojiId();
 	if (patternEmojiId) {
 		const auto document = _peer->owner().document(patternEmojiId);
@@ -1738,6 +1741,11 @@ void TopBar::setLocalEmojiStatusId(EmojiStatusId emojiStatusId) {
 }
 
 std::optional<Data::ColorProfileSet> TopBar::effectiveColorProfile() const {
+	// HORUSGRAM_DESIGN.md: with Graphite a profile has no color of its own,
+	// unless it is being picked right now.
+	if (Ui::HoursGramGraphite() && !_localColorProfileIndex) {
+		return std::nullopt;
+	}
 	return _localColorProfileIndex
 		? _peer->session().api().peerColors().colorProfileFor(
 			*_localColorProfileIndex)
@@ -1748,6 +1756,9 @@ std::optional<Data::ColorProfileSet> TopBar::effectiveColorProfile() const {
 
 auto TopBar::effectiveCollectible() const
 -> std::shared_ptr<Data::EmojiStatusCollectible> {
+	if (Ui::HoursGramGraphite() && !_localCollectible) {
+		return nullptr;
+	}
 	return _localCollectible
 		? _localCollectible
 		: _localColorProfileIndex
@@ -3976,6 +3987,14 @@ rpl::producer<QString> TopBar::nameValue() const {
 
 TopBarActionButtonStyle TopBar::mapActionStyle(
 		std::optional<QColor> c) const {
+	if (Ui::HoursGramGraphite() && !c) {
+		// Flat graphite tiles under the name.
+		return TopBarActionButtonStyle{
+			.bgColor = st::windowBgRipple->c,
+			.fgColor = std::nullopt,
+			.shadowColor = std::nullopt,
+		};
+	}
 	if (c) {
 		return TopBarActionButtonStyle{
 			.bgColor = Ui::BlendColors(

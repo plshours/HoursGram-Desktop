@@ -106,8 +106,35 @@ void TopBarActionButton::setStyle(const TopBarActionButtonStyle &style) {
 	update();
 }
 
+void TopBarActionButton::onStateChanged(
+		State was,
+		StateChangeSource source) {
+	RippleButton::onStateChanged(was, source);
+	const auto wasDown = static_cast<bool>(was & StateFlag::Down);
+	if (Ui::HoursGramGraphite() && wasDown != isDown()) {
+		// HORUSGRAM_DESIGN.md: down quickly, back with a spring.
+		_graphitePress.start(
+			[=] { update(); },
+			_graphitePress.value(wasDown ? 1. : 0.),
+			isDown() ? 1. : 0.,
+			isDown() ? 120 : 380,
+			isDown() ? anim::easeOutCubic : anim::easeOutBack);
+	}
+}
+
 void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
+
+	if (Ui::HoursGramGraphite()) {
+		const auto press = _graphitePress.value(isDown() ? 1. : 0.);
+		if (press != 0.) {
+			const auto center = QPointF(width() / 2., height() / 2.);
+			const auto scale = 1. - 0.12 * press;
+			p.translate(center);
+			p.scale(scale, scale);
+			p.translate(-center);
+		}
+	}
 
 	const auto progress = float64(height())
 		/ st::infoProfileTopBarActionButtonSize;
@@ -124,7 +151,12 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	paintRipple(p, 0, 0);
 
 	const auto iconSize = st::infoProfileTopBarActionButtonIconSize;
-	const auto iconTop = st::infoProfileTopBarActionButtonIconTop;
+	// HoursGram: with Graphite the buttons are icons only, set in the
+	// middle, so the row of them reads evenly.
+	const auto iconsOnly = Ui::HoursGramGraphite();
+	const auto iconTop = iconsOnly
+		? (st::infoProfileTopBarActionButtonSize - iconSize) / 2
+		: st::infoProfileTopBarActionButtonIconTop;
 
 	if (_lottie || _icon) {
 		const auto iconScale = (progress > kIconFadeStart)
@@ -150,6 +182,10 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		}
 		p.restore();
 		p.setOpacity(progress);
+	}
+
+	if (iconsOnly) {
+		return;
 	}
 
 	const auto skip = st::infoProfileTopBarActionButtonTextSkip;

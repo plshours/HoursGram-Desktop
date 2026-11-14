@@ -28,7 +28,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/info_memento.h"
 #include "info/profile/info_profile_badge.h"
 #include "settings/settings_common.h"
-#include "hoursgram/music/music_player_box.h"
+#include "hoursgram/music/music_window.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "info/saved/info_saved_music_widget.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
@@ -55,6 +55,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/effects/snowflakes.h"
 #include "ui/effects/toggle_arrow.h"
 #include "ui/painter.h"
+#include "ui/widgets/buttons.h"
+#include "styles/style_hoursgram_design.h"
 #include "ui/text/text_options.h"
 #include "ui/text/text_utilities.h"
 #include "ui/ui_utility.h"
@@ -252,12 +254,9 @@ void MainMenu::ToggleAccountsButton::validateUnreadBadge() {
 }
 
 QString MainMenu::ToggleAccountsButton::computeUnreadBadge() const {
-	const auto state = OtherAccountsUnreadStateCurrent(_current);
-	return state.allMuted
-		? QString()
-		: (state.count > 0)
-		? Lang::FormatCountToShort(state.count).string
-		: QString();
+	// HoursGram: the drawer does not count the unread messages of the
+	// other accounts, a big number next to the name only got in the way.
+	return QString();
 }
 
 MainMenu::ResetScaleButton::ResetScaleButton(QWidget *parent)
@@ -347,7 +346,7 @@ MainMenu::MainMenu(
 	object_ptr<Ui::PlainShadow>(_inner.get()))))
 , _menu(_inner->add(
 	object_ptr<Ui::VerticalLayout>(_inner.get()),
-	{ 0, st::mainMenuSkip, 0, 0 }))
+	{ st::mainMenuItemSide, st::mainMenuSkip, st::mainMenuItemSide, 0 }))
 , _footer(_inner->add(object_ptr<Ui::RpWidget>(_inner.get())))
 , _telegram(
 	Ui::CreateChild<Ui::FlatLabel>(_footer.get(), st::mainMenuTelegramLabel))
@@ -360,6 +359,7 @@ MainMenu::MainMenu(
 	setupAccounts();
 	setupArchive();
 	setupMenu();
+	setupMenuCard();
 
 	const auto shadow = Ui::CreateChild<Ui::PlainShadow>(this);
 	widthValue(
@@ -707,12 +707,45 @@ void MainMenu::showFinished() {
 		_nightThemeToggle);
 }
 
+void MainMenu::setupMenuCard() {
+	// HORUSGRAM_DESIGN.md: with Graphite the rows of the drawer are one
+	// card with a soft rounded outline, like a group of settings.
+	_inner->paintRequest() | rpl::on_next([=] {
+		if (!Ui::HoursGramGraphite()) {
+			return;
+		}
+		auto p = QPainter(_inner.get());
+		auto hq = PainterHighQualityEnabler(p);
+		const auto inset = st::mainMenuCardInset;
+		const auto line = float64(st::lineWidth);
+		const auto half = line / 2.;
+		const auto card = QRectF(_menu->geometry()).marginsAdded(
+			{ inset - half, inset - half, inset - half, inset - half });
+		const auto radius = st::mainMenuCardRadius - half;
+		p.setPen(QPen(st::hoursgramSettingsCardBorder->c, line));
+		p.setBrush(Qt::NoBrush);
+		p.drawRoundedRect(card, radius, radius);
+	}, _inner->lifetime());
+	_menu->geometryValue() | rpl::on_next([=] {
+		_inner->update();
+	}, _menu->lifetime());
+}
+
 void MainMenu::setupMenu() {
 	using namespace Settings;
 
 	const auto &settings = AyuSettings::getInstance();
 
 	const auto controller = _controller;
+	// HORUSGRAM_DESIGN.md: with Graphite the icons of the drawer sit on
+	// round plates, like the icons of the settings.
+	const auto plated = [](IconDescriptor &&descriptor) {
+		if (Ui::HoursGramGraphite()) {
+			descriptor.background = &st::hoursgramIconPlate;
+			descriptor.plate = st::mainMenuIconPlate;
+		}
+		return std::move(descriptor);
+	};
 	const auto addAction = [&](
 			rpl::producer<QString> text,
 			IconDescriptor &&descriptor) {
@@ -720,7 +753,7 @@ void MainMenu::setupMenu() {
 			_menu,
 			std::move(text),
 			st::mainMenuButton,
-			std::move(descriptor));
+			plated(std::move(descriptor)));
 	};
 	if (!_controller->session().supportMode()) {
 		if (settings.showMyProfileInDrawer())
@@ -729,7 +762,7 @@ void MainMenu::setupMenu() {
 				_menu,
 				tr::lng_menu_my_profile(),
 				st::mainMenuButton,
-				{ &st::menuIconProfile })
+				plated({ &st::menuIconProfile }))
 		)->setClickedCallback([=] {
 			controller->showSection(
 				Info::Stories::Make(controller->session().user()));
@@ -785,26 +818,13 @@ void MainMenu::setupMenu() {
 			controller->showPeerHistory(controller->session().user());
 		});
 
+		// One entry for music: the window it opens has the saved music,
+		// the playlists and the player in it.
 		addAction(
 			tr::lng_all_music(),
 			{ &st::menuIconMusic }
 		)->setClickedCallback([=] {
-			controller->showSection(
-				Info::Saved::MakeMusic(controller->session().user()));
-		});
-
-		addAction(
-			tr::hoursgram_Playlists(),
-			{ &st::menuIconPlaylists }
-		)->setClickedCallback([=] {
-			HoursGram::Music::ShowPlaylists(controller);
-		});
-
-		addAction(
-			tr::hoursgram_PlayerTitle(),
-			{ &st::menuIconNowPlaying }
-		)->setClickedCallback([=] {
-			HoursGram::Music::ShowPlayer(controller);
+			HoursGram::Music::ShowMusic(controller);
 		});
 
 		if (settings.showLReadToggleInDrawer()) {

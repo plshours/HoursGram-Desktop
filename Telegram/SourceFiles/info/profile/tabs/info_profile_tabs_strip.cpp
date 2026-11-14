@@ -81,7 +81,13 @@ void TabsStrip::setTabs(std::vector<StripTab> tabs) {
 		? _buttons[_active].tab.id
 		: QString();
 	setSelected(-1);
-	const auto pillHeight = _st.height
+
+	// HoursGram: tabs that come with icons are laid out as tiles, an icon
+	// over a short caption like "6 gifts".
+	_tiles = ranges::any_of(tabs, [](const StripTab &tab) {
+		return tab.icon != nullptr;
+	});
+	const auto pillHeight = stripHeight()
 		- _st.margin.top()
 		- _st.margin.bottom();
 	auto buttons = std::vector<Button>();
@@ -94,13 +100,16 @@ void TabsStrip::setTabs(std::vector<StripTab> tabs) {
 
 		auto button = Button();
 		button.text.setMarkedText(
-			_st.style,
+			_tiles ? _st.tileStyle : _st.style,
 			tab.text,
 			kMarkupTextOptions,
 			_context);
-		const auto width = _st.tabPadding.left()
+		const auto natural = _st.tabPadding.left()
 			+ button.text.maxWidth()
 			+ _st.tabPadding.right();
+		// Tiles are icons only, all of one width; the caption with the
+		// count shows as a tooltip.
+		const auto width = _tiles ? _st.tileMinWidth : natural;
 		button.geometry = QRect(x, 0, width, pillHeight);
 		if (tab.id == activeId) {
 			_active = int(buttons.size());
@@ -195,9 +204,28 @@ int TabsStrip::scrollValue() const {
 	return int(base::SafeRound(_scroll));
 }
 
+int TabsStrip::stripHeight() const {
+	return _tiles ? _st.tileHeight : _st.height;
+}
+
+float64 TabsStrip::highlightRadius(float64 height) const {
+	return _tiles ? float64(_st.radius) : (height / 2.);
+}
+
+float64 TabsStrip::islandRadius(float64 height) const {
+	return _tiles
+		? float64(_st.radius + _st.activeSkip)
+		: (height / 2.);
+}
+
 void TabsStrip::setSelected(int index) {
 	const auto was = (_selected >= 0);
 	const auto now = (index >= 0);
+	if (_tiles && index != _selected) {
+		setToolTip((index >= 0 && index < int(_buttons.size()))
+			? _buttons[index].tab.text.text
+			: QString());
+	}
 	_selected = index;
 	if (was != now) {
 		setCursor(now ? style::cur_pointer : style::cur_default);
@@ -230,8 +258,8 @@ void TabsStrip::setActive(int index) {
 			[=] { invalidate(); },
 			0.,
 			1.,
-			_st.duration,
-			anim::easeOutQuint);
+			_tiles ? crl::time(260) : crl::time(_st.duration),
+			_tiles ? anim::easeOutCubic : anim::easeOutQuint);
 	}
 	scrollToTab(index);
 	invalidate();
@@ -273,7 +301,7 @@ int TabsStrip::resizeGetHeight(int newWidth) {
 		_scroll = _scrollMax;
 		_scrollAnimation.stop();
 	}
-	return _buttons.empty() ? 0 : _st.height;
+	return _buttons.empty() ? 0 : stripHeight();
 }
 
 bool TabsStrip::eventHook(QEvent *e) {
@@ -314,7 +342,13 @@ int TabsStrip::indexAt(QPoint position) const {
 
 QPoint TabsStrip::contentOrigin() const {
 	const auto island = islandRect();
-	return QPoint(island.x() + _st.skip - scrollValue(), island.y());
+	// A row of icon tiles narrower than the island stands in its middle.
+	const auto centered = _tiles
+		? std::max((islandInteriorWidth() - _fullWidth) / 2, 0)
+		: 0;
+	return QPoint(
+		island.x() + _st.skip + centered - scrollValue(),
+		island.y());
 }
 
 void TabsStrip::addRipple(int index, QPoint position) {
@@ -323,7 +357,9 @@ void TabsStrip::addRipple(int index, QPoint position) {
 		const auto size = highlightRect(index).size();
 		button.ripple = std::make_unique<Ui::RippleAnimation>(
 			_st.ripple,
-			Ui::RippleAnimation::RoundRectMask(size, size.height() / 2),
+			Ui::RippleAnimation::RoundRectMask(
+				size,
+				int(base::SafeRound(highlightRadius(size.height())))),
 			[=] { invalidate(); });
 	}
 	const auto highlight = highlightRect(index).translated(
@@ -430,7 +466,7 @@ void TabsStrip::paintEvent(QPaintEvent *e) {
 	}
 	auto p = QPainter(this);
 	const auto island = islandRect();
-	const auto radius = island.height() / 2.;
+	const auto radius = islandRadius(island.height());
 	_shadow.paint(p, island, int(radius));
 
 	auto hq = PainterHighQualityEnabler(p);
@@ -471,10 +507,17 @@ void TabsStrip::validateContent(QRect island) {
 		const auto highlight = currentHighlightRect().translated(
 			origin.x(),
 			origin.y());
-		const auto highlightRadius = highlight.height() / 2.;
-		p.setBrush(_st.bgActive);
+		const auto radius = highlightRadius(highlight.height());
+		if (_tiles) {
+			// The chosen tile is tinted with the accent, like the folders.
+			auto color = st::windowBgActive->c;
+			color.setAlphaF(0.2);
+			p.setBrush(color);
+		} else {
+			p.setBrush(_st.bgActive);
+		}
 		p.setPen(Qt::NoPen);
-		p.drawRoundedRect(highlight, highlightRadius, highlightRadius);
+		p.drawRoundedRect(highlight, radius, radius);
 	}
 	for (auto i = 0, c = int(_buttons.size()); i != c; ++i) {
 		auto &button = _buttons[i];
@@ -491,18 +534,28 @@ void TabsStrip::validateContent(QRect island) {
 		- _st.style.font->height) / 2;
 	for (auto i = 0, c = int(_buttons.size()); i != c; ++i) {
 		const auto &button = _buttons[i];
-		if (i == _active) {
-			p.setPen(animating
-				? QPen(anim::color(_st.fg, _st.fgActive, progress))
-				: QPen(_st.fgActive->c));
-		} else if (animating && i == _wasActive) {
-			p.setPen(anim::color(_st.fgActive, _st.fg, progress));
-		} else {
-			p.setPen(_st.fg->c);
+		const auto color = (i == _active)
+			? (animating
+				? anim::color(_st.fg, _st.fgActive, progress)
+				: _st.fgActive->c)
+			: (animating && i == _wasActive)
+			? anim::color(_st.fgActive, _st.fg, progress)
+			: _st.fg->c;
+		p.setPen(color);
+		const auto geometry = button.geometry.translated(origin);
+		if (_tiles) {
+			if (const auto icon = button.tab.icon) {
+				icon->paint(
+					p,
+					geometry.x() + (geometry.width() - icon->width()) / 2,
+					geometry.y() + _st.tileIconTop,
+					island.width(),
+					color);
+			}
+			continue;
 		}
 		button.text.draw(p, {
-			.position = origin
-				+ button.geometry.topLeft()
+			.position = geometry.topLeft()
 				+ QPoint(_st.tabPadding.left(), textTop),
 			.availableWidth = button.text.maxWidth(),
 			.now = crl::now(),

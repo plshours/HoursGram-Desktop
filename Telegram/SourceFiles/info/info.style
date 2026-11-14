@@ -77,6 +77,12 @@ ProfileTabsStrip {
 	bgActive: color;
 	ripple: RippleAnimation;
 	duration: int;
+	radius: pixels;
+	tileHeight: pixels;
+	tileIconTop: pixels;
+	tileTextTop: pixels;
+	tileMinWidth: pixels;
+	tileStyle: TextStyle;
 }
 
 infoMediaHeaderFg: windowFg;
@@ -533,10 +539,10 @@ infoProfileSkip: 7px;
 // Every profile section is drawn as a rounded card: the padding carries
 // the inset of that card from the sides of the panel and the skip is the
 // gap under it.
-infoProfileCardPadding: margins(11px, 0px, 11px, 0px);
-infoProfileCardRadius: 28px;
-infoProfileCardSkip: 12px;
-infoProfileMusicPadding: margins(11px, 18px, 11px, 4px);
+infoProfileCardPadding: margins(12px, 0px, 12px, 0px);
+infoProfileCardRadius: 20px;
+infoProfileCardSkip: 10px;
+infoProfileMusicPadding: margins(12px, 10px, 12px, 4px);
 infoProfileMusicRadius: 16px;
 
 infoProfileLabeledButtonQr: IconButton(defaultIconButton) {
@@ -722,11 +728,21 @@ infoProfileTabsStrip: ProfileTabsStrip {
 	fg: windowSubTextFg;
 	fgActive: lightButtonFg;
 	bg: windowBg;
-	bgActive: lightButtonBgOver;
+	// HoursGram: lightButtonBgOver is the color of the panel in Graphite,
+	// which left the chosen tile without a visible highlight.
+	bgActive: windowBgOver;
 	ripple: RippleAnimation(defaultRippleAnimation) {
 		color: lightButtonBgRipple;
 	}
 	duration: 200;
+	radius: 16px;
+	tileHeight: 60px;
+	tileIconTop: 12px;
+	tileTextTop: 42px;
+	tileMinWidth: 56px;
+	tileStyle: TextStyle(defaultTextStyle) {
+		font: font(12px semibold);
+	}
 }
 infoProfileTabsShadow: BoxShadow {
 	blurRadius: 8px;
@@ -1336,8 +1352,11 @@ earnTonIconSize: 16px;
 earnTonIconMargin: margins(0px, 2px, 0px, 0px);
 
 infoMusicButtonRipple: universalRippleAnimation;
-infoMusicButtonPadding: margins(14px, 7px, 14px, 7px);
-infoMusicButtonSkip: 10px;
+infoMusicButtonPadding: margins(10px, 8px, 14px, 8px);
+infoMusicButtonSkip: 12px;
+infoMusicButtonCover: 36px;
+infoMusicButtonCoverRadius: 10px;
+infoMusicButtonLinesSkip: 0px;
 infoMusicButtonPerformer: FlatLabel(defaultFlatLabel) {
 	textFg: windowSubTextFg;
 	maxHeight: 20px;

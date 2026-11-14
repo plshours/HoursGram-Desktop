@@ -8,6 +8,7 @@
 
 #include "apiwrap.h"
 #include "lang_auto.h"
+#include "lang/lang_instance.h"
 #include "mainwidget.h"
 #include "api/api_sending.h"
 #include "ayu/ayu_settings.h"
@@ -78,12 +79,19 @@ Fn<void()> ClearDeletedMessagesHandler(not_null<Window::SessionController*> cont
 	};
 }
 
-void DeleteMyMessagesAfterConfirm(not_null<PeerData*> peer) {
+// HoursGram: `done` gets the number of messages deleted, or -1 when the
+// server deletes them all at once.
+void DeleteMyMessagesAfterConfirm(
+		not_null<PeerData*> peer,
+		Fn<void(int)> done = nullptr) {
 	const auto session = &peer->session();
 
 	if (const auto channel = peer->asChannel()) {
 		if (channel->isMegagroup() && channel->canDeleteMessages()) {
 			session->api().deleteAllFromParticipant(channel, session->user());
+			if (done) {
+				done(-1);
+			}
 			return;
 		}
 	}
@@ -97,6 +105,9 @@ void DeleteMyMessagesAfterConfirm(not_null<PeerData*> peer) {
 	{
 		if (index >= int(collected->size())) {
 			DEBUG_LOG(("Deleted all %1 my messages in this chat").arg(collected->size()));
+			if (done) {
+				done(int(collected->size()));
+			}
 			return;
 		}
 
@@ -220,16 +231,46 @@ void DeleteMyMessagesAfterConfirm(not_null<PeerData*> peer) {
 	(*requestNext)(MsgId(0));
 }
 
+[[nodiscard]] bool UsesRussian() {
+	const auto &lang = Lang::GetInstance();
+	return lang.id().startsWith(u"ru"_q) || lang.baseId().startsWith(u"ru"_q);
+}
+
 Fn<void()> DeleteMyMessagesHandler(not_null<Window::SessionController*> controller, not_null<PeerData*> peer) {
 	return [=]
 	{
 		if (!controller->showFrozenError()) {
+			// HoursGram: private chats too, so the question names the chat.
+			const auto text = peer->isUser()
+				? (UsesRussian()
+					? u"Удалить все ваши сообщения в этом чате? Они пропадут у обоих."_q
+					: u"Delete all your messages in this chat? They will be gone for both of you."_q)
+				: tr::ayu_DeleteOwnMessagesConfirmation(tr::now);
+			const auto weak = base::make_weak(controller);
 			controller->show(Ui::MakeConfirmBox({
-				.text = tr::ayu_DeleteOwnMessagesConfirmation(tr::now),
+				.text = text,
 				.confirmed =
 				[=](Fn<void()> &&close)
 				{
-					DeleteMyMessagesAfterConfirm(peer);
+					if (const auto strong = weak.get()) {
+						strong->showToast(UsesRussian()
+							? u"Удаляю ваши сообщения…"_q
+							: u"Deleting your messages…"_q);
+					}
+					DeleteMyMessagesAfterConfirm(peer, [=](int count) {
+						const auto strong = weak.get();
+						if (!strong) {
+							return;
+						} else if (count < 0) {
+							strong->showToast(UsesRussian()
+								? u"Ваши сообщения удалены."_q
+								: u"Your messages are deleted."_q);
+						} else {
+							strong->showToast(UsesRussian()
+								? u"Удалено сообщений: %1."_q.arg(count)
+								: u"Messages deleted: %1."_q.arg(count));
+						}
+					});
 					close();
 				},
 				.confirmText = tr::lng_box_delete(),
@@ -477,13 +518,23 @@ void AddDeleteOwnMessagesAction(PeerData *peerData,
 		if (!channel->isMegagroup() || !channel->amIn()) {
 			return;
 		}
+	} else if (const auto user = peerData->asUser()) {
+		// HoursGram: private chats too, except Saved Messages, where
+		// every message is one's own.
+		if (user->isSelf()) {
+			return;
+		}
 	} else {
 		return;
 	}
-	addCallback(
-		tr::ayu_DeleteOwnMessages(tr::now),
-		DeleteMyMessagesHandler(sessionController, peerData),
-		&st::menuIconTTL);
+	addCallback({
+		.text = (UsesRussian()
+			? u"Удалить мои сообщения"_q
+			: tr::ayu_DeleteOwnMessages(tr::now)),
+		.handler = DeleteMyMessagesHandler(sessionController, peerData),
+		.icon = &st::menuIconDeleteAttention,
+		.isAttention = true,
+	});
 }
 
 void AddHistoryAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {

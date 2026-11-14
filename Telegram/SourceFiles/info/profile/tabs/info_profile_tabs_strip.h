@@ -14,6 +14,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace style {
 struct ProfileTabsStrip;
+namespace internal {
+class Icon;
+} // namespace internal
+using icon = internal::Icon;
 } // namespace style
 
 namespace Ui {
@@ -25,6 +29,7 @@ namespace Info::Profile {
 struct StripTab {
 	QString id;
 	TextWithEntities text;
+	const style::icon *icon = nullptr;
 };
 
 class TabsStrip final : public Ui::RpWidget {
@@ -76,6 +81,9 @@ private:
 	[[nodiscard]] QRect highlightRect(int index) const;
 	[[nodiscard]] QRectF currentHighlightRect() const;
 	[[nodiscard]] int scrollValue() const;
+	[[nodiscard]] int stripHeight() const;
+	[[nodiscard]] float64 highlightRadius(float64 height) const;
+	[[nodiscard]] float64 islandRadius(float64 height) const;
 
 	const style::ProfileTabsStrip &_st;
 	Ui::Text::MarkedContext _context;
@@ -104,6 +112,7 @@ private:
 	int _wasActive = -1;
 	bool _contentValid = false;
 	bool _pointerAimed = false;
+	bool _tiles = false;
 
 };
 

@@ -64,6 +64,7 @@ set(style_files
     calls/calls.style
     export/view/export.style
     hoursgram/music/hoursgram_music.style
+    hoursgram/customization/hoursgram_design.style
     info/info.style
     info/profile/info_profile_actions.style
     info/profile/info_profile_top_bar.style

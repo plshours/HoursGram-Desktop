@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/audio/media_audio.h"
 #include "media/audio/media_audio_capture.h"
 #include "media/player/media_player_listen_tracker.h"
+#include "hoursgram/music/music_queue.h"
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_player.h"
 #include "media/view/media_view_playback_progress.h"
@@ -555,6 +556,15 @@ bool Instance::moveInPlaylist(
 		not_null<Data*> data,
 		int delta,
 		bool autonext) {
+	if (data->type == AudioMsgId::Type::Song) {
+		auto &queue = HoursGram::Music::Queue::Instance();
+		if (queue.owns(data->current)) {
+			return queue.move(
+				delta,
+				(repeat(data) == RepeatMode::All),
+				(order(data) == OrderMode::Shuffle));
+		}
+	}
 	if (!data->playlistIndex) {
 		return false;
 	}
@@ -747,6 +757,12 @@ bool Instance::previousAvailable(AudioMsgId::Type type) const {
 	const auto data = getData(type);
 	Assert(data != nullptr);
 
+	if (type == AudioMsgId::Type::Song) {
+		const auto &queue = HoursGram::Music::Queue::Instance();
+		if (queue.owns(data->current)) {
+			return queue.available(-1, repeat(data) == RepeatMode::All);
+		}
+	}
 	if (!data->playlistIndex || !data->playlistSlice) {
 		return false;
 	} else if (repeat(data) == RepeatMode::All) {
@@ -764,6 +780,13 @@ bool Instance::nextAvailable(AudioMsgId::Type type) const {
 	const auto data = getData(type);
 	Assert(data != nullptr);
 
+	if (type == AudioMsgId::Type::Song) {
+		const auto &queue = HoursGram::Music::Queue::Instance();
+		if (queue.owns(data->current)) {
+			return queue.available(1, repeat(data) == RepeatMode::All)
+				|| (order(data) == OrderMode::Shuffle);
+		}
+	}
 	if (!data->playlistIndex || !data->playlistSlice) {
 		return false;
 	} else if (repeat(data) == RepeatMode::All) {

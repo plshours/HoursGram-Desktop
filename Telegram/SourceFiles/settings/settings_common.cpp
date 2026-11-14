@@ -424,6 +424,36 @@ void AddButtonIcon(
 		IconDescriptor &&descriptor) {
 	Expects(descriptor.icon != nullptr);
 
+	if (descriptor.plate > 0 && descriptor.background) {
+		const auto plate = descriptor.plate;
+		const auto color = descriptor.background;
+		const auto glyph = descriptor.icon;
+		const auto widget = Ui::CreateChild<Ui::RpWidget>(button.get());
+		widget->setAttribute(Qt::WA_TransparentForMouseEvents);
+		widget->resize(plate, plate);
+		widget->show();
+		button->sizeValue(
+		) | rpl::on_next([=, left = st.iconLeft](QSize size) {
+			widget->moveToLeft(left, (size.height() - plate) / 2, size.width());
+		}, widget->lifetime());
+		widget->paintRequest(
+		) | rpl::on_next([=] {
+			auto p = QPainter(widget);
+			{
+				auto hq = PainterHighQualityEnabler(p);
+				p.setPen(Qt::NoPen);
+				p.setBrush((*color)->c);
+				p.drawEllipse(0, 0, plate, plate);
+			}
+			glyph->paint(
+				p,
+				(plate - glyph->width()) / 2,
+				(plate - glyph->height()) / 2,
+				plate);
+		}, widget->lifetime());
+		return;
+	}
+
 	struct IconWidget {
 		IconWidget(QWidget *parent, IconDescriptor &&descriptor)
 		: widget(parent)

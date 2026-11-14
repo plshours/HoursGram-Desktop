@@ -1296,22 +1296,36 @@ PRIVATE
     history/history_view_swipe_back_session.h
     history/history_widget.cpp
     history/history_widget.h
+    hoursgram/customization/menu_attention.cpp
+    hoursgram/customization/menu_attention.h
+    hoursgram/customization/glass_backdrop.cpp
+    hoursgram/customization/glass_backdrop.h
+    hoursgram/customization/custom_cursor.cpp
+    hoursgram/customization/custom_cursor.h
     hoursgram/customization/customization_palette.cpp
     hoursgram/customization/customization_palette.h
+    hoursgram/customization/graphite_frame.cpp
+    hoursgram/customization/graphite_frame.h
     hoursgram/index/peer_index.cpp
     hoursgram/index/peer_index.h
+    hoursgram/music/music_common.cpp
+    hoursgram/music/music_common.h
     hoursgram/music/music_lyrics.cpp
     hoursgram/music/music_lyrics.h
     hoursgram/music/music_lyrics_loader.cpp
     hoursgram/music/music_lyrics_loader.h
     hoursgram/music/music_lyrics_online.cpp
     hoursgram/music/music_lyrics_online.h
-    hoursgram/music/music_player_box.cpp
-    hoursgram/music/music_player_box.h
     hoursgram/music/music_playlists.cpp
     hoursgram/music/music_playlists.h
     hoursgram/music/music_playlists_box.cpp
     hoursgram/music/music_playlists_box.h
+    hoursgram/music/music_queue.cpp
+    hoursgram/music/music_queue.h
+    hoursgram/music/music_sources.cpp
+    hoursgram/music/music_sources.h
+    hoursgram/music/music_window.cpp
+    hoursgram/music/music_window.h
 
     info/bot/earn/info_bot_earn_list.cpp
     info/bot/earn/info_bot_earn_list.h

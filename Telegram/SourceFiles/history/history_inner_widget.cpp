@@ -127,12 +127,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "dialogs/ui/dialogs_video_userpic.h"
 #include "styles/style_chat.h"
+#include "styles/style_hoursgram_design.h"
 #include "styles/style_menu_icons.h"
 
 #include <QtGui/QClipboard>
 #include <QtWidgets/QApplication>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QMimeData>
+
+#include <cmath>
 
 // AyuGram includes
 #include "ayu/ayu_settings.h"
@@ -146,6 +149,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 namespace {
 
 constexpr auto kScrollDateHideTimeout = 800;
+constexpr auto kHoursGramAppearDuration = crl::time(460);
+constexpr auto kHoursGramAppearStiffness = 7.5;
 constexpr auto kScrollDateHideOnDayCrossingTimeout = crl::time(3000);
 constexpr auto kUnloadHeavyPartsPages = 2;
 constexpr auto kClearUserpicsAfter = 50;
@@ -467,6 +472,27 @@ HistoryInner::HistoryInner(
 	) | rpl::on_next(
 		[this](auto item) { itemRemoved(item); },
 		lifetime());
+
+	_hoursgramAppearAnimation.init([=](crl::time now) {
+		for (auto i = begin(_hoursgramAppearing)
+			; i != end(_hoursgramAppearing);) {
+			if (now - i->second >= kHoursGramAppearDuration) {
+				i = _hoursgramAppearing.erase(i);
+			} else {
+				++i;
+			}
+		}
+		update();
+		return !_hoursgramAppearing.empty();
+	});
+	session().data().newItemAdded(
+	) | rpl::filter([=](not_null<HistoryItem*> item) {
+		return (item->history() == _history)
+			&& item->out()
+			&& !item->isService();
+	}) | rpl::on_next([=](not_null<HistoryItem*> item) {
+		hoursgramStartAppear(item);
+	}, lifetime());
 	session().data().newItemAdded(
 	) | rpl::filter([=](not_null<HistoryItem*> item) {
 		const auto history = item->history();
@@ -1755,7 +1781,17 @@ void HistoryInner::paintEvent(QPaintEvent *e) {
 				context.fullMessageSelected = selection.fullMessageSelected;
 				context.messageSelection = selection.messageSelection;
 				context.highlight = _widget->itemHighlight(item);
+				const auto appear = _hoursgramAppearing.empty()
+					? 1.
+					: hoursgramAppearProgress(item, crl::now());
+				if (appear < 1.) {
+					p.save();
+					hoursgramPaintAppearing(p, item, height, appear);
+				}
 				view->draw(p, context);
+				if (appear < 1.) {
+					p.restore();
+				}
 				processPainted(view, top, height);
 			}
 			top += height;
@@ -2524,7 +2560,53 @@ void HistoryInner::performDrag() {
 	}
 }
 
+void HistoryInner::hoursgramStartAppear(not_null<const HistoryItem*> item) {
+	if (anim::Disabled()) {
+		return;
+	}
+	_hoursgramAppearing[item] = crl::now();
+	if (!_hoursgramAppearAnimation.animating()) {
+		_hoursgramAppearAnimation.start();
+	}
+}
+
+float64 HistoryInner::hoursgramAppearProgress(
+		not_null<const HistoryItem*> item,
+		crl::time now) const {
+	const auto i = _hoursgramAppearing.find(item);
+	if (i == end(_hoursgramAppearing)) {
+		return 1.;
+	}
+	return std::clamp(
+		float64(now - i->second) / kHoursGramAppearDuration,
+		0.,
+		1.);
+}
+
+// A message that was just sent rises out of the field onto its place. The
+// motion is a critically damped spring: fast at first, then settling
+// without any bounce, so the text never wobbles. Nothing is scaled, which
+// keeps the glyphs crisp all the way; the message only moves and fades in
+// during the first third of the way. Applied to the painter around
+// Element::draw, so the message itself knows nothing about it.
+void HistoryInner::hoursgramPaintAppearing(
+		Painter &p,
+		not_null<const HistoryItem*> item,
+		int height,
+		float64 progress) const {
+	const auto spring = [](float64 t) {
+		const auto x = kHoursGramAppearStiffness * t;
+		return 1. - (1. + x) * std::exp(-x);
+	};
+	const auto settled = spring(progress) / spring(1.);
+	const auto shift = st::hoursgramMessageAppearShift
+		+ std::min(height, st::hoursgramMessageAppearShift);
+	p.setOpacity(std::clamp(progress * 3., 0., 1.));
+	p.translate(0, std::round((1. - settled) * shift));
+}
+
 void HistoryInner::itemRemoved(not_null<const HistoryItem*> item) {
+	_hoursgramAppearing.remove(item);
 	if (_pinnedItem == item) {
 		_pinnedItem = nullptr;
 	}

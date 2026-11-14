@@ -48,6 +48,22 @@ bool WriteFile(const QString &path, const QByteArray &bytes) {
 	return ParseLyrics(file.readAll());
 }
 
+// The title and the performer come from the tags of the file, which anyone
+// who posts it chooses. Used in a path they must stay a bare file name:
+// a separator or a drive colon would let "..\..\" or "C:" reach files
+// outside of the folder of the track.
+[[nodiscard]] bool SafeFileName(const QString &name) {
+	if (name.isEmpty()) {
+		return false;
+	}
+	for (const auto ch : name) {
+		if (ch == '/' || ch == '\\' || ch == ':' || ch.unicode() < 0x20) {
+			return false;
+		}
+	}
+	return true;
+}
+
 // Lyrics files are commonly saved next to the audio file, either under the
 // same name or under "performer - title".
 [[nodiscard]] std::vector<QString> SiblingPaths(
@@ -63,8 +79,8 @@ bool WriteFile(const QString &path, const QByteArray &bytes) {
 	if (const auto song = document->song()) {
 		const auto title = song->title.trimmed();
 		const auto performer = song->performer.trimmed();
-		if (!title.isEmpty()) {
-			if (!performer.isEmpty()) {
+		if (SafeFileName(title)) {
+			if (SafeFileName(performer)) {
 				result.push_back(
 					folder + performer + u" - "_q + title + u".lrc"_q);
 			}
