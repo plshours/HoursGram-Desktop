@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/view/media_view_pip.h"
 #include "media/view/media_view_video_stream.h"
 #include "platform/platform_overlay_widget.h"
+#include "hoursgram/customization/glass_backdrop.h"
 #include "styles/style_media_view.h"
 
 namespace Media::View {
@@ -81,9 +82,9 @@ void OverlayWidget::RendererSW::paintBackground() {
 
 	const auto m = _p->compositionMode();
 	_p->setCompositionMode(QPainter::CompositionMode_Source);
-	const auto &bg = _owner->_fullScreenVideo
-		? st::mediaviewVideoBg
-		: st::mediaviewBg;
+	const auto bg = _owner->_fullScreenVideo
+		? st::mediaviewVideoBg->c
+		: HoursGram::Customization::ViewerBackground(st::mediaviewBg->c);
 	for (const auto &rect : region) {
 		_p->fillRect(rect, bg);
 	}

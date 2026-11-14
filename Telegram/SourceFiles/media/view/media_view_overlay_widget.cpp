@@ -128,6 +128,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 // AyuGram includes
 #include "ayu/ayu_settings.h"
+#include "hoursgram/customization/glass_backdrop.h"
 #include "ayu/ayu_state.h"
 #include "ayu/features/streamer_mode/streamer_mode.h"
 
@@ -1051,8 +1052,17 @@ void OverlayWidget::setupWindow() {
 	) | rpl::on_next([=](bool shown) {
 		toggleApplicationEventFilter(shown);
 		if (!shown) {
+			HoursGram::Customization::HideGlassBackdrop();
 			clearAfterHide();
 		} else {
+			// HoursGram: the client under the viewer turns to frosted glass.
+			const auto from = _openedFrom.get()
+				? _openedFrom.get()
+				: Core::App().activeWindow();
+			if (from) {
+				HoursGram::Customization::ShowGlassBackdrop(
+					from->widget().get());
+			}
 			const auto geometry = _window->geometry();
 			const auto screenList = QGuiApplication::screens();
 			DEBUG_LOG(("Viewer Pos: Shown, geometry: %1, %2, %3, %4, screen number: %5")

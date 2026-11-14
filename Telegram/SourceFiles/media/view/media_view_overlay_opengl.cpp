@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "platform/platform_overlay_widget.h"
 #include "base/platform/base_platform_info.h"
 #include "core/crash_reports.h"
+#include "hoursgram/customization/glass_backdrop.h"
 #include "styles/style_media_view.h"
 
 namespace Media::View {
@@ -343,7 +344,8 @@ std::optional<QColor> OverlayWidget::RendererGL::clearColor() {
 	} else if (_owner->_fullScreenVideo) {
 		return st::mediaviewVideoBg->c;
 	} else {
-		return st::mediaviewBg->c;
+		return HoursGram::Customization::ViewerBackground(
+			st::mediaviewBg->c);
 	}
 }
 
