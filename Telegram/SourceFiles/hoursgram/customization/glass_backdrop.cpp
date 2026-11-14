@@ -14,6 +14,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <QtCore/QPointer>
 #include <QtGui/QPainter>
+#include <QtGui/QScreen>
 
 namespace HoursGram::Customization {
 namespace {
@@ -79,7 +80,24 @@ void ShowGlassBackdrop(not_null<QWidget*> window) {
 		|| window->size().isEmpty()) {
 		return;
 	}
-	auto image = Ui::GrabWidgetToImage(window);
+	// What is on the screen is taken, not what the widgets paint: parts
+	// of the window drawn on the GPU come out blank when they are asked
+	// to paint into a picture. Where the system does not let the screen
+	// be read, the widgets are asked after all.
+	auto image = QImage();
+	if (const auto screen = window->screen()) {
+		const auto global = QRect(window->mapToGlobal(QPoint()), window->size());
+		const auto local = global.translated(-screen->geometry().topLeft());
+		image = screen->grabWindow(
+			0,
+			local.x(),
+			local.y(),
+			local.width(),
+			local.height()).toImage();
+	}
+	if (image.isNull()) {
+		image = Ui::GrabWidgetToImage(window);
+	}
 	if (image.isNull()) {
 		return;
 	}

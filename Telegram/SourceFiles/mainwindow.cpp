@@ -377,13 +377,15 @@ void MainWindow::setupMain(
 		}));
 	} else if (AyuSettings::getInstance().clientTheme() == 4) {
 		// The first Graphite palette had dark links and accent text, the
-		// next one a colorless accent. A saved copy of either is replaced
-		// once by the palette of this version, which has a blue accent.
+		// next ones a colorless accent and white dangerous actions. A saved
+		// copy of any of them is replaced once by the palette of this
+		// version, with a blue accent and coral red dangerous actions.
 		static auto checked = false;
 		if (!checked) {
 			checked = true;
 			if (st::windowActiveTextFg->c.lightness() < 128
-				|| st::windowBgActive->c.hslSaturation() < 40) {
+				|| st::windowBgActive->c.hslSaturation() < 40
+				|| st::attentionButtonFg->c.hslSaturation() < 40) {
 				const auto path = u":/gui/hoursgram-graphite.tdesktop-palette"_q;
 				if (Window::Theme::Apply(path)) {
 					Window::Theme::KeepApplied();

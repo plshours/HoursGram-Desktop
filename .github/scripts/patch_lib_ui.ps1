@@ -447,6 +447,65 @@ Edit-Text `
 			New = "popupMenuWithIcons: PopupMenu(defaultPopupMenu) {`n`tscrollPadding: margins(0px, 8px, 0px, 8px);`n";
 		})
 
+# HorusGram Graphite: no lit rings and edges under the cursor. A round
+# icon button shows a soft round fill, other buttons only their own fill.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/buttons.cpp') `
+	'soft round fill under the cursor' `
+	@(
+		@{
+			Old = "void PaintHoursGramEdge(`n";
+			New = "[[maybe_unused]] void PaintHoursGramEdge(`n";
+		},
+		@{
+			Old = "`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n`tconst auto overIconOpacity = iconOverOpacity();`n`tif (HoursGramGraphite() && _st.rippleAreaSize > 0) {`n`t`tconst auto size = float64(_st.rippleAreaSize);`n`t`tPaintHoursGramEdge(`n`t`t`tp,`n`t`t`tQRectF(QPointF(_st.rippleAreaPosition), QSizeF(size, size)),`n`t`t`tsize / 2.,`n`t`t`toverIconOpacity);`n`t}`n";
+			New = "`tconst auto overIconOpacity = iconOverOpacity();`n`tif (HoursGramGraphite() && _st.rippleAreaSize > 0 && overIconOpacity > 0.) {`n`t`t// A soft round fill under the cursor, no ring around the icon.`n`t`tconst auto size = float64(_st.rippleAreaSize);`n`t`tauto hq = PainterHighQualityEnabler(p);`n`t`tp.setPen(Qt::NoPen);`n`t`tp.setBrush(st::windowBgOver);`n`t`tp.setOpacity(overIconOpacity);`n`t`tp.drawEllipse(QRectF(QPointF(_st.rippleAreaPosition), QSizeF(size, size)));`n`t`tp.setOpacity(1.);`n`t}`n`tpaintRipple(p, _st.rippleAreaPosition, _rippleColorOverride ? &(*_rippleColorOverride)->c : nullptr);`n`n";
+		},
+		@{
+			Old = "`t`t} else if (shown > 0.) {`n`t`t`tPaintHoursGramEdge(p, fill, radius, std::min(shown, 1.));`n`t`t}`n";
+			New = "`t`t} else if (shown > 0.) {`n`t`t`t// The fill of the hover is enough, no lit edge.`n`t`t}`n";
+		})
+
+# HorusGram: destructive menu items are red. The application tells which
+# icons stand for deleting, blocking, leaving or clearing and gives their
+# red variants; an item added with such an icon gets a red caption too.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/menu/menu.h') `
+	'SetHoursGramAttention' `
+	@(
+		@{
+			Old = "namespace Ui::Menu {`n`nclass ItemBase;`nclass RippleAnimation;`n";
+			New = "namespace Ui::Menu {`n`n// HorusGram: maps the icon of a destructive item to its red variant,`n// nullptr for any other icon.`nvoid SetHoursGramAttention(Fn<const style::icon*(const style::icon*)> map);`n`nclass ItemBase;`nclass RippleAnimation;`n";
+		})
+
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/menu/menu.cpp') `
+	'HoursGramAttentionMap' `
+	@(
+		@{
+			Old = "#include <QtWidgets/QApplication>`n";
+			New = "#include <QtWidgets/QApplication>`n`n#include <map>`n";
+		},
+		@{
+			Old = "namespace Ui::Menu {`n`nMenu::Menu(QWidget *parent, const style::Menu &st)`n";
+			New = "namespace Ui::Menu {`nnamespace {`n`nFn<const style::icon*(const style::icon*)> HoursGramAttentionMap;`n`n// The style of the menu with red captions, made once for every menu style.`n[[nodiscard]] const style::Menu &HoursGramAttentionStyle(`n`t`tconst style::Menu &st) {`n`tstatic auto cache = std::map<`n`t`tconst style::Menu*,`n`t`tstd::unique_ptr<style::Menu>>();`n`tauto &entry = cache[&st];`n`tif (!entry) {`n`t`tentry = std::make_unique<style::Menu>(st);`n`t`tentry->itemFg = st::attentionButtonFg;`n`t`tentry->itemFgOver = st::attentionButtonFgOver;`n`t}`n`treturn *entry;`n}`n`n} // namespace`n`nvoid SetHoursGramAttention(Fn<const style::icon*(const style::icon*)> map) {`n`tHoursGramAttentionMap = std::move(map);`n}`n`nMenu::Menu(QWidget *parent, const style::Menu &st)`n";
+		},
+		@{
+			Old = "`tauto item = base::make_unique_q<Action>(`n`t`tthis,`n`t`t_st,`n`t`tstd::move(action),`n`t`ticon,`n`t`ticonOver ? iconOver : icon);`n`treturn addAction(std::move(item));`n";
+			New = "`tif (const auto red = (icon && HoursGramAttentionMap)`n`t`t`t? HoursGramAttentionMap(icon)`n`t`t`t: nullptr) {`n`t`treturn addAction(base::make_unique_q<Action>(`n`t`t`tthis,`n`t`t`tHoursGramAttentionStyle(_st),`n`t`t`tstd::move(action),`n`t`t`tred,`n`t`t`tred));`n`t}`n`tauto item = base::make_unique_q<Action>(`n`t`tthis,`n`t`t_st,`n`t`tstd::move(action),`n`t`ticon,`n`t`ticonOver ? iconOver : icon);`n`treturn addAction(std::move(item));`n";
+		})
+
+# HorusGram: popup menus, the message menu among them, unfold and fold a
+# little slower, which reads as a smooth appearance instead of a pop.
+Edit-Text `
+	(Join-Path $WorkspaceRoot 'Telegram/lib_ui/ui/widgets/widgets.style') `
+	'showDuration: 260;' `
+	@(
+		@{
+			Old = "`tradius: 14px;`n`tduration: 150;`n`tshowDuration: 200;`n";
+			New = "`tradius: 14px;`n`tduration: 180;`n`tshowDuration: 260;`n";
+		})
+
 # Mini apps did not take any clicks. The patch above gives the default
 # surface format an alpha channel, so Qt made the native window that hosts
 # WebView2 a layered one, and an empty layered window is skipped by mouse

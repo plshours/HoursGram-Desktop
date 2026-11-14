@@ -21,7 +21,10 @@ KEYS = {  # the green call button stays a call button, in gray
  # what is chosen or own gets a deep blue tint instead of plain gray
  'dialogsBgActive':'#22304C', 'dialogsRippleBgActive':'#2C3D60',
  'sideBarBgActive':'#22304C', 'msgOutBg':'#243352', 'msgOutBgSelected':'#2D3F64',
- 'attentionButtonBgRipple':'#3A3A3A'}
+ 'attentionButtonBgRipple':'#4A2C30',
+ # dangerous actions (delete, block, leave) in a soft coral red, not white
+ 'attentionButtonFg':'#E06C75', 'attentionButtonFgOver':'#E8818A',
+ 'attentionButtonBgOver':'#3A2427'}
 EXTRA = {'walletTitleButtonCloseFgOver':'#FFFFFF','walletTitleButtonCloseFgActiveOver':'#FFFFFF','sideBarBadgeFg':'#'+DARK}
 out, seen = [], set()
 for line in open(src, encoding='utf-8').read().split('\n'):

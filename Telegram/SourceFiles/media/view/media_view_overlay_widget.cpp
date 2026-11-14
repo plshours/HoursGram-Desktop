@@ -1055,14 +1055,6 @@ void OverlayWidget::setupWindow() {
 			HoursGram::Customization::HideGlassBackdrop();
 			clearAfterHide();
 		} else {
-			// HoursGram: the client under the viewer turns to frosted glass.
-			const auto from = _openedFrom.get()
-				? _openedFrom.get()
-				: Core::App().activeWindow();
-			if (from) {
-				HoursGram::Customization::ShowGlassBackdrop(
-					from->widget().get());
-			}
 			const auto geometry = _window->geometry();
 			const auto screenList = QGuiApplication::screens();
 			DEBUG_LOG(("Viewer Pos: Shown, geometry: %1, %2, %3, %4, screen number: %5")
@@ -4792,6 +4784,17 @@ void OverlayWidget::displayFinished(anim::activation activation) {
 }
 
 void OverlayWidget::showAndActivate() {
+	if (_window->isHidden()) {
+		// HoursGram: the client under the viewer turns to frosted glass.
+		// The screen is read before the viewer covers it.
+		const auto from = _openedFrom.get()
+			? _openedFrom.get()
+			: Core::App().activeWindow();
+		if (from) {
+			HoursGram::Customization::ShowGlassBackdrop(
+				from->widget().get());
+		}
+	}
 	_body->show();
 	initNormalGeometry();
 	if (_windowed || Platform::IsMac()) {
