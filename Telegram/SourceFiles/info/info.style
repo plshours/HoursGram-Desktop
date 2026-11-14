@@ -735,11 +735,11 @@ infoProfileTabsStrip: ProfileTabsStrip {
 		color: lightButtonBgRipple;
 	}
 	duration: 200;
-	radius: 14px;
-	tileHeight: 80px;
-	tileIconTop: 10px;
+	radius: 16px;
+	tileHeight: 60px;
+	tileIconTop: 12px;
 	tileTextTop: 42px;
-	tileMinWidth: 76px;
+	tileMinWidth: 56px;
 	tileStyle: TextStyle(defaultTextStyle) {
 		font: font(12px semibold);
 	}

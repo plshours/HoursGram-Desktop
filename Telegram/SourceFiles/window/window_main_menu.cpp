@@ -254,12 +254,9 @@ void MainMenu::ToggleAccountsButton::validateUnreadBadge() {
 }
 
 QString MainMenu::ToggleAccountsButton::computeUnreadBadge() const {
-	const auto state = OtherAccountsUnreadStateCurrent(_current);
-	return state.allMuted
-		? QString()
-		: (state.count > 0)
-		? Lang::FormatCountToShort(state.count).string
-		: QString();
+	// HoursGram: the drawer does not count the unread messages of the
+	// other accounts, a big number next to the name only got in the way.
+	return QString();
 }
 
 MainMenu::ResetScaleButton::ResetScaleButton(QWidget *parent)

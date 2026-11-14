@@ -151,7 +151,12 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 	paintRipple(p, 0, 0);
 
 	const auto iconSize = st::infoProfileTopBarActionButtonIconSize;
-	const auto iconTop = st::infoProfileTopBarActionButtonIconTop;
+	// HoursGram: with Graphite the buttons are icons only, set in the
+	// middle, so the row of them reads evenly.
+	const auto iconsOnly = Ui::HoursGramGraphite();
+	const auto iconTop = iconsOnly
+		? (st::infoProfileTopBarActionButtonSize - iconSize) / 2
+		: st::infoProfileTopBarActionButtonIconTop;
 
 	if (_lottie || _icon) {
 		const auto iconScale = (progress > kIconFadeStart)
@@ -177,6 +182,10 @@ void TopBarActionButton::paintEvent(QPaintEvent *e) {
 		}
 		p.restore();
 		p.setOpacity(progress);
+	}
+
+	if (iconsOnly) {
+		return;
 	}
 
 	const auto skip = st::infoProfileTopBarActionButtonTextSkip;

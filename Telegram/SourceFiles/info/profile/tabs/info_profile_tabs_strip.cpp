@@ -107,9 +107,9 @@ void TabsStrip::setTabs(std::vector<StripTab> tabs) {
 		const auto natural = _st.tabPadding.left()
 			+ button.text.maxWidth()
 			+ _st.tabPadding.right();
-		const auto width = _tiles
-			? std::max(natural, _st.tileMinWidth)
-			: natural;
+		// Tiles are icons only, all of one width; the caption with the
+		// count shows as a tooltip.
+		const auto width = _tiles ? _st.tileMinWidth : natural;
 		button.geometry = QRect(x, 0, width, pillHeight);
 		if (tab.id == activeId) {
 			_active = int(buttons.size());
@@ -221,6 +221,11 @@ float64 TabsStrip::islandRadius(float64 height) const {
 void TabsStrip::setSelected(int index) {
 	const auto was = (_selected >= 0);
 	const auto now = (index >= 0);
+	if (_tiles && index != _selected) {
+		setToolTip((index >= 0 && index < int(_buttons.size()))
+			? _buttons[index].tab.text.text
+			: QString());
+	}
 	_selected = index;
 	if (was != now) {
 		setCursor(now ? style::cur_pointer : style::cur_default);
@@ -253,8 +258,8 @@ void TabsStrip::setActive(int index) {
 			[=] { invalidate(); },
 			0.,
 			1.,
-			_st.duration,
-			anim::easeOutQuint);
+			_tiles ? crl::time(260) : crl::time(_st.duration),
+			_tiles ? anim::easeOutCubic : anim::easeOutQuint);
 	}
 	scrollToTab(index);
 	invalidate();
@@ -337,7 +342,13 @@ int TabsStrip::indexAt(QPoint position) const {
 
 QPoint TabsStrip::contentOrigin() const {
 	const auto island = islandRect();
-	return QPoint(island.x() + _st.skip - scrollValue(), island.y());
+	// A row of icon tiles narrower than the island stands in its middle.
+	const auto centered = _tiles
+		? std::max((islandInteriorWidth() - _fullWidth) / 2, 0)
+		: 0;
+	return QPoint(
+		island.x() + _st.skip + centered - scrollValue(),
+		island.y());
 }
 
 void TabsStrip::addRipple(int index, QPoint position) {
@@ -497,7 +508,14 @@ void TabsStrip::validateContent(QRect island) {
 			origin.x(),
 			origin.y());
 		const auto radius = highlightRadius(highlight.height());
-		p.setBrush(_st.bgActive);
+		if (_tiles) {
+			// The chosen tile is tinted with the accent, like the folders.
+			auto color = st::windowBgActive->c;
+			color.setAlphaF(0.2);
+			p.setBrush(color);
+		} else {
+			p.setBrush(_st.bgActive);
+		}
 		p.setPen(Qt::NoPen);
 		p.drawRoundedRect(highlight, radius, radius);
 	}
@@ -534,17 +552,6 @@ void TabsStrip::validateContent(QRect island) {
 					island.width(),
 					color);
 			}
-			const auto textWidth = std::min(
-				button.text.maxWidth(),
-				geometry.width());
-			button.text.draw(p, {
-				.position = QPoint(
-					geometry.x() + (geometry.width() - textWidth) / 2,
-					geometry.y() + _st.tileTextTop),
-				.availableWidth = textWidth,
-				.now = crl::now(),
-				.elisionLines = 1,
-			});
 			continue;
 		}
 		button.text.draw(p, {
