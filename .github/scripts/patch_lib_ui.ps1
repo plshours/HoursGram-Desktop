@@ -484,7 +484,7 @@ Edit-Text `
 	@(
 		@{
 			Old = "#include <QtWidgets/QApplication>`n";
-			New = "#include <QtWidgets/QApplication>`n`n#include <map>`n";
+			New = "#include <QtWidgets/QApplication>`n`n#include `"styles/palette.h`"`n`n#include <map>`n";
 		},
 		@{
 			Old = "namespace Ui::Menu {`n`nMenu::Menu(QWidget *parent, const style::Menu &st)`n";
