@@ -27,6 +27,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_lyrics_loader.h"
 #include "hoursgram/music/music_lyrics_online.h"
 #include "hoursgram/music/music_equalizer.h"
+#include "ui/layers/generic_box.h"
 #include "core/application.h"
 #include "core/core_settings.h"
 #include "media/media_common.h"
@@ -2307,7 +2308,7 @@ void PlayerBar::layout() {
 	_info->setGeometry(padding.left(), 0, infoWidth, height());
 
 	auto right = width() - padding.right();
-	const auto placeRight = [&](QWidget *widget, int skip) {
+	const auto placeRight = [&](not_null<Ui::RpWidget*> widget, int skip) {
 		widget->moveToLeft(
 			right - widget->width(),
 			(height() - widget->height()) / 2,
