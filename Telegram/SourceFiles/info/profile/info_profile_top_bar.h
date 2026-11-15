@@ -383,6 +383,8 @@ private:
 	std::optional<uint8> _localColorProfileIndex;
 	std::optional<DocumentId> _localPatternEmojiId;
 	std::shared_ptr<Data::EmojiStatusCollectible> _localCollectible;
+	mutable std::shared_ptr<Data::EmojiStatusCollectible> _graphiteCollectibleSource;
+	mutable std::shared_ptr<Data::EmojiStatusCollectible> _graphiteCollectible;
 
 };
 
