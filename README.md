@@ -30,7 +30,7 @@ This repository is a derivative work and keeps the notices of the projects it is
 |---|---|---|
 | [Telegram Desktop](https://github.com/telegramdesktop/tdesktop) | © The Telegram Desktop Authors | GPLv3 with the OpenSSL exception ([LICENSE](LICENSE), [LEGAL](LEGAL)) |
 | [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) | © Radolyn | GPLv3 |
-| [mokaGram](https://github.com/ecronxy/mokagram) | © @ecronx | GPLv3 with an attribution term ([MOKAGRAM_NOTICE.md](MOKAGRAM_NOTICE.md)) |
+| [mokaGram](https://github.com/ecronxy/mokagram) | © @ecronx | GPLv3 with an attribution term ([MOKAGRAM_NOTICE.md](MOKAGRAM_NOTICE.md)); the lyrics lookup of the music player is taken from it |
 | [Telegram for macOS](https://github.com/TelegramMessenger/telegram-macos) | © Telegram FZ-LLC | GPL-2.0; only its colour values are used, for the HorusGram macOS theme |
 | [Montserrat](https://github.com/JulietaUla/Montserrat) | © The Montserrat Project Authors | SIL OFL 1.1 ([OFL.txt](Telegram/Resources/fonts/OFL.txt)) |
 

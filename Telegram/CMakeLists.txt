@@ -1317,6 +1317,8 @@ PRIVATE
     hoursgram/music/music_lyrics_loader.cpp
     hoursgram/music/music_lyrics_loader.h
     hoursgram/music/music_lyrics_online.cpp
+    hoursgram/music/music_lyrics_sources.cpp
+    hoursgram/music/music_lyrics_sources.h
     hoursgram/music/music_lyrics_online.h
     hoursgram/music/music_playlists.cpp
     hoursgram/music/music_playlists.h
