@@ -26,6 +26,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_common.h"
 #include "hoursgram/music/music_lyrics_loader.h"
 #include "hoursgram/music/music_lyrics_online.h"
+#include "hoursgram/music/music_equalizer.h"
+#include "core/application.h"
+#include "core/core_settings.h"
+#include "media/media_common.h"
+#include "styles/style_media_player.h"
 #include "hoursgram/music/music_playlists.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "hoursgram/music/music_queue.h"
@@ -1961,6 +1966,9 @@ public:
 	[[nodiscard]] rpl::producer<> addRequests() const {
 		return _addRequests.events();
 	}
+	[[nodiscard]] rpl::producer<> equalizerRequests() const {
+		return _equalizerRequests.events();
+	}
 
 protected:
 	void paintEvent(QPaintEvent *e) override;
@@ -1970,6 +1978,9 @@ private:
 	void updateTrack();
 	void updateState(const Media::Player::TrackState &track);
 	void layout();
+	void setupTools();
+	void refreshTools();
+	void showSpeedMenu();
 
 	Artwork _artwork;
 	AudioMsgId _audio;
@@ -1984,12 +1995,20 @@ private:
 	object_ptr<Ui::MediaSlider> _slider;
 	object_ptr<Ui::RoundButton> _lyrics;
 	object_ptr<Ui::IconButton> _add;
+	object_ptr<Ui::IconButton> _order;
+	object_ptr<Ui::IconButton> _repeat;
+	object_ptr<Ui::IconButton> _speed;
+	object_ptr<Ui::IconButton> _volumeToggle;
+	object_ptr<Ui::MediaSlider> _volume;
+	object_ptr<Ui::IconButton> _equalizer;
+	base::unique_qptr<Ui::PopupMenu> _speedMenu;
 	Ui::Animations::Simple _pop;
 	crl::time _durationMs = 0;
 	crl::time _seekPositionMs = -1;
 	bool _playing = false;
 	rpl::event_stream<> _openRequests;
 	rpl::event_stream<> _addRequests;
+	rpl::event_stream<> _equalizerRequests;
 
 };
 
@@ -2005,8 +2024,15 @@ PlayerBar::PlayerBar(QWidget *parent)
 	this,
 	rpl::single(Tr("Lyrics", "Текст")),
 	st::hoursgramMusicBarAction)
-, _add(this, st::hoursgramMusicNavAdd) {
+, _add(this, st::hoursgramMusicNavAdd)
+, _order(this, st::hoursgramMusicBarTool)
+, _repeat(this, st::hoursgramMusicBarTool)
+, _speed(this, st::hoursgramMusicBarTool)
+, _volumeToggle(this, st::hoursgramMusicBarTool)
+, _volume(this, st::hoursgramPlayerSlider)
+, _equalizer(this, st::hoursgramMusicBarTool) {
 	resize(width(), st::hoursgramMusicBarHeight);
+	setupTools();
 	_slider->resize(
 		st::hoursgramMusicBarSliderWidth,
 		st::hoursgramPlayerSliderHeight);
@@ -2126,6 +2152,149 @@ void PlayerBar::updateState(const Media::Player::TrackState &track) {
 	update();
 }
 
+// The same settings the player bar in the chats changes, so the order, the
+// repeat, the speed and the volume are one for the whole client.
+void PlayerBar::setupTools() {
+	for (const auto widget : std::initializer_list<QWidget*>{
+			_order.data(),
+			_repeat.data(),
+			_speed.data(),
+			_volumeToggle.data(),
+			_volume.data(),
+			_equalizer.data() }) {
+		widget->show();
+	}
+	_volume->resize(
+		st::hoursgramMusicBarVolumeWidth,
+		st::hoursgramPlayerSliderHeight);
+
+	_order->setClickedCallback([=] {
+		using Mode = Media::OrderMode;
+		auto &settings = Core::App().settings();
+		settings.setPlayerOrderMode([&] {
+			switch (settings.playerOrderMode()) {
+			case Mode::Default: return Mode::Shuffle;
+			case Mode::Shuffle: return Mode::Reverse;
+			case Mode::Reverse: return Mode::Default;
+			}
+			return Mode::Default;
+		}());
+		Core::App().saveSettingsDelayed();
+	});
+	_repeat->setClickedCallback([=] {
+		using Mode = Media::RepeatMode;
+		auto &settings = Core::App().settings();
+		settings.setPlayerRepeatMode([&] {
+			switch (settings.playerRepeatMode()) {
+			case Mode::None: return Mode::All;
+			case Mode::All: return Mode::One;
+			case Mode::One: return Mode::None;
+			}
+			return Mode::None;
+		}());
+		Core::App().saveSettingsDelayed();
+	});
+	_speed->setClickedCallback([=] {
+		showSpeedMenu();
+	});
+	_volumeToggle->setClickedCallback([=] {
+		auto &settings = Core::App().settings();
+		const auto volume = (settings.songVolume() > 0)
+			? 0.
+			: settings.rememberedSongVolume();
+		settings.setSongVolume(volume);
+		Core::App().saveSettingsDelayed();
+		Media::Player::mixer()->setSongVolume(volume);
+	});
+	_volume->setChangeProgressCallback([=](float64 value) {
+		Media::Player::mixer()->setSongVolume(value);
+		Core::App().settings().setSongVolume(value);
+	});
+	_volume->setChangeFinishedCallback([=](float64 value) {
+		Media::Player::mixer()->setSongVolume(value);
+		Core::App().settings().setSongVolume(value);
+		Core::App().saveSettingsDelayed();
+	});
+	_equalizer->setClickedCallback([=] {
+		_equalizerRequests.fire({});
+	});
+
+	const auto &settings = Core::App().settings();
+	rpl::merge(
+		settings.playerOrderModeValue() | rpl::to_empty,
+		settings.playerRepeatModeValue() | rpl::to_empty,
+		settings.audioPlaybackSpeedChanges() | rpl::to_empty,
+		settings.songVolumeChanges() | rpl::to_empty,
+		EqualizerValue() | rpl::to_empty
+	) | rpl::on_next([=] {
+		refreshTools();
+	}, lifetime());
+}
+
+void PlayerBar::refreshTools() {
+	const auto &settings = Core::App().settings();
+	const auto set = [](
+			const object_ptr<Ui::IconButton> &button,
+			const style::icon &icon) {
+		button->setIconOverride(&icon, &icon);
+	};
+	switch (settings.playerOrderMode()) {
+	case Media::OrderMode::Shuffle:
+		set(_order, st::hoursgramMusicShuffleIcon);
+		break;
+	case Media::OrderMode::Reverse:
+		set(_order, st::hoursgramMusicReverseIcon);
+		break;
+	default:
+		set(_order, st::hoursgramMusicOrderOffIcon);
+		break;
+	}
+	switch (settings.playerRepeatMode()) {
+	case Media::RepeatMode::All:
+		set(_repeat, st::hoursgramMusicRepeatAllIcon);
+		break;
+	case Media::RepeatMode::One:
+		set(_repeat, st::hoursgramMusicRepeatOneIcon);
+		break;
+	default:
+		set(_repeat, st::hoursgramMusicRepeatOffIcon);
+		break;
+	}
+	const auto speed = settings.audioPlaybackSpeed();
+	set(_speed, (std::abs(speed - 1.) > 0.01)
+		? st::hoursgramMusicSpeedOnIcon
+		: st::hoursgramMusicSpeedOffIcon);
+	const auto volume = settings.songVolume();
+	set(_volumeToggle, (volume > 0.)
+		? st::hoursgramMusicVolumeOnIcon
+		: st::hoursgramMusicVolumeOffIcon);
+	if (!_volume->isChanging()) {
+		_volume->setValue(volume);
+	}
+	set(_equalizer, CurrentEqualizer().enabled
+		? st::hoursgramMusicEqualizerOnIcon
+		: st::hoursgramMusicEqualizerOffIcon);
+}
+
+void PlayerBar::showSpeedMenu() {
+	_speedMenu = base::make_unique_q<Ui::PopupMenu>(
+		this,
+		st::popupMenuWithIcons);
+	const auto current = Core::App().settings().audioPlaybackSpeed();
+	for (const auto speed : { 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2. }) {
+		const auto chosen = (std::abs(current - speed) < 0.01);
+		_speedMenu->addAction(
+			QString::number(speed) + QChar(0x00D7),
+			[=] {
+				Core::App().settings().setAudioPlaybackSpeed(speed);
+				Core::App().saveSettingsDelayed();
+				Player()->updatePlaybackSpeed();
+			},
+			chosen ? &st::mediaPlayerMenuCheck : nullptr);
+	}
+	_speedMenu->popup(QCursor::pos());
+}
+
 void PlayerBar::resizeEvent(QResizeEvent *e) {
 	layout();
 }
@@ -2137,20 +2306,24 @@ void PlayerBar::layout() {
 		width() / 3);
 	_info->setGeometry(padding.left(), 0, infoWidth, height());
 
-	const auto actionsWidth = st::hoursgramMusicBarActionsWidth;
 	auto right = width() - padding.right();
-	_add->moveToLeft(
-		right - _add->width(),
-		(height() - _add->height()) / 2,
-		width());
-	right -= _add->width() + st::hoursgramMusicActionSkip;
-	_lyrics->moveToLeft(
-		right - _lyrics->width(),
-		(height() - _lyrics->height()) / 2,
-		width());
+	const auto placeRight = [&](QWidget *widget, int skip) {
+		widget->moveToLeft(
+			right - widget->width(),
+			(height() - widget->height()) / 2,
+			width());
+		right -= widget->width() + skip;
+	};
+	const auto tool = st::hoursgramMusicBarToolSkip;
+	placeRight(_add.data(), st::hoursgramMusicActionSkip);
+	placeRight(_lyrics.data(), st::hoursgramMusicActionSkip);
+	placeRight(_volume.data(), tool);
+	placeRight(_volumeToggle.data(), tool);
+	placeRight(_speed.data(), tool);
+	placeRight(_equalizer.data(), tool);
 
 	const auto middleLeft = padding.left() + infoWidth;
-	const auto middleRight = width() - padding.right() - actionsWidth;
+	const auto middleRight = right - st::hoursgramMusicActionSkip;
 	const auto center = (middleLeft + middleRight) / 2;
 	const auto controlsTop = st::hoursgramMusicGap / 2;
 	const auto space = st::hoursgramMusicActionSkip;
@@ -2162,6 +2335,14 @@ void PlayerBar::layout() {
 	_next->moveToLeft(
 		_play->x() + _play->width() + space,
 		controlsTop + (_play->height() - _next->height()) / 2,
+		width());
+	_order->moveToLeft(
+		_previous->x() - space - _order->width(),
+		controlsTop + (_play->height() - _order->height()) / 2,
+		width());
+	_repeat->moveToLeft(
+		_next->x() + _next->width() + space,
+		controlsTop + (_play->height() - _repeat->height()) / 2,
 		width());
 
 	const auto timeWidth = st::hoursgramMusicBarTimeWidth;
@@ -3316,6 +3497,9 @@ void MusicWindow::setupBody() {
 		if (audio.audio()) {
 			ShowAddToPlaylist(_show, _session, audio);
 		}
+	}, _bar->lifetime());
+	_bar->equalizerRequests() | rpl::on_next([=] {
+		_show->showBox(Box(EqualizerBox));
 	}, _bar->lifetime());
 
 	_panel->showInner(std::move(owned));

@@ -342,6 +342,31 @@ hoursgramMusicBarPrevious: IconButton(hoursgramMusicBarSide) {
 	iconOver: icon {{ "player/player_backward", windowBoldFg }};
 }
 hoursgramMusicBarSliderWidth: 360px;
+// The tools of the player bar: order and repeat around the playback
+// buttons, speed, volume and the equalizer on the right. Dim when off,
+// in the accent when on.
+hoursgramMusicOrderOffIcon: icon {{ "player/player_shuffle", windowSubTextFg }};
+hoursgramMusicShuffleIcon: icon {{ "player/player_shuffle", windowBgActive }};
+hoursgramMusicReverseIcon: icon {{ "player/player_order", windowBgActive }};
+hoursgramMusicRepeatOffIcon: icon {{ "player/player_repeat", windowSubTextFg }};
+hoursgramMusicRepeatAllIcon: icon {{ "player/player_repeat", windowBgActive }};
+hoursgramMusicRepeatOneIcon: icon {{ "player/player_repeat_single", windowBgActive }};
+hoursgramMusicSpeedOffIcon: icon {{ "player/player_speed", windowSubTextFg }};
+hoursgramMusicSpeedOnIcon: icon {{ "player/player_speed", windowBgActive }};
+hoursgramMusicVolumeOnIcon: icon {{ "player/player_volume_on", windowSubTextFg }};
+hoursgramMusicVolumeOffIcon: icon {{ "player/player_volume_off", windowSubTextFg }};
+hoursgramMusicEqualizerOffIcon: icon {{ "menu/customize", windowSubTextFg }};
+hoursgramMusicEqualizerOnIcon: icon {{ "menu/customize", windowBgActive }};
+hoursgramMusicBarTool: IconButton(hoursgramPlayerSide) {
+	width: 34px;
+	height: 34px;
+	icon: hoursgramMusicEqualizerOffIcon;
+	iconOver: hoursgramMusicEqualizerOffIcon;
+	iconPosition: point(5px, 5px);
+	rippleAreaSize: 34px;
+}
+hoursgramMusicBarVolumeWidth: 84px;
+hoursgramMusicBarToolSkip: 4px;
 hoursgramMusicBarTimeWidth: 46px;
 hoursgramMusicBarSliderTop: 50px;
 hoursgramMusicBarActionsWidth: 190px;

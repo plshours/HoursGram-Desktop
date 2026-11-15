@@ -559,8 +559,11 @@ bool Instance::moveInPlaylist(
 	if (data->type == AudioMsgId::Type::Song) {
 		auto &queue = HoursGram::Music::Queue::Instance();
 		if (queue.owns(data->current)) {
+			// HoursGram: the reverse order of the player walks the list of
+			// the music window backwards too.
+			const auto reverse = (order(data) == OrderMode::Reverse);
 			return queue.move(
-				delta,
+				reverse ? -delta : delta,
 				(repeat(data) == RepeatMode::All),
 				(order(data) == OrderMode::Shuffle));
 		}

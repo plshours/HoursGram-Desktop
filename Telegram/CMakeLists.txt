@@ -1310,6 +1310,8 @@ PRIVATE
     hoursgram/index/peer_index.h
     hoursgram/music/music_common.cpp
     hoursgram/music/music_common.h
+    hoursgram/music/music_equalizer.cpp
+    hoursgram/music/music_equalizer.h
     hoursgram/music/music_lyrics.cpp
     hoursgram/music/music_lyrics.h
     hoursgram/music/music_lyrics_loader.cpp

@@ -146,6 +146,30 @@ void Loaders::onLoad(const AudioMsgId &audio) {
 	loadData(audio);
 }
 
+void Loaders::equalize(
+		QByteArray &data,
+		int from,
+		not_null<AudioPlayerLoader*> loader) {
+	if (loader != _songLoader.get()) {
+		return;
+	}
+	const auto format = loader->format();
+	const auto channels = (format == AL_FORMAT_STEREO16)
+		? 2
+		: (format == AL_FORMAT_MONO16)
+		? 1
+		: 0;
+	if (!channels || from >= data.size()) {
+		return;
+	}
+	const auto frames = (data.size() - from) / (channels * int(sizeof(int16)));
+	_songEqualizer.process(
+		reinterpret_cast<int16*>(data.data() + from),
+		frames,
+		channels,
+		loader->samplesFrequency());
+}
+
 void Loaders::loadData(AudioMsgId audio, crl::time positionMs) {
 	auto type = audio.type();
 	auto setup = setupLoader(audio, positionMs);
@@ -191,9 +215,11 @@ void Loaders::loadData(AudioMsgId audio, crl::time positionMs) {
 			? v::get<bytes::const_span>(result)
 			: bytes::const_span();
 		if (!sampleBytes.empty()) {
+			const auto from = int(accumulated.size());
 			accumulated.append(
 				reinterpret_cast<const char*>(sampleBytes.data()),
 				sampleBytes.size());
+			equalize(accumulated, from, l);
 			accumulatedCount += sampleBytes.size() / sampleSize;
 		} else if (result == Error::Other) {
 			if (errAtStart) {
@@ -401,7 +427,7 @@ Loaders::SetupLoaderResult Loaders::setupLoader(
 		std::unique_ptr<AudioPlayerLoader> *loader = nullptr;
 		switch (audio.type()) {
 		case AudioMsgId::Type::Voice: _audio = audio; loader = &_audioLoader; break;
-		case AudioMsgId::Type::Song: _song = audio; loader = &_songLoader; break;
+		case AudioMsgId::Type::Song: _song = audio; loader = &_songLoader; _songEqualizer.reset(); break;
 		case AudioMsgId::Type::Video: _video = audio; loader = &_videoLoader; break;
 		}
 
@@ -505,9 +531,11 @@ Mixer::Track::WithSpeed Loaders::rebufferOnSpeedChange(
 				? v::get<bytes::const_span>(result)
 				: bytes::const_span();
 			if (!sampleBytes.empty()) {
+				const auto from = int(accumulated.size());
 				accumulated.append(
 					reinterpret_cast<const char*>(sampleBytes.data()),
 					sampleBytes.size());
+				equalize(accumulated, from, l);
 				accumulatedCount += sampleBytes.size() / sampleSize;
 				continue;
 			} else if (result == AudioPlayerLoader::ReadError::Retry) {
