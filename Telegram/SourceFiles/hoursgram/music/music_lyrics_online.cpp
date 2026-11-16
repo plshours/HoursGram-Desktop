@@ -10,32 +10,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/flat_set.h"
 #include "data/data_document.h"
 #include "hoursgram/music/music_lyrics_loader.h"
+#include "hoursgram/music/music_lyrics_sources.h"
 
-#include <QtCore/QJsonArray>
-#include <QtCore/QJsonDocument>
-#include <QtCore/QJsonObject>
-#include <QtCore/QUrlQuery>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtNetwork/QNetworkRequest>
+#include <QtCore/QStringList>
 
 namespace HoursGram::Music {
 namespace {
-
-constexpr auto kMaxResponseSize = 1024 * 1024;
-
-// A public database of synchronized lyrics with an open API that needs no
-// key and asks callers to name themselves in the user agent.
-constexpr auto kApiUrl = "https://lrclib.net/api/";
-constexpr auto kUserAgent = "HoursGram Desktop "
-	"(https://github.com/plshours/HoursGram-Desktop)";
-
-// Never destroyed: a Qt object that is a static of a function would be taken
-// down after the application object, which is too late for it.
-[[nodiscard]] QNetworkAccessManager &Manager() {
-	static auto *result = new QNetworkAccessManager();
-	return *result;
-}
 
 // A track is looked up once per run, whether or not anything was found, so
 // that skipping back and forth over a track without lyrics stays quiet.
@@ -44,48 +24,24 @@ constexpr auto kUserAgent = "HoursGram Desktop "
 	return result;
 }
 
-[[nodiscard]] QNetworkRequest MakeRequest(
-		const QString &method,
-		const QUrlQuery &query) {
-	auto url = QUrl(QString::fromUtf8(kApiUrl) + method);
-	url.setQuery(query);
-	auto result = QNetworkRequest(url);
-	result.setRawHeader("User-Agent", kUserAgent);
-	result.setAttribute(
-		QNetworkRequest::RedirectPolicyAttribute,
-		QNetworkRequest::NoLessSafeRedirectPolicy);
-	return result;
-}
-
-// Prefers the timed lyrics, so that the view can follow the playback, and
-// falls back to the plain ones, which still show up line by line.
-[[nodiscard]] QString PickText(const QJsonObject &entry) {
-	const auto synced = entry.value(u"syncedLyrics"_q).toString();
-	return synced.trimmed().isEmpty()
-		? entry.value(u"plainLyrics"_q).toString()
-		: synced;
-}
-
-[[nodiscard]] QString ParseResponse(const QByteArray &bytes) {
-	if (bytes.isEmpty() || bytes.size() > kMaxResponseSize) {
-		return QString();
-	}
-	const auto parsed = QJsonDocument::fromJson(bytes);
-	if (parsed.isObject()) {
-		return PickText(parsed.object());
-	} else if (!parsed.isArray()) {
-		return QString();
-	}
-	for (const auto &entry : parsed.array()) {
-		if (!entry.isObject()) {
+// Timed lines become an LRC file, plain ones a text file, which the parser
+// of lyrics files reads either way.
+[[nodiscard]] QString ToLrc(const Sources::Lyrics &found) {
+	auto result = QStringList();
+	result.reserve(int(found.lines.size()));
+	for (const auto &line : found.lines) {
+		if (!found.synced) {
+			result.push_back(line.text);
 			continue;
 		}
-		const auto text = PickText(entry.toObject());
-		if (!text.trimmed().isEmpty()) {
-			return text;
-		}
+		const auto ms = std::max(line.timeMs, qint64(0));
+		result.push_back(u"[%1:%2.%3]%4"_q
+			.arg(ms / 60000, 2, 10, QChar('0'))
+			.arg((ms / 1000) % 60, 2, 10, QChar('0'))
+			.arg((ms % 1000) / 10, 2, 10, QChar('0'))
+			.arg(line.text));
 	}
-	return QString();
+	return result.join(QChar('\n'));
 }
 
 } // namespace
@@ -99,61 +55,35 @@ void SearchLyricsOnline(
 	}
 	const auto title = song->title.trimmed();
 	const auto performer = song->performer.trimmed();
-	if (title.isEmpty() || performer.isEmpty()) {
+	if (title.isEmpty()) {
 		return;
 	}
 	const auto id = document->id;
 	if (!Requested().emplace(id).second) {
 		return;
 	}
-	const auto seconds = int(document->duration() / 1000);
 
-	const auto handle = [=](const QByteArray &bytes) {
-		const auto text = ParseResponse(bytes);
-		if (text.trimmed().isEmpty()) {
-			return false;
-		}
-		auto lyrics = ParseLyrics(text);
-		if (lyrics.empty()) {
-			return false;
-		}
-		CacheLyrics(id, text.toUtf8());
-		if (done) {
-			done(std::move(lyrics));
-		}
-		return true;
-	};
-
-	// The exact match wants the length of the track as well; when it finds
-	// nothing the search by name is tried, which is the looser of the two.
-	const auto search = [=] {
-		auto query = QUrlQuery();
-		query.addQueryItem(u"track_name"_q, title);
-		query.addQueryItem(u"artist_name"_q, performer);
-		const auto reply = Manager().get(MakeRequest(u"search"_q, query));
-		QObject::connect(reply, &QNetworkReply::finished, [=] {
-			if (reply->error() == QNetworkReply::NoError) {
-				handle(reply->readAll());
+	// The lookup of mokaGram: LRCLIB, Kugou and NetEase, picking the variant
+	// closest in length. A performer missing from the tags is taken from an
+	// "Artist - Title" title. What is found is kept on disk as an LRC file.
+	Sources::FetchLyrics(
+		title,
+		performer,
+		document->duration(),
+		[=](Sources::Lyrics found) {
+			if (!found.found || found.lines.empty()) {
+				return;
 			}
-			reply->deleteLater();
+			const auto text = ToLrc(found);
+			auto lyrics = ParseLyrics(text);
+			if (lyrics.empty()) {
+				return;
+			}
+			CacheLyrics(id, text.toUtf8());
+			if (done) {
+				done(std::move(lyrics));
+			}
 		});
-	};
-
-	auto query = QUrlQuery();
-	query.addQueryItem(u"track_name"_q, title);
-	query.addQueryItem(u"artist_name"_q, performer);
-	if (seconds > 0) {
-		query.addQueryItem(u"duration"_q, QString::number(seconds));
-	}
-	const auto reply = Manager().get(MakeRequest(u"get"_q, query));
-	QObject::connect(reply, &QNetworkReply::finished, [=] {
-		const auto failed = (reply->error() != QNetworkReply::NoError)
-			|| !handle(reply->readAll());
-		reply->deleteLater();
-		if (failed) {
-			search();
-		}
-	});
 }
 
 } // namespace HoursGram::Music

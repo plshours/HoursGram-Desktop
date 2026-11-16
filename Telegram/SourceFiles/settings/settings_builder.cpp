@@ -19,8 +19,12 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
+#include "ui/widgets/labels.h"
+#include "ui/painter.h"
 #include "window/window_session_controller.h"
 #include "styles/style_settings.h"
+#include "styles/style_widgets.h"
+#include "styles/style_hoursgram_design.h"
 
 // AyuGram includes
 #include "ayu/ui/settings/settings_ayu_utils.h"
@@ -175,7 +179,52 @@ SectionBuilder::SectionBuilder(BuildContext context)
 void SectionBuilder::add(FnMut<void(const BuildContext &ctx)> method) {
 	Expects(method != nullptr);
 
+	ensureCard();
 	method(_context);
+}
+
+void SectionBuilder::ensureCard() const {
+	if (_cardOuter || _scopeDepth > 0 || !Ui::HoursGramGraphite()) {
+		return;
+	}
+	v::match(_context, [&](WidgetContext &wctx) {
+		const auto outer = wctx.container;
+		const auto card = outer->add(
+			object_ptr<Ui::VerticalLayout>(outer),
+			st::hoursgramSettingsCardMargin);
+		const auto inner = card->add(
+			object_ptr<Ui::VerticalLayout>(card),
+			st::hoursgramSettingsCardPadding);
+		card->paintRequest() | rpl::on_next([=] {
+			auto p = QPainter(card);
+			auto hq = PainterHighQualityEnabler(p);
+			const auto line = float64(st::lineWidth);
+			const auto half = line / 2.;
+			const auto radius = st::hoursgramSettingsCardRadius - half;
+			p.setPen(QPen(st::hoursgramSettingsCardBorder->c, line));
+			p.setBrush(Qt::NoBrush);
+			p.drawRoundedRect(
+				QRectF(card->rect()).marginsRemoved(
+					{ half, half, half, half }),
+				radius,
+				radius);
+		}, card->lifetime());
+		_cardOuter = outer;
+		wctx.container = inner;
+	}, [](const SearchContext &) {
+	});
+}
+
+bool SectionBuilder::closeCard() {
+	if (!_cardOuter) {
+		return false;
+	}
+	v::match(_context, [&](WidgetContext &wctx) {
+		wctx.container = _cardOuter;
+	}, [](const SearchContext &) {
+	});
+	_cardOuter = nullptr;
+	return true;
 }
 
 Ui::VerticalLayout *SectionBuilder::scope(
@@ -183,6 +232,8 @@ Ui::VerticalLayout *SectionBuilder::scope(
 		rpl::producer<bool> shown,
 		FnMut<void(ToggledScopePtr)> hook) {
 	auto result = (Ui::VerticalLayout*)nullptr;
+	ensureCard();
+	++_scopeDepth;
 	v::match(_context, [&](WidgetContext &wctx) {
 		const auto outer = wctx.container;
 		const auto toggled = (shown || hook);
@@ -209,6 +260,7 @@ Ui::VerticalLayout *SectionBuilder::scope(
 	}, [&](const SearchContext &sctx) {
 		method();
 	});
+	--_scopeDepth;
 	return result;
 }
 
@@ -319,6 +371,13 @@ Ui::SettingsButton *SectionBuilder::addSectionButton(SectionArgs &&args) {
 }
 
 void SectionBuilder::addDivider() {
+	if (Ui::HoursGramGraphite()) {
+		if (_scopeDepth == 0) {
+			closeCard();
+		}
+		addSkip(st::hoursgramSettingsCardSkip);
+		return;
+	}
 	v::match(_context, [&](const WidgetContext &ctx) {
 		Ui::AddDivider(ctx.container);
 	}, [](const SearchContext &) {
@@ -340,6 +399,22 @@ void SectionBuilder::addSkip(int height) {
 }
 
 void SectionBuilder::addDividerText(rpl::producer<QString> text) {
+	if (Ui::HoursGramGraphite()) {
+		// The explanation goes under the card, as plain small text.
+		if (_scopeDepth == 0) {
+			closeCard();
+		}
+		v::match(_context, [&](const WidgetContext &ctx) {
+			ctx.container->add(
+				object_ptr<Ui::FlatLabel>(
+					ctx.container,
+					std::move(text),
+					st::defaultDividerLabel.label),
+				st::defaultBoxDividerLabelPadding);
+		}, [](const SearchContext &) {
+		});
+		return;
+	}
 	v::match(_context, [&](const WidgetContext &ctx) {
 		Ui::AddDividerText(ctx.container, std::move(text));
 	}, [](const SearchContext &) {
@@ -429,6 +504,7 @@ Ui::Checkbox *SectionBuilder::addCheckbox(CheckboxArgs &&args) {
 }
 
 void SectionBuilder::addSubsectionTitle(SubsectionTitleArgs &&args) {
+	ensureCard();
 	v::match(_context, [&](const WidgetContext &ctx) {
 		const auto title = AddSubsectionTitle(
 			ctx.container,
@@ -453,6 +529,7 @@ void SectionBuilder::addSubsectionTitle(SubsectionTitleArgs &&args) {
 }
 
 void SectionBuilder::addSubsectionTitle(rpl::producer<QString> text) {
+	ensureCard();
 	v::match(_context, [&](const WidgetContext &ctx) {
 		AddSubsectionTitle(ctx.container, std::move(text));
 	}, [](const SearchContext &) {
@@ -460,6 +537,7 @@ void SectionBuilder::addSubsectionTitle(rpl::producer<QString> text) {
 }
 
 Ui::VerticalLayout *SectionBuilder::container() const {
+	ensureCard();
 	return v::match(_context, [](const WidgetContext &ctx) {
 		return ctx.container.get();
 	}, [](const SearchContext &) -> Ui::VerticalLayout* {

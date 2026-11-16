@@ -426,6 +426,7 @@ void TabsHost::syncStripTitles() {
 		stripTabs.push_back({
 			.id = _tabs[i].id,
 			.text = _stripTitles[i],
+			.icon = _tabs[i].icon,
 		});
 	}
 	_strip->setTabs(std::move(stripTabs));

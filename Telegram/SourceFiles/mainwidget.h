@@ -15,6 +15,10 @@ class HistoryWidget;
 class StackItem;
 class Image;
 
+namespace HoursGram::Customization {
+class GraphiteFrame;
+} // namespace HoursGram::Customization
+
 namespace Bot {
 struct SendCommandRequest;
 } // namespace Bot
@@ -353,6 +357,10 @@ private:
 
 	const base::unique_qptr<Ui::PlainShadow> _sideShadow;
 	object_ptr<Ui::PlainShadow> _thirdShadow = { nullptr };
+	// HORUSGRAM_DESIGN.md: with Graphite the columns float as cards.
+	base::unique_qptr<HoursGram::Customization::GraphiteFrame> _graphiteFrame;
+	std::vector<QRect> _graphitePanels;
+	void updateGraphiteFrame();
 	object_ptr<Ui::ResizeArea> _firstColumnResizeArea = { nullptr };
 	object_ptr<Ui::ResizeArea> _thirdColumnResizeArea = { nullptr };
 

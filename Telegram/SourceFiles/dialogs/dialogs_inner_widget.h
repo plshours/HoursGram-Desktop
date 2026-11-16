@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "base/flat_set.h"
 #include "base/flags.h"
 #include "base/object_ptr.h"
 #include "base/timer.h"
@@ -215,6 +216,12 @@ public:
 	[[nodiscard]] rpl::producer<> cancelSearchFromRequests() const;
 	[[nodiscard]] rpl::producer<> changeSearchFromRequests() const;
 	[[nodiscard]] rpl::producer<ChosenRow> chosenRow() const;
+
+	// HoursGram: chats picked for an action on all of them at once.
+	[[nodiscard]] rpl::producer<int> hoursgramSelectedCount() const;
+	[[nodiscard]] std::vector<not_null<History*>> hoursgramSelected() const;
+	void hoursgramToggleSelected(not_null<History*> history);
+	void hoursgramClearSelected();
 	[[nodiscard]] rpl::producer<> updated() const;
 
 	[[nodiscard]] rpl::producer<int> scrollByDeltaRequests() const;
@@ -777,6 +784,8 @@ private:
 	std::unique_ptr<SearchTags> _searchTags;
 	int _searchTagsLeft = 0;
 	RowDescriptor _menuRow;
+	base::flat_set<not_null<History*>> _hoursgramSelected;
+	rpl::variable<int> _hoursgramSelectedCount = 0;
 
 	base::flat_map<
 		not_null<PeerData*>,

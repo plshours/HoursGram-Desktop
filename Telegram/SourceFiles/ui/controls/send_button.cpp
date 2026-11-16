@@ -18,6 +18,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "lang/lang_keys.h"
 #include "ui/text/format_values.h"
 
+#include <QtGui/QPainterPath>
+
 namespace Ui {
 namespace {
 
@@ -25,6 +27,9 @@ constexpr auto kWideScale = 5;
 constexpr auto kVoiceToRoundIndex = 0;
 constexpr auto kRoundToVoiceIndex = 1;
 constexpr auto kForbiddenOpacity = 0.5;
+
+constexpr auto kGraphitePressScale = 0.18;
+constexpr auto kGraphiteLaunchDuration = crl::time(650);
 
 } // namespace
 
@@ -152,6 +157,67 @@ void SendButton::finishAnimating() {
 	update();
 }
 
+void SendButton::onStateChanged(
+		AbstractButton::State was,
+		StateChangeSource source) {
+	RippleButton::onStateChanged(was, source);
+	if (!HoursGramGraphite()) {
+		return;
+	}
+	const auto wasDown = static_cast<bool>(was & AbstractButton::StateFlag::Down);
+	if (wasDown != isDown()) {
+		// HORUSGRAM_DESIGN.md: down quickly, back with a spring.
+		_graphitePress.start(
+			[=] { update(); },
+			_graphitePress.value(wasDown ? 1. : 0.),
+			isDown() ? 1. : 0.,
+			isDown() ? 120 : 380,
+			isDown() ? anim::easeOutCubic : anim::easeOutBack);
+		if (wasDown
+			&& isOver()
+			&& !isDisabled()
+			&& _state.type == Type::Send
+			&& _starsToSendText.isEmpty()) {
+			_graphiteLaunch.start(
+				[=] { update(); },
+				0.,
+				1.,
+				kGraphiteLaunchDuration,
+				anim::linear);
+		}
+	}
+	const auto wasOver = static_cast<bool>(was & AbstractButton::StateFlag::Over);
+	if (wasOver != isOver()) {
+		_graphiteOver.start(
+			[=] { update(); },
+			_graphiteOver.value(wasOver ? 1. : 0.),
+			isOver() ? 1. : 0.,
+			isOver() ? 350 : 220,
+			isOver() ? anim::easeOutBack : anim::easeOutCirc);
+	}
+}
+
+void SendButton::paintGraphiteLaunchAway(QPainter &p) {
+	if (!_graphiteLaunch.animating() || _state.type == Type::Send) {
+		return;
+	}
+	const auto t = _graphiteLaunch.value(1.);
+	if (t >= 0.5) {
+		return;
+	}
+	const auto &icon = st::historySendGraphiteIcon;
+	const auto progress = anim::easeInCubic(1., t * 2.);
+	const auto distance = std::min(width(), height()) * 0.6;
+	auto hq = PainterHighQualityEnabler(p);
+	p.save();
+	p.setOpacity(1. - progress);
+	p.translate(
+		(width() - icon.width()) / 2. + distance * progress,
+		(height() - icon.height()) / 2. - distance * progress);
+	icon.paint(p, 0, 0, icon.width(), st::windowFgActive->c);
+	p.restore();
+}
+
 void SendButton::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 
@@ -202,6 +268,10 @@ void SendButton::paintEvent(QPaintEvent *e) {
 			toRect.marginsAdded(
 				{ shownWidth, shownHeight, shownWidth, shownHeight }),
 			_contentTo);
+		p.setOpacity(1.);
+		if (HoursGramGraphite()) {
+			paintGraphiteLaunchAway(p);
+		}
 		return;
 	}
 	switch (_state.type) {
@@ -219,6 +289,9 @@ void SendButton::paintEvent(QPaintEvent *e) {
 	case Type::Schedule: paintSchedule(p, over); break;
 	case Type::Slowmode: paintSlowmode(p); break;
 	case Type::EditPrice: break;
+	}
+	if (HoursGramGraphite()) {
+		paintGraphiteLaunchAway(p);
 	}
 }
 
@@ -296,6 +369,10 @@ void SendButton::paintCancel(QPainter &p, bool over) {
 }
 
 void SendButton::paintSend(QPainter &p, bool over) {
+	if (HoursGramGraphite() && _st.sendIconFillPadding <= 0) {
+		paintGraphiteSend(p, over);
+		return;
+	}
 	const auto &sendIcon = over ? _st.inner.iconOver : _st.inner.icon;
 	if (const auto padding = _st.sendIconFillPadding; padding > 0) {
 		const auto ellipse = sendEllipseRect();
@@ -329,6 +406,78 @@ void SendButton::paintSend(QPainter &p, bool over) {
 	} else {
 		sendIcon.paint(p, _st.sendIconPosition, width());
 	}
+}
+
+// HORUSGRAM_DESIGN.md: with Graphite the button is a light circle with the
+// plane dark on it, and keeps a ring that opens up under the cursor.
+void SendButton::paintGraphiteSend(QPainter &p, bool over) {
+	const auto press = _graphitePress.value(isDown() ? 1. : 0.);
+	const auto hover = _graphiteOver.value(over ? 1. : 0.);
+	const auto size = float64(std::min(width(), height())
+		- 2 * st::historySendGraphiteSkip);
+	if (size <= 0) {
+		return;
+	}
+	const auto circle = QRectF(
+		(width() - size) / 2.,
+		(height() - size) / 2.,
+		size,
+		size);
+
+	p.save();
+	if (press != 0.) {
+		const auto center = circle.center();
+		const auto scale = 1. - kGraphitePressScale * press;
+		p.translate(center);
+		p.scale(scale, scale);
+		p.translate(-center);
+	}
+	{
+		auto hq = PainterHighQualityEnabler(p);
+		p.setPen(Qt::NoPen);
+		if (isDisabled()) {
+			p.setBrush(st::windowBgOver);
+		} else if (_state.fillBgOverride.isValid()) {
+			p.setBrush(_state.fillBgOverride);
+		} else {
+			p.setBrush(st::windowBgActive);
+		}
+		p.drawEllipse(circle);
+		if (!isDisabled()) {
+			const auto line = style::ConvertScaleExact(1.5);
+			const auto gap = style::ConvertScaleExact(2. + 2. * hover)
+				+ line / 2.;
+			p.setBrush(Qt::NoBrush);
+			p.setPen(QPen(st::windowFgActive->c, line));
+			p.drawEllipse(circle.marginsRemoved({ gap, gap, gap, gap }));
+		}
+	}
+
+	const auto &icon = st::historySendGraphiteIcon;
+	auto position = QPointF(
+		circle.x() + (circle.width() - icon.width()) / 2.,
+		circle.y() + (circle.height() - icon.height()) / 2.);
+	auto opacity = 1.;
+	if (_graphiteLaunch.animating()) {
+		const auto t = _graphiteLaunch.value(1.);
+		const auto distance = size * 0.6;
+		const auto shift = (t < 0.5)
+			? (distance * anim::easeInCubic(1., t * 2.))
+			: (-distance * (1. - anim::easeOutCubic(1., (t - 0.5) * 2.)));
+		position += QPointF(shift, -shift);
+		opacity = (t < 0.5) ? (1. - t * 2.) : ((t - 0.5) * 2.);
+		auto path = QPainterPath();
+		path.addEllipse(circle);
+		p.setClipPath(path, Qt::IntersectClip);
+	}
+	p.setOpacity(opacity);
+	p.translate(position);
+	if (isDisabled()) {
+		icon.paint(p, 0, 0, icon.width(), st::historyRecordVoiceFg->c);
+	} else {
+		icon.paint(p, 0, 0, icon.width());
+	}
+	p.restore();
 }
 
 void SendButton::paintStarsToSend(QPainter &p, bool over) {

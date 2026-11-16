@@ -11,13 +11,16 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_audio_msg_id.h"
 #include "data/data_document.h"
 #include "data/data_session.h"
+#include "hoursgram/music/music_common.h"
 #include "hoursgram/music/music_playlists.h"
+#include "hoursgram/music/music_window.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "media/audio/media_audio.h"
 #include "media/player/media_player_instance.h"
 #include "ui/boxes/confirm_box.h"
 #include "ui/layers/generic_box.h"
+#include "ui/layers/show.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/fields/input_field.h"
 #include "ui/widgets/labels.h"
@@ -38,25 +41,6 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace HoursGram::Music {
 namespace {
-
-// A playlist only remembers which message a track came from. The file can
-// be played once that document is known to this account; until then the
-// chat it was added from has to be opened once.
-[[nodiscard]] AudioMsgId ResolveTrack(
-		not_null<Main::Session*> session,
-		const PlaylistTrack &track) {
-	const auto document = session->data().document(track.documentId);
-	if (!document->hasRemoteLocation() && document->filepath().isEmpty()) {
-		return AudioMsgId();
-	}
-	return AudioMsgId(document, FullMsgId(track.peerId, track.msgId));
-}
-
-[[nodiscard]] DocumentId PlayingNow() {
-	const auto current = Media::Player::instance()->current(
-		AudioMsgId::Type::Song);
-	return current.audio() ? current.audio()->id : DocumentId(0);
-}
 
 // One line of either list: a rounded tile on the left, the name over a
 // quieter second line, and the menu dots on the right. A playlist and a
@@ -227,25 +211,27 @@ void AddEmpty(
 		: tr::hoursgram_PlaylistNoTracks(tr::now);
 }
 
-[[nodiscard]] QString PerformerText(const PlaylistTrack &track) {
-	return track.performer.isEmpty()
-		? tr::hoursgram_PlayerUnknownArtist(tr::now)
-		: track.performer;
+} // namespace
+
+void ShowPlaylists(not_null<Window::SessionController*> controller) {
+	ShowMusic(controller, Section::Home);
 }
 
-[[nodiscard]] QString TitleText(const PlaylistTrack &track) {
-	return track.title.isEmpty()
-		? tr::hoursgram_PlayerUnknownTrack(tr::now)
-		: track.title;
-}
-
-void PromptName(
+void ShowPlaylist(
 		not_null<Window::SessionController*> controller,
+		uint64 playlistId) {
+	ShowMusic(controller, Section::Playlist, playlistId);
+}
+
+void PromptPlaylistName(
+		std::shared_ptr<Ui::Show> show,
 		rpl::producer<QString> title,
 		const QString &initial,
 		Fn<void(QString)> done) {
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-		box->setTitle(rpl::duplicate(title));
+	auto titleShared = std::make_shared<rpl::producer<QString>>(
+		std::move(title));
+	show->showBox(Box([=](not_null<Ui::GenericBox*> box) {
+		box->setTitle(std::move(*titleShared));
 		const auto field = box->addRow(object_ptr<Ui::InputField>(
 			box,
 			st::defaultInputField,
@@ -260,8 +246,8 @@ void PromptName(
 				field->showError();
 				return;
 			}
-			done(value);
 			box->closeBox();
+			done(value);
 		};
 		field->submits() | rpl::on_next([=] {
 			save();
@@ -273,198 +259,38 @@ void PromptName(
 	}));
 }
 
-} // namespace
-
-void ShowPlaylists(not_null<Window::SessionController*> controller) {
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-		box->setTitle(tr::hoursgram_Playlists());
-		box->setWidth(st::boxWidth);
-		box->setMaxHeight(st::hoursgramPlaylistMaxHeight);
-
-		struct State {
-			base::unique_qptr<Ui::PopupMenu> menu;
-		};
-		const auto state = box->lifetime().make_state<State>();
-		const auto session = &controller->session();
-		const auto account = AccountOf(session);
-		const auto container = box->verticalLayout();
-		const auto inner = container->add(
-			object_ptr<Ui::VerticalLayout>(container));
-
-		const auto rebuild = [=] {
-			inner->clear();
-			const auto list = Playlists::Instance().list(account);
-			if (list.empty()) {
-				AddEmpty(inner, tr::hoursgram_PlaylistsEmpty());
-				return;
-			}
-			for (const auto &playlist : list) {
-				const auto id = playlist.id;
-				const auto title = playlist.title;
-				const auto row = inner->add(object_ptr<Row>(inner, true));
-				row->setName(title);
-				row->setStatus(CountText(int(playlist.tracks.size())));
-				row->setClickedCallback([=] {
-					ShowPlaylist(controller, id);
-				});
-				row->menu()->setClickedCallback([=] {
-					state->menu = base::make_unique_q<Ui::PopupMenu>(
-						row,
-						st::popupMenuWithIcons);
-					const auto menu = state->menu.get();
-					menu->addAction(
-						tr::hoursgram_PlaylistRename(tr::now),
-						[=] {
-							PromptName(
-								controller,
-								tr::hoursgram_PlaylistRename(),
-								title,
-								[=](QString name) {
-									Playlists::Instance().rename(
-										account,
-										id,
-										name);
-								});
-						},
-						&st::menuIconEdit);
-					menu->addAction(
-						tr::hoursgram_PlaylistDelete(tr::now),
-						[=] {
-							controller->show(Ui::MakeConfirmBox({
-								.text = tr::hoursgram_PlaylistDeleteSure(
-									tr::now,
-									lt_name,
-									title),
-								.confirmed = [=](Fn<void()> &&close) {
-									close();
-									Playlists::Instance().remove(account, id);
-								},
-								.confirmText = tr::lng_box_delete(),
-								.confirmStyle = &st::attentionBoxButton,
-							}));
-						},
-						&st::menuIconDelete);
-					menu->popup(QCursor::pos());
-				});
-			}
-		};
-		rebuild();
-
-		Playlists::Instance().changes() | rpl::on_next([=] {
-			rebuild();
-		}, box->lifetime());
-
-		box->addLeftButton(tr::hoursgram_PlaylistNew(), [=] {
-			PromptName(
-				controller,
-				tr::hoursgram_PlaylistNew(),
-				QString(),
-				[=](QString name) {
-					Playlists::Instance().create(account, name);
-				});
-		});
-		box->addButton(tr::lng_close(), [=] {
-			box->closeBox();
-		});
-	}));
-}
-
-void ShowPlaylist(
-		not_null<Window::SessionController*> controller,
+void ConfirmDeletePlaylist(
+		std::shared_ptr<Ui::Show> show,
+		not_null<Main::Session*> session,
 		uint64 playlistId) {
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
-		struct State {
-			base::unique_qptr<Ui::PopupMenu> menu;
-			std::vector<std::pair<DocumentId, Row*>> rows;
-		};
-		const auto state = box->lifetime().make_state<State>();
-		const auto session = &controller->session();
-		const auto account = AccountOf(session);
-		const auto container = box->verticalLayout();
-		const auto inner = container->add(
-			object_ptr<Ui::VerticalLayout>(container));
-
-		box->setWidth(st::boxWidth);
-		box->setMaxHeight(st::hoursgramPlaylistMaxHeight);
-
-		const auto refreshPlaying = [=] {
-			const auto playing = PlayingNow();
-			for (const auto &pair : state->rows) {
-				pair.second->setPlaying(playing && pair.first == playing);
-			}
-		};
-
-		const auto rebuild = [=] {
-			const auto playlist = Playlists::Instance().playlist(
-				account,
-				playlistId);
-			if (!playlist) {
-				box->closeBox();
-				return;
-			}
-			box->setTitle(rpl::single(playlist->title));
-			state->rows.clear();
-			inner->clear();
-			if (playlist->tracks.empty()) {
-				AddEmpty(inner, tr::hoursgram_PlaylistEmpty());
-				return;
-			}
-			for (const auto &track : playlist->tracks) {
-				const auto documentId = track.documentId;
-				const auto row = inner->add(object_ptr<Row>(inner, true));
-				row->setName(TitleText(track));
-				row->setStatus(PerformerText(track));
-				row->setDimmed(!ResolveTrack(session, track).audio());
-				row->setClickedCallback([=] {
-					const auto audioId = ResolveTrack(session, track);
-					if (!audioId.audio()) {
-						controller->showToast(
-							tr::hoursgram_PlaylistTrackMissing(tr::now));
-						return;
-					}
-					Media::Player::instance()->play(audioId);
-				});
-				row->menu()->setClickedCallback([=] {
-					state->menu = base::make_unique_q<Ui::PopupMenu>(
-						row,
-						st::popupMenuWithIcons);
-					const auto menu = state->menu.get();
-					menu->addAction(
-						tr::hoursgram_PlaylistRemoveTrack(tr::now),
-						[=] {
-							Playlists::Instance().removeTrack(
-								account,
-								playlistId,
-								documentId);
-						},
-						&st::menuIconDelete);
-					menu->popup(QCursor::pos());
-				});
-				state->rows.push_back({ documentId, row });
-			}
-			refreshPlaying();
-		};
-		rebuild();
-
-		Playlists::Instance().changes() | rpl::on_next([=] {
-			rebuild();
-		}, box->lifetime());
-
-		Media::Player::instance()->updatedNotifier(
-		) | rpl::on_next([=](const Media::Player::TrackState &track) {
-			if (track.id.type() == AudioMsgId::Type::Song) {
-				refreshPlaying();
-			}
-		}, box->lifetime());
-
-		box->addButton(tr::lng_close(), [=] {
-			box->closeBox();
-		});
+	const auto account = AccountOf(session);
+	const auto playlist = Playlists::Instance().playlist(account, playlistId);
+	if (!playlist) {
+		return;
+	}
+	show->showBox(Ui::MakeConfirmBox({
+		.text = tr::hoursgram_PlaylistDeleteSure(
+			tr::now,
+			lt_name,
+			playlist->title),
+		.confirmed = [=](Fn<void()> &&close) {
+			close();
+			Playlists::Instance().remove(account, playlistId);
+		},
+		.confirmText = tr::lng_box_delete(),
+		.confirmStyle = &st::attentionBoxButton,
 	}));
 }
 
 void ShowAddToPlaylist(
 		not_null<Window::SessionController*> controller,
+		const AudioMsgId &audioId) {
+	ShowAddToPlaylist(controller->uiShow(), &controller->session(), audioId);
+}
+
+void ShowAddToPlaylist(
+		std::shared_ptr<Ui::Show> show,
+		not_null<Main::Session*> session,
 		const AudioMsgId &audioId) {
 	const auto document = audioId.audio();
 	if (!document) {
@@ -474,20 +300,16 @@ void ShowAddToPlaylist(
 	track.documentId = document->id;
 	track.peerId = audioId.contextId().peer;
 	track.msgId = audioId.contextId().msg;
+	track.title = TrackTitle(document);
 	if (const auto song = document->song()) {
-		track.title = song->title;
 		track.performer = song->performer;
 	}
-	if (track.title.isEmpty()) {
-		track.title = document->filename();
-	}
 
-	controller->show(Box([=](not_null<Ui::GenericBox*> box) {
+	show->showBox(Box([=](not_null<Ui::GenericBox*> box) {
 		box->setTitle(tr::hoursgram_AddToPlaylist());
 		box->setWidth(st::boxWidth);
 		box->setMaxHeight(st::hoursgramPlaylistMaxHeight);
 
-		const auto session = &controller->session();
 		const auto account = AccountOf(session);
 		const auto container = box->verticalLayout();
 		const auto inner = container->add(
@@ -495,17 +317,16 @@ void ShowAddToPlaylist(
 
 		const auto add = [=](uint64 playlistId, const QString &name) {
 			if (Playlists::Instance().addTrack(account, playlistId, track)) {
-				controller->showToast(tr::hoursgram_PlaylistAdded(
+				show->showToast(tr::hoursgram_PlaylistAdded(
 					tr::now,
 					lt_name,
 					name));
 			} else {
-				controller->showToast(tr::hoursgram_PlaylistAlready(
+				show->showToast(tr::hoursgram_PlaylistAlready(
 					tr::now,
 					lt_name,
 					name));
 			}
-			box->closeBox();
 		};
 
 		const auto rebuild = [=] {
@@ -521,7 +342,12 @@ void ShowAddToPlaylist(
 				const auto row = inner->add(object_ptr<Row>(inner, false));
 				row->setName(name);
 				row->setStatus(CountText(int(playlist.tracks.size())));
+				row->setDimmed(Playlists::Instance().contains(
+					account,
+					id,
+					track.documentId));
 				row->setClickedCallback([=] {
+					box->closeBox();
 					add(id, name);
 				});
 			}
@@ -533,8 +359,8 @@ void ShowAddToPlaylist(
 		}, box->lifetime());
 
 		box->addLeftButton(tr::hoursgram_PlaylistNew(), [=] {
-			PromptName(
-				controller,
+			PromptPlaylistName(
+				show,
 				tr::hoursgram_PlaylistNew(),
 				QString(),
 				[=](QString name) {
@@ -542,6 +368,7 @@ void ShowAddToPlaylist(
 						account,
 						name);
 					if (id) {
+						box->closeBox();
 						add(id, name);
 					}
 				});

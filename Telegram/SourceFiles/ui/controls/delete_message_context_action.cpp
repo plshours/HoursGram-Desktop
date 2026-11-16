@@ -14,8 +14,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/call_delayed.h"
 #include "base/unixtime.h"
 #include "base/timer.h"
+#include "base/flat_map.h"
 #include "styles/style_chat.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_widgets.h"
 
 namespace Ui {
 namespace {
@@ -110,12 +112,13 @@ void ActionWithTimer::paint(Painter &p) {
 		+ _st.itemStyle.font->height
 		+ _st.itemPadding.bottom();
 	const auto deltaHeight = _height - normalHeight;
-	st::menuIconDelete.paint(
+	// HoursGram: deleting is a dangerous action, its item is red.
+	st::menuIconDeleteAttention.paint(
 		p,
 		_st.itemIconPosition + QPoint(0, deltaHeight / 2),
 		width());
 
-	p.setPen(selected ? _st.itemFgOver : _st.itemFg);
+	p.setPen(selected ? st::attentionButtonFgOver : st::attentionButtonFg);
 	_text.drawLeftElided(
 		p,
 		_st.itemPadding.left(),
@@ -237,15 +240,25 @@ base::unique_qptr<Menu::ItemBase> DeleteMessageContextAction(
 		TimeId destroyAt,
 		Fn<void()> destroyByTimerCallback) {
 	if (destroyAt <= 0) {
+		// HoursGram: deleting is a dangerous action, its item is red.
+		static auto styles = base::flat_map<
+			const style::Menu*,
+			std::unique_ptr<style::Menu>>();
+		auto &red = styles[&menu->st()];
+		if (!red) {
+			red = std::make_unique<style::Menu>(menu->st());
+			red->itemFg = st::attentionButtonFg;
+			red->itemFgOver = st::attentionButtonFgOver;
+		}
 		return base::make_unique_q<Menu::Action>(
 			menu,
-			menu->st(),
+			*red,
 			Menu::CreateAction(
 				menu,
 				tr::lng_context_delete_msg(tr::now),
 				std::move(callback)),
-			&st::menuIconDelete,
-			&st::menuIconDelete);
+			&st::menuIconDeleteAttention,
+			&st::menuIconDeleteAttention);
 	}
 	return base::make_unique_q<ActionWithTimer>(
 		menu,

@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "media/audio/media_audio.h"
 #include "media/audio/media_child_ffmpeg_loader.h"
+#include "hoursgram/music/music_equalizer.h"
 
 class AudioPlayerLoader;
 class ChildFFMpegLoader;
@@ -62,6 +63,14 @@ private:
 		const AudioMsgId &audio,
 		crl::time positionMs);
 	Mixer::Track *checkLoader(AudioMsgId::Type type);
+
+	// HoursGram: songs pass through the equalizer of the music window
+	// as they are decoded; voice messages and videos do not.
+	void equalize(
+		QByteArray &data,
+		int from,
+		not_null<AudioPlayerLoader*> loader);
+	HoursGram::Music::EqualizerProcessor _songEqualizer;
 
 	AudioMsgId _audio, _song, _video;
 	std::unique_ptr<AudioPlayerLoader> _audioLoader;

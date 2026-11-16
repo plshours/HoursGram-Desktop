@@ -78,7 +78,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_photo_media.h"
 #include "data/data_audio_msg_id.h"
 #include "data/data_document.h"
-#include "hoursgram/music/music_player_box.h"
+#include "hoursgram/music/music_window.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "data/data_media_types.h"
 #include "data/data_poll.h"

@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_top_bar.h"
 
 #include "api/api_peer_colors.h"
+#include "ui/widgets/buttons.h"
 #include "api/api_peer_photo.h"
 #include "api/api_premium.h"
 #include "api/api_user_privacy.h"
@@ -118,6 +119,22 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace Info::Profile {
 namespace {
+
+// HORUSGRAM_DESIGN.md: with Graphite a profile keeps its colors, moved a
+// third of the way to the graphite of the panels, so a cover sits with the
+// rest of the client instead of glowing on it. The pattern is shaded less.
+constexpr auto kGraphiteShadeBackground = 0.35;
+constexpr auto kGraphiteShadePattern = 0.2;
+
+[[nodiscard]] QColor GraphiteShade(QColor color, float64 ratio) {
+	if (!color.isValid()) {
+		return color;
+	}
+	return Ui::BlendColors(
+		color,
+		QColor(0x12, 0x12, 0x12, color.alpha()),
+		ratio);
+}
 
 class Userpic final
 	: public Ui::AbstractButton
@@ -1738,21 +1755,47 @@ void TopBar::setLocalEmojiStatusId(EmojiStatusId emojiStatusId) {
 }
 
 std::optional<Data::ColorProfileSet> TopBar::effectiveColorProfile() const {
-	return _localColorProfileIndex
+	auto result = _localColorProfileIndex
 		? _peer->session().api().peerColors().colorProfileFor(
 			*_localColorProfileIndex)
 		: _source == Source::Preview
 		? std::nullopt
 		: _peer->session().api().peerColors().colorProfileFor(_peer);
+	if (result && Ui::HoursGramGraphite()) {
+		for (auto &color : result->bg) {
+			color = GraphiteShade(color, kGraphiteShadeBackground);
+		}
+	}
+	return result;
 }
 
 auto TopBar::effectiveCollectible() const
 -> std::shared_ptr<Data::EmojiStatusCollectible> {
-	return _localCollectible
+	const auto source = _localCollectible
 		? _localCollectible
 		: _localColorProfileIndex
 		? nullptr
 		: _peer->emojiStatusId().collectible;
+	if (!source || !Ui::HoursGramGraphite()) {
+		return source;
+	}
+	// The darker copy is made once for every collectible, so the cover
+	// keeps seeing the same object while the collectible stays.
+	if (_graphiteCollectibleSource != source) {
+		_graphiteCollectibleSource = source;
+		auto shaded = std::make_shared<Data::EmojiStatusCollectible>(*source);
+		shaded->centerColor = GraphiteShade(
+			source->centerColor,
+			kGraphiteShadeBackground);
+		shaded->edgeColor = GraphiteShade(
+			source->edgeColor,
+			kGraphiteShadeBackground);
+		shaded->patternColor = GraphiteShade(
+			source->patternColor,
+			kGraphiteShadePattern);
+		_graphiteCollectible = std::move(shaded);
+	}
+	return _graphiteCollectible;
 }
 
 void TopBar::paintEdges(QPainter &p, const QBrush &brush) const {
@@ -3976,6 +4019,14 @@ rpl::producer<QString> TopBar::nameValue() const {
 
 TopBarActionButtonStyle TopBar::mapActionStyle(
 		std::optional<QColor> c) const {
+	if (Ui::HoursGramGraphite() && !c) {
+		// Flat graphite tiles under the name.
+		return TopBarActionButtonStyle{
+			.bgColor = st::windowBgRipple->c,
+			.fgColor = std::nullopt,
+			.shadowColor = std::nullopt,
+		};
+	}
 	if (c) {
 		return TopBarActionButtonStyle{
 			.bgColor = Ui::BlendColors(

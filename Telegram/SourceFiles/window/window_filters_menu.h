@@ -9,10 +9,19 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "api/api_chat_filters_remove_manager.h"
 #include "base/timer.h"
+#include "base/unique_qptr.h"
 #include "base/weak_qptr.h"
 #include "ui/effects/animations.h"
 #include "ui/widgets/side_bar_button.h"
 #include "ui/widgets/scroll_area.h"
+
+namespace HoursGram::Customization {
+class GraphiteFrame;
+} // namespace HoursGram::Customization
+
+namespace Ui {
+class VerticalLayout;
+} // namespace Ui
 
 namespace Data {
 struct ChatFilterTitle;
@@ -72,6 +81,16 @@ private:
 	[[nodiscard]] bool listFocused() const;
 	void openFiltersSettings();
 	void setupDragAndDrop();
+	// HORUSGRAM_DESIGN.md: with Graphite the bar keeps Saved and Music at
+	// its bottom, over the menu button, and floats as a card.
+	void setupHoursGramBottom();
+	// HORUSGRAM_DESIGN.md: one highlight slides under the active folder
+	// instead of every folder fading in a pill of its own.
+	[[nodiscard]] QRect highlightFor(FilterId id) const;
+	[[nodiscard]] QRect currentHighlight() const;
+	void slideHighlight(QRect from);
+	void paintHighlight(QPainter &p, not_null<Ui::SideBarButton*> button);
+	void repaintFolders();
 
 	const not_null<SessionController*> _session;
 	const not_null<Ui::RpWidget*> _parent;
@@ -79,6 +98,8 @@ private:
 	Ui::SideBarButton _menu;
 	Ui::ScrollArea _scroll;
 	not_null<Ui::VerticalLayout*> _container;
+	base::unique_qptr<Ui::VerticalLayout> _hoursgramBottom;
+	base::unique_qptr<HoursGram::Customization::GraphiteFrame> _graphiteFrame;
 	Ui::VerticalLayout *_list = nullptr;
 	std::unique_ptr<Ui::VerticalLayoutReorder> _reorder;
 	base::unique_qptr<Ui::SideBarButton> _setup;
@@ -100,6 +121,8 @@ private:
 	} _drag;
 
 	Ui::Animations::Simple _scrollToAnimation;
+	Ui::Animations::Simple _highlightAnimation;
+	QRect _highlightFrom;
 
 };
 

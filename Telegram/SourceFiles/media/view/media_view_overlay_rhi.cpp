@@ -20,6 +20,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include <rhi/qrhi.h>
 
+#include "hoursgram/customization/glass_backdrop.h"
+
 namespace Media::View {
 namespace {
 
@@ -668,7 +670,8 @@ QColor OverlayWidget::RendererRhi::rhiClearColor() {
 	} else if (_owner->_fullScreenVideo) {
 		return st::mediaviewVideoBg->c;
 	} else {
-		return st::mediaviewBg->c;
+		return HoursGram::Customization::ViewerBackground(
+			st::mediaviewBg->c);
 	}
 }
 
@@ -678,7 +681,8 @@ std::optional<QColor> OverlayWidget::RendererRhi::clearColor() {
 	} else if (_owner->_fullScreenVideo) {
 		return st::mediaviewVideoBg->c;
 	} else {
-		return st::mediaviewBg->c;
+		return HoursGram::Customization::ViewerBackground(
+			st::mediaviewBg->c);
 	}
 }
 
@@ -979,10 +983,9 @@ void OverlayWidget::RendererRhi::drawContentQuad(
 }
 
 void OverlayWidget::RendererRhi::paintBackground() {
-	const auto &bg = _owner->_fullScreenVideo
-		? st::mediaviewVideoBg
-		: st::mediaviewBg;
-	const auto c = bg->c;
+	const auto c = _owner->_fullScreenVideo
+		? st::mediaviewVideoBg->c
+		: HoursGram::Customization::ViewerBackground(st::mediaviewBg->c);
 	const auto vw = float(_viewport.width() * _factor);
 	const auto vh = float(_viewport.height() * _factor);
 

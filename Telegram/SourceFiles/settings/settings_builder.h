@@ -273,7 +273,15 @@ private:
 		QWidget *widget,
 		HighlightArgs &&args);
 
-	BuildContext _context;
+	// HORUSGRAM_DESIGN.md: with Graphite the rows between two dividers
+	// sit on one card. A card opens with the first widget after a divider
+	// and the divider closes it, leaving a gap instead of a bar.
+	void ensureCard() const;
+	bool closeCard();
+
+	mutable BuildContext _context;
+	mutable Ui::VerticalLayout *_cardOuter = nullptr;
+	int _scopeDepth = 0;
 
 };
 

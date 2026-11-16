@@ -1,0 +1,88 @@
+/*
+This file is part of Telegram Desktop,
+the official desktop application for the Telegram messaging service.
+
+For license and copyright information please follow this link:
+https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+*/
+using "ui/basic.style";
+using "ui/widgets/widgets.style";
+using "ui/menu_icons.style";
+
+// HORUSGRAM_DESIGN.md: the icon set of HorusGram, drawn on a round graphite
+// plate in the settings. Made by tools/make_icons.py.
+hoursgramIconPlate: windowBgRipple;
+
+// HORUSGRAM_DESIGN.md: with Graphite the groups of settings are cards with
+// a soft rounded outline, the way the details of a gift are shown.
+hoursgramSettingsCardMargin: margins(12px, 0px, 12px, 0px);
+hoursgramSettingsCardPadding: margins(4px, 4px, 4px, 4px);
+hoursgramSettingsCardRadius: 16px;
+hoursgramSettingsCardSkip: 12px;
+hoursgramSettingsCardBorder: windowBgRipple;
+
+// The bar over the chat list while chats are picked for an action on all
+// of them, and the mark on the userpic of a picked chat.
+hoursgramSelectionBarHeight: 52px;
+hoursgramSelectionBarMargin: margins(10px, 0px, 10px, 10px);
+hoursgramSelectionBarRadius: 18px;
+hoursgramSelectionBarPadding: margins(16px, 0px, 8px, 0px);
+hoursgramSelectionBarLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowBoldFg;
+	style: semiboldTextStyle;
+	maxHeight: 20px;
+}
+hoursgramSelectionButton: IconButton(defaultIconButton) {
+	width: 36px;
+	height: 36px;
+	icon: menuIconMarkRead;
+	iconOver: menuIconMarkRead;
+	iconPosition: point(6px, 6px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 36px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+hoursgramSelectionDeleteButton: IconButton(hoursgramSelectionButton) {
+	icon: menuIconDeleteAttention;
+	iconOver: menuIconDeleteAttention;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: attentionButtonBgRipple;
+	}
+}
+hoursgramSelectionCancelButton: IconButton(hoursgramSelectionButton) {
+	icon: menuIconCancel;
+	iconOver: menuIconCancel;
+}
+hoursgramSelectionCheckSize: 20px;
+hoursgramIconFg: windowFg;
+
+hoursgramIconAccount: icon {{ "hoursgram/settings_account", hoursgramIconFg }};
+hoursgramIconPrivacy: icon {{ "hoursgram/settings_privacy", hoursgramIconFg }};
+hoursgramIconNotifications: icon {{ "hoursgram/settings_notifications", hoursgramIconFg }};
+hoursgramIconMoney: icon {{ "hoursgram/settings_money", hoursgramIconFg }};
+hoursgramIconChats: icon {{ "hoursgram/settings_chats", hoursgramIconFg }};
+hoursgramIconFolders: icon {{ "hoursgram/settings_folders", hoursgramIconFg }};
+hoursgramIconSound: icon {{ "hoursgram/settings_sound", hoursgramIconFg }};
+hoursgramIconBattery: icon {{ "hoursgram/settings_battery", hoursgramIconFg }};
+hoursgramIconAdvanced: icon {{ "hoursgram/settings_advanced", hoursgramIconFg }};
+hoursgramIconLanguage: icon {{ "hoursgram/settings_language", hoursgramIconFg }};
+hoursgramIconGhost: icon {{ "hoursgram/settings_ghost", hoursgramIconFg }};
+hoursgramIconFilters: icon {{ "hoursgram/settings_filters", hoursgramIconFg }};
+hoursgramIconAppearance: icon {{ "hoursgram/settings_appearance", hoursgramIconFg }};
+hoursgramIconPlugins: icon {{ "hoursgram/settings_plugins", hoursgramIconFg }};
+hoursgramIconMusic: icon {{ "hoursgram/settings_music", hoursgramIconFg }};
+hoursgramIconGifts: icon {{ "hoursgram/settings_gifts", hoursgramIconFg }};
+hoursgramIconMore: icon {{ "hoursgram/settings_more", hoursgramIconFg }};
+hoursgramIconDevices: icon {{ "hoursgram/settings_devices", hoursgramIconFg }};
+
+// The Saved and Music buttons of the left bar, in the size of the folder
+// icons. Made by tools/make_icons.py --side-bar.
+hoursgramSideBarSaved: icon {{ "hoursgram/sidebar_saved", sideBarIconFg }};
+hoursgramSideBarSavedActive: icon {{ "hoursgram/sidebar_saved", sideBarIconFgActive }};
+hoursgramSideBarMusic: icon {{ "hoursgram/sidebar_music", sideBarIconFg }};
+hoursgramSideBarMusicActive: icon {{ "hoursgram/sidebar_music", sideBarIconFgActive }};
+
+// Motion of HorusGram: how far things travel while they appear.
+hoursgramMessageAppearShift: 34px;

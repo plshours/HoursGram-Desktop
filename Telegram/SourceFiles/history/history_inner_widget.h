@@ -451,6 +451,15 @@ private:
 	void showStickerPackInfo(not_null<DocumentData*> document);
 
 	void itemRemoved(not_null<const HistoryItem*> item);
+	void hoursgramStartAppear(not_null<const HistoryItem*> item);
+	[[nodiscard]] float64 hoursgramAppearProgress(
+		not_null<const HistoryItem*> item,
+		crl::time now) const;
+	void hoursgramPaintAppearing(
+		Painter &p,
+		not_null<const HistoryItem*> item,
+		int height,
+		float64 progress) const;
 	void viewRemoved(not_null<const Element*> view);
 
 	void touchResetSpeed();
@@ -703,6 +712,9 @@ private:
 	// _menu must be destroyed before _whoReactedMenuLifetime.
 	rpl::lifetime _whoReactedMenuLifetime;
 	base::unique_qptr<Ui::PopupMenu> _menu;
+
+	base::flat_map<not_null<const HistoryItem*>, crl::time> _hoursgramAppearing;
+	Ui::Animations::Basic _hoursgramAppearAnimation;
 
 	bool _scrollDateShown = false;
 	Ui::Animations::Simple _scrollDateOpacity;

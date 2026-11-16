@@ -16,6 +16,7 @@
 #include "features/translator/ayu_translator.h"
 #include "lang/lang_instance.h"
 #include "ui/chat/chat_style_radius.h"
+#include "ui/widgets/buttons.h"
 #include "utils/rc_manager.h"
 #include "window/main_window.h"
 
@@ -44,6 +45,7 @@ void initUiSettings() {
 	AyuUiSettings::setMaterialSwitches(settings.materialSwitches());
 	AyuUiSettings::setAvatarCorners(settings.avatarCorners());
 	Ui::SetAppliedBubbleRadius(settings.messageBubbleRadius());
+	Ui::SetHoursGramGraphite(settings.clientTheme() == 4);
 }
 
 void initDatabase() {

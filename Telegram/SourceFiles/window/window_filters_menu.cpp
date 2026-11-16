@@ -13,6 +13,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_main_menu.h"
 #include "window/window_peer_menu.h"
 #include "window/window_filters_favorite.h"
+#include "hoursgram/customization/graphite_frame.h"
+#include "hoursgram/music/music_window.h"
+#include "lang/lang_instance.h"
+#include "ui/widgets/buttons.h"
 #include "main/main_session.h"
 #include "base/event_filter.h"
 #include "base/options.h"
@@ -36,6 +40,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/power_saving.h"
 #include "ui/screen_reader_mode.h"
 #include "ui/ui_utility.h"
+#include "ui/painter.h"
+#include "ui/effects/animation_value.h"
 #include "boxes/filters/edit_filter_box.h"
 #include "boxes/choose_filter_box.h"
 #include "boxes/premium_limits_box.h"
@@ -46,6 +52,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_widgets.h"
 #include "styles/style_window.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_hoursgram_design.h"
 
 #include <QtGui/QtEvents>
 
@@ -123,6 +130,7 @@ FiltersMenu::~FiltersMenu() = default;
 void FiltersMenu::setup() {
 	setupDragAndDrop();
 	setupMainMenuIcon();
+	setupHoursGramBottom();
 	_menu.setIsMenuButton(true);
 	_menu.setAccessibleName(tr::lng_main_menu(tr::now));
 
@@ -143,12 +151,30 @@ void FiltersMenu::setup() {
 		_menu.move(0, 0);
 		// The macOS themes keep settings in the bar at the bottom, so the
 		// button with three bars is not shown above the folders there.
-		const auto hideMenu = (AyuSettings::getInstance().clientTheme() >= 2);
+		const auto hideMenu = AyuSettings::getInstance().macTheme();
 		_menu.setVisible(!hideMenu);
-		const auto top = hideMenu ? 0 : _menu.height();
-		_scroll.setGeometry({ 0, top, width, height - top });
+		const auto graphite = Ui::HoursGramGraphite() && !hideMenu;
+		_hoursgramBottom->setVisible(graphite);
+		if (graphite) {
+			// The menu with the settings on top, the folders under it, and
+			// Saved and Music at the bottom.
+			_hoursgramBottom->resizeToWidth(width);
+			const auto top = _menu.height();
+			const auto bottom = _hoursgramBottom->height();
+			_menu.move(0, 0);
+			_hoursgramBottom->move(0, height - bottom);
+			_scroll.setGeometry({
+				0,
+				top,
+				width,
+				std::max(height - top - bottom, 0) });
+		} else {
+			const auto top = hideMenu ? 0 : _menu.height();
+			_scroll.setGeometry({ 0, top, width, height - top });
+		}
 		_container->resizeToWidth(width);
 		_container->move(0, 0);
+		_graphiteFrame->refresh();
 	};
 	_parent->heightValue() | rpl::on_next(layout, _outer.lifetime());
 	AyuSettings::getInstance().clientThemeChanges(
@@ -175,11 +201,13 @@ void FiltersMenu::setup() {
 			_activeFilterId = id;
 			return;
 		}
+		const auto from = currentHighlight();
 		const auto i = _filters.find(_activeFilterId);
 		if (i != end(_filters)) {
 			i->second->setActive(false);
 		}
 		_activeFilterId = id;
+		slideHighlight(from);
 		const auto j = _filters.find(_activeFilterId);
 		if (j != end(_filters)) {
 			j->second->setActive(true);
@@ -208,6 +236,115 @@ void FiltersMenu::setup() {
 		}
 		refresh();
 	}, _outer.lifetime());
+}
+
+QRect FiltersMenu::highlightFor(FilterId id) const {
+	const auto i = _filters.find(id);
+	if (i == end(_filters) || !_list) {
+		return QRect();
+	}
+	const auto side = style::ConvertScale(7);
+	const auto top = style::ConvertScale(2);
+	return i->second->geometry().marginsRemoved({ side, top, side, top });
+}
+
+// At rest the highlight takes the place of the active folder as it is now,
+// so it follows the folders when they are dragged or the list is resized.
+// While it slides it goes from where it was to that place.
+QRect FiltersMenu::currentHighlight() const {
+	const auto to = highlightFor(_activeFilterId);
+	if (!_highlightAnimation.animating()
+		|| _highlightFrom.isEmpty()
+		|| to.isEmpty()) {
+		return to;
+	}
+	const auto progress = _highlightAnimation.value(1.);
+	const auto mix = [&](int a, int b) {
+		return int(base::SafeRound(a + (b - a) * progress));
+	};
+	return QRect(
+		QPoint(
+			mix(_highlightFrom.x(), to.x()),
+			mix(_highlightFrom.y(), to.y())),
+		QSize(
+			mix(_highlightFrom.width(), to.width()),
+			mix(_highlightFrom.height(), to.height())));
+}
+
+void FiltersMenu::slideHighlight(QRect from) {
+	_highlightFrom = from;
+	_highlightAnimation.stop();
+	if (!from.isEmpty() && !anim::Disabled()) {
+		_highlightAnimation.start(
+			[=] { repaintFolders(); },
+			0.,
+			1.,
+			crl::time(260),
+			anim::easeOutCubic);
+	}
+	repaintFolders();
+}
+
+void FiltersMenu::repaintFolders() {
+	for (const auto &[id, button] : _filters) {
+		button->update();
+	}
+}
+
+void FiltersMenu::paintHighlight(
+		QPainter &p,
+		not_null<Ui::SideBarButton*> button) {
+	if (!Ui::HoursGramGraphite()) {
+		return;
+	}
+	const auto highlight = currentHighlight();
+	if (highlight.isEmpty()) {
+		return;
+	}
+	const auto local = QRectF(highlight.translated(-button->pos()));
+	if (!local.intersects(QRectF(button->rect()))) {
+		return;
+	}
+	const auto radius = std::min(
+		float64(style::ConvertScale(16)),
+		local.height() / 2.);
+	auto color = st::windowBgActive->c;
+	color.setAlphaF(0.2);
+	auto hq = PainterHighQualityEnabler(p);
+	p.setPen(Qt::NoPen);
+	p.setBrush(color);
+	p.drawRoundedRect(local, radius, radius);
+}
+
+void FiltersMenu::setupHoursGramBottom() {
+	const auto &lang = Lang::GetInstance();
+	const auto russian = lang.id().startsWith(u"ru"_q)
+		|| lang.baseId().startsWith(u"ru"_q);
+	_hoursgramBottom = base::make_unique_q<Ui::VerticalLayout>(&_outer);
+	const auto add = [&](
+			const QString &english,
+			const QString &inRussian,
+			const style::icon &icon,
+			const style::icon &iconActive,
+			Fn<void()> callback) {
+		const auto button = _hoursgramBottom->add(
+			object_ptr<Ui::SideBarButton>(
+				_hoursgramBottom.get(),
+				TextWithEntities{ russian ? inRussian : english },
+				buttonStyle()));
+		button->setIconOverride(&icon, &iconActive);
+		button->setClickedCallback(std::move(callback));
+	};
+	add(u"Saved"_q, u"Избранное"_q, st::hoursgramSideBarSaved, st::hoursgramSideBarSavedActive, [=] {
+		_session->showPeerHistory(_session->session().user());
+	});
+	add(u"Music"_q, u"Музыка"_q, st::hoursgramSideBarMusic, st::hoursgramSideBarMusicActive, [=] {
+		HoursGram::Music::ShowMusic(_session);
+	});
+	_hoursgramBottom->resizeToWidth(st::windowFiltersWidth);
+	_graphiteFrame = base::make_unique_q<
+		HoursGram::Customization::GraphiteFrame
+	>(&_outer, [=] { return std::vector<QRect>{ _outer.rect() }; });
 }
 
 void FiltersMenu::setupDragAndDrop() {
@@ -706,6 +843,11 @@ base::unique_qptr<Ui::SideBarButton> FiltersMenu::prepareButton(
 		});
 	}
 	raw->setActive(_session->activeChatsFilterCurrent() == id);
+	if (id >= 0) {
+		raw->setHoursGramUnderlay([=](QPainter &p) {
+			paintHighlight(p, raw);
+		});
+	}
 	raw->setClickedCallback([=] {
 		if (_reordering) {
 			return;

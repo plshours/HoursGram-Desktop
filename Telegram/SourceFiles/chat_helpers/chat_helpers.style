@@ -1458,6 +1458,10 @@ defaultRecordBar: RecordBar {
 	remove: historyRecordDelete;
 }
 
+// HorusGram Graphite: the round send button of HORUSGRAM_DESIGN.md.
+historySendGraphiteIcon: icon {{ "chat/input_send_round", windowFgActive }};
+historySendGraphiteSkip: 5px;
+
 historySend: SendButton {
 	sendIconPosition: point(10px, 11px);
 	inner: IconButton(historyAttach) {

@@ -9082,6 +9082,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "hoursgram_ThemeTelegram" = "Original (Telegram)";
 "hoursgram_ThemeMacOS" = "HorusGram macOS (dark)";
 "hoursgram_ThemeMacOSLight" = "HorusGram macOS (light)";
+"hoursgram_ThemeGraphite" = "HorusGram Graphite";
 "hoursgram_LocalProfileIdentity" = "Local profile identity";
 "hoursgram_LocalNftUsername" = "NFT username (local)";
 "hoursgram_LocalNftNumber" = "Local NFT number";

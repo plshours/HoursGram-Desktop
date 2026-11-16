@@ -200,10 +200,11 @@ void BuildAppearance(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 			tr::hoursgram_ThemeHoursGram(tr::now),
 			tr::hoursgram_ThemeMacOS(tr::now),
 			tr::hoursgram_ThemeMacOSLight(tr::now),
+			tr::hoursgram_ThemeGraphite(tr::now),
 		},
 		.setter = [=](int value) {
-			const auto font = (settings->clientTheme() >= 2)
-				!= (value >= 2);
+			const auto font = settings->macTheme()
+				!= AyuSettings::IsMacTheme(value);
 			settings->setClientTheme(value);
 			// The font of the macOS theme is read when the client starts.
 			if (font && controller) {

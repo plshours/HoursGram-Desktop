@@ -288,6 +288,8 @@ creditsHistoryEntriesList: PeerList(defaultPeerList) {
 subscriptionCreditsBadgePadding: margins(10px, 1px, 8px, 3px);
 
 uniqueGiftModelTop: 20px;
+// HoursGram: the model of a collectible is smaller than in Telegram.
+uniqueGiftModelSize: 96px;
 uniqueGiftPretitle: FlatLabel(defaultFlatLabel) {
 	style: semiboldTextStyle;
 	margin: margins(12px, 4px, 12px, 4px);
@@ -303,7 +305,7 @@ uniqueGiftNumber: FlatLabel(uniqueGiftTitle) {
 uniqueGiftResalePrice: FlatLabel(defaultFlatLabel) {
 	style: semiboldTextStyle;
 }
-uniqueGiftTitleTop: 140px;
+uniqueGiftTitleTop: 122px;
 uniqueGiftSubtitle: FlatLabel(defaultFlatLabel) {
 	minWidth: 64px;
 	align: align(top);
@@ -318,7 +320,7 @@ uniqueGiftOnSale: FlatLabel(uniqueGiftSubtitle) {
 		font: font(10px semibold);
 	}
 }
-uniqueGiftSubtitleTop: 170px;
+uniqueGiftSubtitleTop: 152px;
 uniqueGiftUserpicTop: 48px;
 uniqueGiftUserpicSize: 80px;
 uniqueGiftBottom: 20px;

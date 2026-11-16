@@ -22,6 +22,13 @@ namespace Ui {
 class RpWidget;
 } // namespace Ui
 
+namespace style {
+namespace internal {
+class Icon;
+} // namespace internal
+using icon = internal::Icon;
+} // namespace style
+
 namespace Info {
 class Controller;
 } // namespace Info
@@ -70,6 +77,10 @@ struct MediaTabDescriptor {
 	std::optional<Storage::SharedMediaType> sharedMediaType;
 	Fn<std::unique_ptr<MediaTabContent>(MediaTabContext)> factory;
 	Data::ProfileTab profileTab = {};
+
+	// HoursGram: drawn above the title, which makes the strip a row of
+	// tiles instead of a row of words.
+	const style::icon *icon = nullptr;
 };
 
 } // namespace Info::Profile

@@ -13,8 +13,9 @@ class DocumentData;
 
 namespace HoursGram::Music {
 
-// Looks the track up in a public lyrics database when nothing was found on
-// disk, sending it the performer, the title and the length of the track.
+// Looks the track up in public lyrics services when nothing was found on
+// disk, sending them the performer, the title and the length of the track.
+// The lookup itself is mokaGram's, see music_lyrics_sources.h.
 // Lyrics that are found are kept on disk, so a track is only ever looked up
 // once; `done` runs on the main thread and only when something was found.
 void SearchLyricsOnline(

@@ -304,6 +304,14 @@ public:
 	[[nodiscard]] bool showPrivateChatReactions() const { return _showPrivateChatReactions.current(); }
 	[[nodiscard]] const QString &appIcon() const { return _appIcon.current(); }
 	[[nodiscard]] int clientTheme() const { return _clientTheme.current(); }
+	// 2 and 3 carry the shape of Telegram for macOS with their colours;
+	// 4, Graphite, is a HorusGram theme like 1.
+	[[nodiscard]] static bool IsMacTheme(int theme) {
+		return (theme == 2) || (theme == 3);
+	}
+	[[nodiscard]] bool macTheme() const {
+		return IsMacTheme(_clientTheme.current());
+	}
 	// Colors the user picked in Customization, keyed by palette slot name.
 	// A slot that is not here keeps the color the shipped palette gives it.
 	[[nodiscard]] QString paletteOverride(const QString &slot) const;

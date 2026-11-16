@@ -105,6 +105,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ui/ayu_userpic.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "styles/style_ayu_icons.h"
+#include "hoursgram/chats/chats_selection.h"
+#include "hoursgram/music/music_common.h"
 
 
 namespace Dialogs {
@@ -1052,8 +1054,10 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 			bool selected,
 			bool mayBeActive) {
 		const auto &key = row->key();
-		const auto active = mayBeActive && isRowActive(row, activeEntry);
 		const auto history = key.history();
+		const auto picked = history && _hoursgramSelected.contains(history);
+		const auto active = picked
+			|| (mayBeActive && isRowActive(row, activeEntry));
 		const auto forum = history && history->peer->displayAsForum();
 		const auto monoforum = history && history->amMonoforumAdmin();
 		if ((forum || monoforum) && !_topicJumpCache) {
@@ -1232,6 +1236,13 @@ void InnerWidget::paintEvent(QPaintEvent *e) {
 			paintCachedRowOverlays(p, row, cacheKey, context);
 		} else {
 			Ui::RowPainter::Paint(p, row, videoUserpic, context);
+		}
+		if (picked) {
+			const auto &padding = context.st->padding;
+			const auto size = context.st->photoSize;
+			HoursGram::Chats::PaintSelectionCheck(
+				p,
+				QRect(padding.left(), padding.top(), size, size));
 		}
 		if (context.quickActionContext) {
 			context.quickActionContext = nullptr;
@@ -4036,6 +4047,15 @@ void InnerWidget::contextMenuEvent(QContextMenuEvent *e) {
 		}
 	} else {
 		const auto addAction = Ui::Menu::CreateAddActionCallback(_menu);
+		if (const auto history = row.key.history()) {
+			const auto picked = _hoursgramSelected.contains(history);
+			addAction(
+				(picked
+					? HoursGram::Music::Tr("Unselect", "Снять выделение")
+					: HoursGram::Music::Tr("Select", "Выделить")),
+				[=] { hoursgramToggleSelected(history); },
+				&st::menuIconSelect);
+		}
 		Window::FillDialogsEntryMenu(
 			_controller,
 			Dialogs::EntryState{
@@ -4589,6 +4609,31 @@ void InnerWidget::setLoadMoreCallback(Fn<void()> callback) {
 
 void InnerWidget::setLoadMoreFilteredCallback(Fn<void()> callback) {
 	_loadMoreFilteredCallback = std::move(callback);
+}
+
+rpl::producer<int> InnerWidget::hoursgramSelectedCount() const {
+	return _hoursgramSelectedCount.value();
+}
+
+std::vector<not_null<History*>> InnerWidget::hoursgramSelected() const {
+	return { begin(_hoursgramSelected), end(_hoursgramSelected) };
+}
+
+void InnerWidget::hoursgramToggleSelected(not_null<History*> history) {
+	if (!_hoursgramSelected.remove(history)) {
+		_hoursgramSelected.emplace(history);
+	}
+	_hoursgramSelectedCount = int(_hoursgramSelected.size());
+	update();
+}
+
+void InnerWidget::hoursgramClearSelected() {
+	if (_hoursgramSelected.empty()) {
+		return;
+	}
+	_hoursgramSelected.clear();
+	_hoursgramSelectedCount = 0;
+	update();
 }
 
 auto InnerWidget::chosenRow() const -> rpl::producer<ChosenRow> {
@@ -5928,6 +5973,14 @@ bool InnerWidget::chooseRow(
 		return row;
 	};
 	auto chosen = modifyChosenRow(computeChosenRow(), modifiers);
+	if (const auto history = chosen.key.history()
+		; history
+			&& !chosen.message.fullId
+			&& ((modifiers & Qt::ShiftModifier)
+				|| !_hoursgramSelected.empty())) {
+		hoursgramToggleSelected(history);
+		return true;
+	}
 	if (chosen.key) {
 		if (IsServerMsgId(chosen.message.fullId.msg)) {
 			session().local().saveRecentSearchHashtags(_filter);

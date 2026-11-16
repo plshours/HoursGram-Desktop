@@ -9,7 +9,8 @@ HoursGram Desktop is a modified version of other people's free software. This fi
 2. **AyuGram Desktop** — https://github.com/AyuGram/AyuGramDesktop  
    Copyright (c) Radolyn. GNU GPL version 3. Its sources are in `Telegram/SourceFiles/ayu/` and keep the original headers.
 3. **mokaGram** — https://github.com/ecronxy/mokagram  
-   Copyright (c) 2026 @ecronx. GPLv3 with an attribution term, kept in [MOKAGRAM_NOTICE.md](MOKAGRAM_NOTICE.md).
+   Copyright (c) 2026 @ecronx. GPLv3 with an attribution term, kept in [MOKAGRAM_NOTICE.md](MOKAGRAM_NOTICE.md).  
+   The lyrics lookup of the music player (LRCLIB, Kugou and NetEase, picking the variant closest in length) is taken from its `mokagram_lyrics.cpp` and lives, changed, in `Telegram/SourceFiles/hoursgram/music/music_lyrics_sources.cpp` with the mokaGram header kept.
 4. **Montserrat** (fonts) — Copyright (c) The Montserrat Project Authors. SIL Open Font License 1.1, text in `Telegram/Resources/fonts/OFL.txt`. The font files are used unmodified.
 
 Third-party libraries built with the client keep their own licences; they are listed in the upstream `Telegram/ThirdParty` and `cmake` directories.

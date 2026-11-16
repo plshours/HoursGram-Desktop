@@ -115,6 +115,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <array>
 #include "ayu/utils/telegram_helpers.h"
 #include "base/platform/base_platform_haptic.h"
+#include "hoursgram/chats/chats_selection.h"
+#include "styles/style_hoursgram_design.h"
 
 
 namespace Dialogs {
@@ -513,6 +515,30 @@ Widget::Widget(
 			_childListPeerId.value(),
 			_childListShown.value(),
 			makeChildListShown)));
+
+	// HoursGram: the bar for the chats picked in the list floats over the
+	// bottom of the list.
+	{
+		const auto inner = _inner;
+		const auto bar = HoursGram::Chats::CreateSelectionBar(
+			this,
+			controller,
+			inner->hoursgramSelectedCount(),
+			[=] { return inner->hoursgramSelected(); },
+			[=] { inner->hoursgramClearSelected(); });
+		_scroll->geometryValue() | rpl::on_next([=](QRect scroll) {
+			const auto margin = st::hoursgramSelectionBarMargin;
+			const auto height = st::hoursgramSelectionBarHeight;
+			bar->setGeometry(
+				scroll.x() + margin.left(),
+				scroll.y() + scroll.height() - margin.bottom() - height,
+				std::max(
+					scroll.width() - margin.left() - margin.right(),
+					1),
+				height);
+			bar->raise();
+		}, bar->lifetime());
+	}
 
 	AyuSettings::getInstance().clientThemeChanges(
 	) | rpl::on_next([=] {
@@ -1750,7 +1776,7 @@ void Widget::setupMainMenuToggle() {
 	) | rpl::on_next([=] {
 		const auto filtersHidden = !controller()->filtersWidth();
 		const auto shown = filtersHidden
-			&& (AyuSettings::getInstance().clientTheme() < 2);
+			&& !AyuSettings::getInstance().macTheme();
 		_mainMenu.toggle->setVisible(shown);
 		_mainMenu.under->setVisible(shown);
 		_searchForNarrowLayout->setVisible(!filtersHidden);
@@ -2642,7 +2668,7 @@ void Widget::refreshMacTabBar() {
 	// The macOS themes carry the bar of tabs the macOS client has under its
 	// chat list. It is the main list only: a child list has no room for it.
 	const auto wanted = (_layout != Layout::Child)
-		&& (AyuSettings::getInstance().clientTheme() >= 2);
+		&& AyuSettings::getInstance().macTheme();
 	if (!wanted) {
 		if (_macTabBar) {
 			_macTabBar = nullptr;
@@ -4631,7 +4657,7 @@ void Widget::updateControlsGeometry() {
 	auto filterLeft = (controller()->filtersWidth()
 		? st::dialogsFilterSkip
 		: (st::dialogsFilterPadding.x()
-			+ ((AyuSettings::getInstance().clientTheme() >= 2)
+			+ (AyuSettings::getInstance().macTheme()
 				? 0
 				: _mainMenu.toggle->width())))
 		+ st::dialogsFilterPadding.x();

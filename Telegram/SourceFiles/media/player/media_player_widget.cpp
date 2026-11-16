@@ -269,6 +269,10 @@ void Widget::setShowItemCallback(
 	_showItemCallback = std::move(callback);
 }
 
+void Widget::setOpenMusicCallback(Fn<void()> callback) {
+	_openMusicCallback = std::move(callback);
+}
+
 void Widget::stopAndClose() {
 	_voiceIsActive = false;
 	if (_type == AudioMsgId::Type::Voice) {
@@ -487,6 +491,8 @@ void Widget::mouseReleaseEvent(QMouseEvent *e) {
 					_showItemCallback(item);
 				}
 			}
+		} else if (_openMusicCallback) {
+			_openMusicCallback();
 		}
 	}
 }
@@ -506,7 +512,8 @@ void Widget::updateOverLabelsState(bool over) {
 	_labelsOver = over;
 	const auto pressShowsItem = _labelsOver
 		&& ((_type == AudioMsgId::Type::Voice)
-			|| _lastSongFromAnotherSession);
+			|| _lastSongFromAnotherSession
+			|| _openMusicCallback);
 	setCursor(pressShowsItem ? style::cur_pointer : style::cur_default);
 	_togglePlaylistRequests.fire(over && (_type == AudioMsgId::Type::Song));
 }
