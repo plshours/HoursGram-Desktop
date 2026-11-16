@@ -141,6 +141,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ayu_settings.h"
 #include "ayu/features/filters/filters_cache_controller.h"
 #include "ayu/ui/context_menu/context_menu.h"
+#include "hoursgram/chats/copy_media.h"
+#include "hoursgram/music/music_common.h"
 #include "ayu/ui/settings/filters/edit_filter.h"
 #include "ayu/utils/telegram_helpers.h"
 #include "data/data_document_media.h"
@@ -3438,6 +3440,38 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		AyuUi::AddBurnAction(_menu, item);
 	};
 
+	// HoursGram: the photos and files of the message, or of every selected
+	// message, go to the clipboard as files, to be pasted into any message.
+	const auto addCopyMediaAction = [&](HistoryItem *item) {
+		auto ids = std::vector<FullMsgId>();
+		if (isUponSelected > 0) {
+			for (const auto &id : getSelectedItems()) {
+				const auto selected = session->data().message(id);
+				if (selected && HoursGram::Chats::HasCopyableMedia(selected)) {
+					ids.push_back(id);
+				}
+			}
+		} else if (item && HoursGram::Chats::HasCopyableMedia(item)) {
+			ids.push_back(item->fullId());
+		}
+		if (ids.empty()) {
+			return;
+		}
+		const auto show = _controller->uiShow();
+		const auto text = (ids.size() > 1)
+			? HoursGram::Music::Tr("Copy media (%1)", "Копировать медиа (%1)")
+				.arg(int(ids.size()))
+			: HoursGram::Music::Tr("Copy media", "Копировать медиа");
+		_menu->addAction(text, [=] {
+			auto items = std::vector<not_null<HistoryItem*>>();
+			for (const auto &id : ids) {
+				if (const auto found = session->data().message(id)) {
+					items.push_back(found);
+				}
+			}
+			HoursGram::Chats::CopyMediaToClipboard(show, std::move(items));
+		}, &st::menuIconCopy);
+	};
 	const auto addReplyAction = [&](HistoryItem *item) {
 		if (!item
 			|| (!item->isRegular()
@@ -3516,6 +3550,7 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		const auto item = _dragStateItem;
 		const auto itemId = item ? item->fullId() : FullMsgId();
 		addReplyAction(item);
+		addCopyMediaAction(item);
 
 		if (isUponSelected > 0) {
 			const auto selectedText = getSelectedText();
@@ -3676,6 +3711,7 @@ void HistoryInner::showContextMenu(QContextMenuEvent *e, bool showFromTouch) {
 		}
 		if (isUponSelected > 0) {
 			addReplyAction(item);
+			addCopyMediaAction(item);
 				const auto selectedText = getSelectedText();
 			if (!hasCopyRestrictionForSelected() && !selectedText.empty()) {
 				_menu->addAction(

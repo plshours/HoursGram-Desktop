@@ -19,6 +19,29 @@ hoursgramSettingsCardPadding: margins(4px, 4px, 4px, 4px);
 hoursgramSettingsCardRadius: 16px;
 hoursgramSettingsCardSkip: 12px;
 hoursgramSettingsCardBorder: windowBgRipple;
+
+// The bar over the chat list while chats are picked for an action on all
+// of them, and the mark on the userpic of a picked chat.
+hoursgramSelectionBarHeight: 52px;
+hoursgramSelectionBarMargin: margins(10px, 0px, 10px, 10px);
+hoursgramSelectionBarRadius: 18px;
+hoursgramSelectionBarPadding: margins(16px, 0px, 9px, 0px);
+hoursgramSelectionButton: RoundButton(defaultLightButton) {
+	width: -24px;
+	height: 34px;
+	textTop: 8px;
+	radius: 12px;
+	style: semiboldTextStyle;
+}
+hoursgramSelectionDeleteButton: RoundButton(hoursgramSelectionButton) {
+	textFg: attentionButtonFg;
+	textFgOver: attentionButtonFgOver;
+	textBgOver: attentionButtonBgOver;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: attentionButtonBgRipple;
+	}
+}
+hoursgramSelectionCheckSize: 20px;
 hoursgramIconFg: windowFg;
 
 hoursgramIconAccount: icon {{ "hoursgram/settings_account", hoursgramIconFg }};

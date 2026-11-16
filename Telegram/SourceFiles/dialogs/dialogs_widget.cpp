@@ -115,6 +115,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <array>
 #include "ayu/utils/telegram_helpers.h"
 #include "base/platform/base_platform_haptic.h"
+#include "hoursgram/chats/chats_selection.h"
+#include "styles/style_hoursgram_design.h"
 
 
 namespace Dialogs {
@@ -513,6 +515,30 @@ Widget::Widget(
 			_childListPeerId.value(),
 			_childListShown.value(),
 			makeChildListShown)));
+
+	// HoursGram: the bar for the chats picked in the list floats over the
+	// bottom of the list.
+	{
+		const auto inner = _inner;
+		const auto bar = HoursGram::Chats::CreateSelectionBar(
+			this,
+			controller,
+			inner->hoursgramSelectedCount(),
+			[=] { return inner->hoursgramSelected(); },
+			[=] { inner->hoursgramClearSelected(); });
+		_scroll->geometryValue() | rpl::on_next([=](QRect scroll) {
+			const auto margin = st::hoursgramSelectionBarMargin;
+			const auto height = st::hoursgramSelectionBarHeight;
+			bar->setGeometry(
+				scroll.x() + margin.left(),
+				scroll.y() + scroll.height() - margin.bottom() - height,
+				std::max(
+					scroll.width() - margin.left() - margin.right(),
+					1),
+				height);
+			bar->raise();
+		}, bar->lifetime());
+	}
 
 	AyuSettings::getInstance().clientThemeChanges(
 	) | rpl::on_next([=] {
