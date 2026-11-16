@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  pull_request:
+      - design-graphite
   workflow_dispatch:
     inputs:
       configuration:
@@ -86,9 +86,9 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ${{ env.LIBRARIES_DIR }}
-          key: ${{ runner.os }}-hoursgram-x64-libraries-v3-restore
+          key: ${{ runner.os }}-hoursgram-x64-libraries-v4-restore
           restore-keys: |
-            ${{ runner.os }}-hoursgram-x64-libraries-v3-
+            ${{ runner.os }}-hoursgram-x64-libraries-v4-
 
       - name: Configure NuGet sources
         shell: cmd
@@ -103,6 +103,48 @@ jobs:
         # Qt 6, as Telegram builds Windows x64 now: Qt 5 has no RHI, so the
         # window would be drawn on the CPU and the D3D11 fixes would not apply.
         run: Telegram\build\prepare\win.bat silent qt6
+
+      # The libraries cache was 10 GB, all the cache a repository gets, so it
+      # was pushed out right after it was saved and every run built Qt,
+      # FFmpeg and the rest again, about two hours. The build only needs what
+      # the libraries install: the source and build tree of Qt (Qt is used
+      # from its install prefix, Qt-<version>), debug databases, MSBuild
+      # logs and the git histories of the sources go. A library whose key
+      # changes is removed and built anew by prepare.py anyway.
+      - name: Trim native libraries
+        if: steps.prepare-dependencies.outcome == 'success'
+        shell: pwsh
+        run: |
+          $root = $env:LIBRARIES_DIR
+          function Get-Size([string]$path) {
+            $sum = (Get-ChildItem -LiteralPath $path -Recurse -File -Force -ErrorAction SilentlyContinue |
+              Measure-Object -Property Length -Sum).Sum
+            if ($sum) { return $sum } else { return 0 }
+          }
+          $before = Get-Size $root
+          foreach ($tree in Get-ChildItem -LiteralPath $root -Directory -Filter 'qt_*') {
+            $version = $tree.Name.Substring(3)
+            if (Test-Path -LiteralPath (Join-Path $root "Qt-$version")) {
+              Write-Output "Removing the Qt tree $($tree.Name)"
+              Remove-Item -LiteralPath $tree.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+          Get-ChildItem -LiteralPath $root -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq '.git' -or $_.Name -like '*.tlog' } |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+          Get-ChildItem -LiteralPath $root -Recurse -File -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in '.pdb', '.ilk', '.iobj', '.ipdb', '.idb', '.tlog' } |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+          $after = Get-Size $root
+          $report = "Native libraries: $([math]::Round($before / 1GB, 2)) GB -> $([math]::Round($after / 1GB, 2)) GB"
+          Write-Output $report
+          "### $report" >> $env:GITHUB_STEP_SUMMARY
+          '| Folder | GB |' >> $env:GITHUB_STEP_SUMMARY
+          '|---|---|' >> $env:GITHUB_STEP_SUMMARY
+          Get-ChildItem -LiteralPath $root -Directory |
+            ForEach-Object { [pscustomobject]@{ Name = $_.Name; Size = Get-Size $_.FullName } } |
+            Sort-Object Size -Descending | Select-Object -First 15 |
+            ForEach-Object { "| $($_.Name) | $([math]::Round($_.Size / 1GB, 2)) |" >> $env:GITHUB_STEP_SUMMARY }
 
       - name: Fingerprint prepared dependency state
         id: dependency-cache-key
@@ -153,12 +195,12 @@ jobs:
           always() &&
           steps.dependency-cache-key.outcome == 'success' &&
           steps.dependency-cache-key.outputs.libraries_count != '0' &&
-          steps.native-libraries-cache.outputs.cache-matched-key != format('{0}-hoursgram-x64-libraries-v3-{1}', runner.os, steps.dependency-cache-key.outputs.libraries_hash)
+          steps.native-libraries-cache.outputs.cache-matched-key != format('{0}-hoursgram-x64-libraries-v4-{1}', runner.os, steps.dependency-cache-key.outputs.libraries_hash)
         uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: ${{ env.LIBRARIES_DIR }}
-          key: ${{ runner.os }}-hoursgram-x64-libraries-v3-${{ steps.dependency-cache-key.outputs.libraries_hash }}
+          key: ${{ runner.os }}-hoursgram-x64-libraries-v4-${{ steps.dependency-cache-key.outputs.libraries_hash }}
 
       - name: Restore incremental CMake outputs
         id: cmake-build-cache
@@ -379,8 +421,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          KEEP_KEYS: ${{ runner.os }}-hoursgram-x64-libraries-v3-${{ steps.dependency-cache-key.outputs.libraries_hash }},${{ runner.os }}-hoursgram-x64-third-party-v3-${{ steps.dependency-cache-key.outputs.third_party_hash }}
-          PRUNE_PREFIXES: ${{ runner.os }}-hoursgram-x64-libraries-v3-,${{ runner.os }}-hoursgram-x64-third-party-v3-
+          KEEP_KEYS: ${{ runner.os }}-hoursgram-x64-libraries-v4-${{ steps.dependency-cache-key.outputs.libraries_hash }},${{ runner.os }}-hoursgram-x64-third-party-v3-${{ steps.dependency-cache-key.outputs.third_party_hash }}
+          PRUNE_PREFIXES: ${{ runner.os }}-hoursgram-x64-libraries-v4-,${{ runner.os }}-hoursgram-x64-third-party-v3-
         run: |
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
