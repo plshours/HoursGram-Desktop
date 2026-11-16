@@ -107,25 +107,23 @@ not_null<Ui::RpWidget*> CreateSelectionBar(
 	bar->resize(bar->width(), st::hoursgramSelectionBarHeight);
 	bar->hide();
 
+	// Round icon buttons: three captions did not fit the narrow list.
 	const auto label = Ui::CreateChild<Ui::FlatLabel>(
 		bar,
 		QString(),
-		st::boxLabel);
-	const auto read = Ui::CreateChild<Ui::RoundButton>(
+		st::hoursgramSelectionBarLabel);
+	const auto read = Ui::CreateChild<Ui::IconButton>(
 		bar,
-		rpl::single(Tr("Read", "Прочитать")),
 		st::hoursgramSelectionButton);
-	const auto remove = Ui::CreateChild<Ui::RoundButton>(
+	const auto remove = Ui::CreateChild<Ui::IconButton>(
 		bar,
-		rpl::single(Tr("Delete", "Удалить")),
 		st::hoursgramSelectionDeleteButton);
-	const auto cancel = Ui::CreateChild<Ui::RoundButton>(
+	const auto cancel = Ui::CreateChild<Ui::IconButton>(
 		bar,
-		rpl::single(Tr("Cancel", "Отмена")),
-		st::hoursgramSelectionButton);
-	for (const auto button : { read, remove, cancel }) {
-		button->setTextTransform(Ui::RoundButtonTextTransform::NoTransform);
-	}
+		st::hoursgramSelectionCancelButton);
+	read->setToolTip(Tr("Mark as read", "Прочитать"));
+	remove->setToolTip(Tr("Delete", "Удалить"));
+	cancel->setToolTip(Tr("Cancel", "Отменить выделение"));
 	label->setAttribute(Qt::WA_TransparentForMouseEvents);
 
 	read->setClickedCallback([=] {
@@ -160,7 +158,7 @@ not_null<Ui::RpWidget*> CreateSelectionBar(
 	bar->sizeValue() | rpl::on_next([=](QSize size) {
 		const auto padding = st::hoursgramSelectionBarPadding;
 		auto right = size.width() - padding.right();
-		const auto skip = st::hoursgramSelectionBarPadding.right() / 2;
+		const auto skip = st::lineWidth * 2;
 		for (const auto button : { cancel, remove, read }) {
 			button->moveToLeft(
 				right - button->width(),
@@ -168,7 +166,7 @@ not_null<Ui::RpWidget*> CreateSelectionBar(
 				size.width());
 			right -= button->width() + skip;
 		}
-		label->resizeToWidth(std::max(right - padding.left() - skip, 1));
+		label->resizeToWidth(std::max(right - padding.left() - skip * 4, 1));
 		label->moveToLeft(
 			padding.left(),
 			(size.height() - label->height()) / 2,

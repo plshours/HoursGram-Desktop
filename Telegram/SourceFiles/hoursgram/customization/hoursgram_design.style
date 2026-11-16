@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 using "ui/basic.style";
 using "ui/widgets/widgets.style";
+using "ui/menu_icons.style";
 
 // HORUSGRAM_DESIGN.md: the icon set of HorusGram, drawn on a round graphite
 // plate in the settings. Made by tools/make_icons.py.
@@ -25,21 +26,34 @@ hoursgramSettingsCardBorder: windowBgRipple;
 hoursgramSelectionBarHeight: 52px;
 hoursgramSelectionBarMargin: margins(10px, 0px, 10px, 10px);
 hoursgramSelectionBarRadius: 18px;
-hoursgramSelectionBarPadding: margins(16px, 0px, 9px, 0px);
-hoursgramSelectionButton: RoundButton(defaultLightButton) {
-	width: -24px;
-	height: 34px;
-	textTop: 8px;
-	radius: 12px;
+hoursgramSelectionBarPadding: margins(16px, 0px, 8px, 0px);
+hoursgramSelectionBarLabel: FlatLabel(defaultFlatLabel) {
+	textFg: windowBoldFg;
 	style: semiboldTextStyle;
+	maxHeight: 20px;
 }
-hoursgramSelectionDeleteButton: RoundButton(hoursgramSelectionButton) {
-	textFg: attentionButtonFg;
-	textFgOver: attentionButtonFgOver;
-	textBgOver: attentionButtonBgOver;
+hoursgramSelectionButton: IconButton(defaultIconButton) {
+	width: 36px;
+	height: 36px;
+	icon: menuIconMarkRead;
+	iconOver: menuIconMarkRead;
+	iconPosition: point(6px, 6px);
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 36px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgRipple;
+	}
+}
+hoursgramSelectionDeleteButton: IconButton(hoursgramSelectionButton) {
+	icon: menuIconDeleteAttention;
+	iconOver: menuIconDeleteAttention;
 	ripple: RippleAnimation(defaultRippleAnimation) {
 		color: attentionButtonBgRipple;
 	}
+}
+hoursgramSelectionCancelButton: IconButton(hoursgramSelectionButton) {
+	icon: menuIconCancel;
+	iconOver: menuIconCancel;
 }
 hoursgramSelectionCheckSize: 20px;
 hoursgramIconFg: windowFg;
