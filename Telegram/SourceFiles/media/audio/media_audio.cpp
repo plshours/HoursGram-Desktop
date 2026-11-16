@@ -743,6 +743,24 @@ void Mixer::forceToBufferExternal(const AudioMsgId &audioId) {
 }
 
 // Thread: Main. Locks: AudioMutex.
+void Mixer::hoursgramRebufferSong() {
+	QMutexLocker lock(&AudioMutex);
+	const auto track = trackForType(AudioMsgId::Type::Song);
+	if (!track
+		|| !track->state.id
+		|| !track->isStreamCreated()
+		|| IsStoppedOrStopping(track->state.state)) {
+		return;
+	}
+	_loader->hoursgramRequestRebuffer();
+	track->loading = true;
+	track->loaded = false;
+	InvokeQueued(_loader, [loader = _loader, id = track->state.id] {
+		loader->onLoad(id);
+	});
+}
+
+// Thread: Main. Locks: AudioMutex.
 void Mixer::setSpeedFromExternal(const AudioMsgId &audioId, float64 speed) {
 	QMutexLocker lock(&AudioMutex);
 	const auto track = trackForType(audioId.type());

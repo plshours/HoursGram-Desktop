@@ -8,6 +8,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_equalizer.h"
 
 #include "hoursgram/music/music_common.h"
+#include "logs.h"
+#include "media/audio/media_audio.h"
 #include "ui/layers/generic_box.h"
 #include "ui/widgets/buttons.h"
 #include "ui/widgets/continuous_sliders.h"
@@ -162,6 +164,9 @@ void SetEqualizer(const EqualizerState &state, bool save) {
 	}
 	if (save) {
 		Save(state);
+		if (const auto mixer = Media::Player::mixer()) {
+			mixer->hoursgramRebufferSong();
+		}
 	}
 	Changes().fire_copy(state);
 }
@@ -216,6 +221,14 @@ void EqualizerProcessor::refresh(int frequency) {
 		band.active = true;
 	}
 	_preamp = std::pow(10., -loudest / 20.);
+	LOG(("[eq] %1, %2 Hz, gains %3 %4 %5 %6 %7 dB.").arg(
+		_enabled ? u"on"_q : u"off"_q).arg(
+		frequency).arg(
+		state.gains[0]).arg(
+		state.gains[1]).arg(
+		state.gains[2]).arg(
+		state.gains[3]).arg(
+		state.gains[4]));
 }
 
 void EqualizerProcessor::process(

@@ -23,11 +23,11 @@ enum class Section {
 	Playlist,
 };
 
-// HorusGram Music: a window of its own with the fresh wave of new songs,
-// search over the audio of public Telegram chats, the music of Saved
-// Messages, playlists and the lyrics of the track that plays. Everything
-// plays through the usual Telegram player, so the player bar in the chats
-// keeps working with it. Opening it again raises the window that is open.
+// HorusGram Music: the fresh wave of new songs, search over the audio of
+// public Telegram chats, the music of Saved Messages, playlists and the
+// lyrics of the track that plays. It opens in the main window in place of
+// the chats, with the folders at the side. Everything plays through the
+// usual Telegram player, so the player bar in the chats keeps working.
 void ShowMusic(
 	not_null<Window::SessionController*> controller,
 	Section section = Section::Home,
@@ -40,5 +40,10 @@ void ShowPlayer(not_null<Window::SessionController*> controller);
 void ShowPlayerWindow(
 	not_null<Window::SessionController*> controller,
 	const AudioMsgId &audioId);
+
+// A small window over everything with the cover and the line of the lyrics
+// that plays, like karaoke; it is dragged anywhere and snaps into corners.
+// Closes it when it is open.
+void ToggleKaraoke(not_null<Window::SessionController*> controller);
 
 } // namespace HoursGram::Music

@@ -54,11 +54,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/scroll_area.h"
-#include "ui/widgets/separate_panel.h"
 #include "ui/wrap/padding_wrap.h"
 #include "ui/wrap/vertical_layout.h"
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
+#include "base/event_filter.h"
+#include "chat_helpers/compose/compose_show.h"
+#include "mainwidget.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 
@@ -72,6 +74,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QCursor>
 #include <QtGui/QLinearGradient>
 #include <QtGui/QPainterPath>
+#include <QtGui/QScreen>
+#include <QtWidgets/QApplication>
 
 #include <cmath>
 
@@ -97,8 +101,100 @@ constexpr auto kPi = 3.14159265358979323846;
 	return Media::Player::instance();
 }
 
+// The cards of the music section take a little of the color of the cover
+// that plays, and slide to the next one when the track changes. Never
+// destroyed: an animation must not outlive the animation manager.
+constexpr auto kTintDuration = crl::time(450);
+
+struct TintState {
+	QColor shown = QColor(0, 0, 0, 0);
+	QColor from = QColor(0, 0, 0, 0);
+	QColor to = QColor(0, 0, 0, 0);
+	Ui::Animations::Simple animation;
+	rpl::event_stream<> changes;
+};
+
+[[nodiscard]] TintState &Tint() {
+	static const auto result = new TintState();
+	return *result;
+}
+
+// The average color of the cover, weighted to its colorful parts, with a
+// calm saturation and a dark lightness, so white text stays readable.
+[[nodiscard]] QColor CoverTint(const QImage &image) {
+	if (image.isNull()) {
+		return QColor(0, 0, 0, 0);
+	}
+	const auto small = image.scaled(
+		12,
+		12,
+		Qt::IgnoreAspectRatio,
+		Qt::SmoothTransformation
+	).convertToFormat(QImage::Format_ARGB32);
+	auto r = 0., g = 0., b = 0., total = 0.;
+	for (auto y = 0; y != small.height(); ++y) {
+		for (auto x = 0; x != small.width(); ++x) {
+			const auto color = QColor::fromRgba(small.pixel(x, y));
+			const auto weight = 0.2 + color.hsvSaturationF() * 2.;
+			r += color.redF() * weight;
+			g += color.greenF() * weight;
+			b += color.blueF() * weight;
+			total += weight;
+		}
+	}
+	if (total <= 0.) {
+		return QColor(0, 0, 0, 0);
+	}
+	const auto average = QColor::fromRgbF(
+		float(r / total),
+		float(g / total),
+		float(b / total));
+	auto hue = 0.f, saturation = 0.f, lightness = 0.f;
+	average.getHslF(&hue, &saturation, &lightness);
+	if (hue < 0.f) {
+		hue = 0.f;
+	}
+	return QColor::fromHslF(
+		hue,
+		std::clamp(saturation * 1.2f, 0.25f, 0.6f),
+		0.42f);
+}
+
+void SetTintFrom(const QImage &image) {
+	auto &tint = Tint();
+	const auto target = CoverTint(image);
+	if (tint.to == target) {
+		return;
+	}
+	tint.from = tint.shown;
+	tint.to = target;
+	tint.animation.stop();
+	tint.animation.start([] {
+		auto &tint = Tint();
+		tint.shown = anim::color(
+			tint.from,
+			tint.to,
+			tint.animation.value(1.));
+		tint.changes.fire({});
+	}, 0., 1., kTintDuration, anim::easeOutCubic);
+}
+
+[[nodiscard]] QColor Tinted(QColor base, float64 strength) {
+	const auto &tint = Tint().shown;
+	if (tint.alpha() == 0) {
+		return base;
+	}
+	auto opaque = tint;
+	opaque.setAlpha(255);
+	return anim::color(base, opaque, strength * tint.alphaF());
+}
+
 [[nodiscard]] QColor CardColor() {
-	return anim::color(st::windowBg, st::windowBgOver, 0.55);
+	return Tinted(anim::color(st::windowBg, st::windowBgOver, 0.55), 0.22);
+}
+
+[[nodiscard]] QColor PageColor() {
+	return Tinted(st::windowBg->c, 0.12);
 }
 
 [[nodiscard]] int SectionOrder(Section section, uint64 playlistId) {
@@ -1395,7 +1491,7 @@ void LyricsView::paintEvent(QPaintEvent *e) {
 	p.setOpacity(1.);
 
 	const auto fade = padding.top();
-	const auto bg = st::windowBg->c;
+	const auto bg = PageColor();
 	auto transparent = bg;
 	transparent.setAlpha(0);
 	auto upper = QLinearGradient(0, 0, 0, fade);
@@ -2015,7 +2111,10 @@ private:
 
 PlayerBar::PlayerBar(QWidget *parent)
 : RpWidget(parent)
-, _artwork([=] { update(); })
+, _artwork([=] {
+	update();
+	SetTintFrom(_artwork.original());
+})
 , _info(this)
 , _previous(this, st::hoursgramMusicBarPrevious)
 , _play(this, st::hoursgramMusicBarPlay)
@@ -3094,6 +3193,14 @@ void FillTracks(
 		raw,
 		rpl::single(Tr("Attach lyrics", "Свой текст")),
 		st::hoursgramMusicActionSecondary);
+	const auto karaoke = Ui::CreateChild<Ui::RoundButton>(
+		raw,
+		rpl::single(Tr("Karaoke", "Караоке")),
+		st::hoursgramMusicActionSecondary);
+	karaoke->setClickedCallback([=] {
+		const auto controller = context.controller;
+		ToggleKaraoke(controller);
+	});
 	const auto lyrics = Ui::CreateChild<LyricsView>(raw);
 	for (const auto widget : std::initializer_list<QWidget*>{
 			cover,
@@ -3101,6 +3208,7 @@ void FillTracks(
 			performer,
 			add,
 			attach,
+			karaoke,
 			lyrics }) {
 		widget->show();
 	}
@@ -3155,6 +3263,9 @@ void FillTracks(
 		attach->moveToLeft(
 			padding.left() + add->width() + st::hoursgramMusicActionSkip,
 			top);
+		karaoke->moveToLeft(
+			padding.left(),
+			top + add->height() + st::hoursgramMusicActionSkip);
 		lyrics->setGeometry(
 			padding.left() + leftWidth,
 			0,
@@ -3313,8 +3424,10 @@ public:
 	[[nodiscard]] rpl::producer<> closed() const {
 		return _closed.events();
 	}
+	void close();
 
 private:
+	void setupHost();
 	void setupHeader();
 	void setupBody();
 	void layoutHeader();
@@ -3329,8 +3442,9 @@ private:
 
 	const not_null<Window::SessionController*> _controller;
 	const not_null<Main::Session*> _session;
-	base::unique_qptr<Ui::SeparatePanel> _panel;
+	base::unique_qptr<Ui::RpWidget> _host;
 	std::shared_ptr<Ui::Show> _show;
+	Ui::IconButton *_back = nullptr;
 	Logo *_logo = nullptr;
 	SearchPill *_search = nullptr;
 	Ui::RpWidget *_side = nullptr;
@@ -3347,23 +3461,17 @@ private:
 
 };
 
+// The music opens in the main window, over the chat list and the chat,
+// while the folders stay at the side: going back, Escape, another folder or
+// a chat that opens close it.
 MusicWindow::MusicWindow(not_null<Window::SessionController*> controller)
 : _controller(controller)
 , _session(&controller->session())
-, _panel(base::make_unique_q<Ui::SeparatePanel>())
+, _host(base::make_unique_q<Ui::RpWidget>(controller->content().get()))
 , _searchTimer([=] { searchChanged(); }) {
-	_panel->setTitle(rpl::single(QString()));
-	_panel->setInnerSize(st::hoursgramMusicWindowSize, true);
-	_panel->window()->setWindowTitle(Tr("HorusGram Music", "HorusGram Музыка"));
-	_show = _panel->uiShow();
+	_show = controller->uiShow();
 
-	_panel->closeRequests() | rpl::on_next([=] {
-		_panel->hideGetDuration();
-	}, _panel->lifetime());
-	_panel->closeEvents() | rpl::on_next([=] {
-		_closed.fire({});
-	}, _panel->lifetime());
-
+	setupHost();
 	setupHeader();
 	setupBody();
 
@@ -3372,16 +3480,74 @@ MusicWindow::MusicWindow(not_null<Window::SessionController*> controller)
 			"Could not find \xC2\xAB%1\xC2\xBB in Telegram, skipping.",
 			"\xC2\xAB%1\xC2\xBB не нашёлся в Telegram, пропускаем.").arg(
 				track.artist + u" — "_q + track.title));
-	}, _panel->lifetime());
+	}, _host->lifetime());
+}
+
+void MusicWindow::setupHost() {
+	const auto host = _host.get();
+	const auto content = _controller->content();
+	content->sizeValue() | rpl::on_next([=](QSize size) {
+		host->setGeometry(QRect(QPoint(), size));
+	}, host->lifetime());
+	host->paintRequest() | rpl::on_next([=](QRect clip) {
+		QPainter(host).fillRect(clip, PageColor());
+	}, host->lifetime());
+	Tint().changes.events() | rpl::on_next([=] {
+		host->update();
+	}, host->lifetime());
+
+	base::install_event_filter(host, qApp, [=](not_null<QEvent*> e) {
+		if (e->type() != QEvent::KeyPress
+			|| !host->isVisible()
+			|| !host->window()->isActiveWindow()
+			|| _controller->isLayerShown()
+			|| QApplication::activePopupWidget()) {
+			return base::EventFilterResult::Continue;
+		}
+		const auto key = static_cast<QKeyEvent*>(e.get())->key();
+		if (key != Qt::Key_Escape) {
+			return base::EventFilterResult::Continue;
+		}
+		const auto field = _search->field();
+		if (field->hasFocus() && !field->getLastText().isEmpty()) {
+			return base::EventFilterResult::Continue;
+		}
+		crl::on_main(host, [=] { close(); });
+		return base::EventFilterResult::Cancel;
+	});
+
+	_controller->activeChatsFilter(
+	) | rpl::skip(1) | rpl::on_next([=] {
+		crl::on_main(host, [=] { close(); });
+	}, host->lifetime());
+	_controller->activeChatChanges(
+	) | rpl::on_next([=](Dialogs::Key key) {
+		if (key) {
+			crl::on_main(host, [=] { close(); });
+		}
+	}, host->lifetime());
+}
+
+void MusicWindow::close() {
+	if (_host) {
+		_host->hide();
+	}
+	_closed.fire({});
 }
 
 void MusicWindow::setupHeader() {
-	_logo = Ui::CreateChild<Logo>(_panel.get());
-	_search = Ui::CreateChild<SearchPill>(_panel.get());
+	_back = Ui::CreateChild<Ui::IconButton>(
+		_host.get(),
+		st::hoursgramMusicBack);
+	_back->setToolTip(Tr("Back to chats", "Назад к чатам"));
+	_back->setClickedCallback([=] { close(); });
+	_logo = Ui::CreateChild<Logo>(_host.get());
+	_search = Ui::CreateChild<SearchPill>(_host.get());
+	_back->show();
 	_logo->show();
 	_search->show();
 
-	_panel->sizeValue() | rpl::on_next([=](QSize) {
+	_host->sizeValue() | rpl::on_next([=](QSize) {
 		layoutHeader();
 	}, _logo->lifetime());
 
@@ -3399,32 +3565,30 @@ void MusicWindow::setupHeader() {
 }
 
 void MusicWindow::layoutHeader() {
-	const auto inner = _panel->innerGeometry();
-	if (inner.isEmpty()) {
-		return;
-	}
-	const auto titleTop = inner.y() - st::separatePanelTitleHeight;
-	_logo->moveToLeft(
-		inner.x() + st::hoursgramMusicLogoLeft,
-		titleTop + (st::separatePanelTitleHeight - _logo->height()) / 2);
-	const auto left = inner.x() + st::hoursgramMusicSideWidth;
-	const auto right = inner.x()
-		+ inner.width()
-		- st::hoursgramMusicSearchRight;
+	const auto width = _host->width();
+	const auto height = st::hoursgramMusicHeaderHeight;
+	const auto gap = st::hoursgramMusicGap;
+	_back->moveToLeft(gap, (height - _back->height()) / 2);
+	const auto logoLeft = gap + _back->width() + gap;
+	_logo->moveToLeft(logoLeft, (height - _logo->height()) / 2);
+	const auto left = std::max(
+		st::hoursgramMusicSideWidth,
+		logoLeft + _logo->width() + gap * 2);
+	const auto right = width - st::hoursgramMusicSearchRight;
 	_search->setGeometry(
 		left,
-		titleTop
-			+ (st::separatePanelTitleHeight - st::hoursgramMusicSearchHeight)
-				/ 2,
-		std::max(right - left, st::hoursgramMusicCardWidth),
+		(height - st::hoursgramMusicSearchHeight) / 2,
+		std::max(right - left, st::hoursgramMusicSearchHeight * 4),
 		st::hoursgramMusicSearchHeight);
-	_logo->raise();
-	_search->raise();
 }
 
 void MusicWindow::setupBody() {
-	auto owned = base::make_unique_q<Ui::RpWidget>(_panel.get());
-	const auto body = owned.get();
+	const auto body = Ui::CreateChild<Ui::RpWidget>(_host.get());
+	body->show();
+	_host->sizeValue() | rpl::on_next([=](QSize size) {
+		const auto top = st::hoursgramMusicHeaderHeight;
+		body->setGeometry(0, top, size.width(), size.height() - top);
+	}, body->lifetime());
 
 	_side = Ui::CreateChild<Ui::RpWidget>(body);
 	const auto sideScroll = Ui::CreateChild<Ui::ScrollArea>(
@@ -3502,8 +3666,6 @@ void MusicWindow::setupBody() {
 	_bar->equalizerRequests() | rpl::on_next([=] {
 		_show->showBox(Box(EqualizerBox));
 	}, _bar->lifetime());
-
-	_panel->showInner(std::move(owned));
 }
 
 Context MusicWindow::context() {
@@ -3613,7 +3775,7 @@ void MusicWindow::createPlaylist() {
 void MusicWindow::showPlaylistMenu(uint64 playlistId, QPoint position) {
 	const auto account = AccountOf(_session);
 	_popup = base::make_unique_q<Ui::PopupMenu>(
-		_panel.get(),
+		_host.get(),
 		st::popupMenuWithIcons);
 	const auto show = _show;
 	const auto session = _session;
@@ -3649,7 +3811,7 @@ void MusicWindow::showTrackMenu(QueueTrack track, uint64 playlistId) {
 	const auto show = _show;
 	const auto controller = _controller;
 	_popup = base::make_unique_q<Ui::PopupMenu>(
-		_panel.get(),
+		_host.get(),
 		st::popupMenuWithIcons);
 	const auto withAudio = [=](Fn<void(AudioMsgId)> callback) {
 		if (track.resolved()) {
@@ -3709,7 +3871,6 @@ void MusicWindow::showTrackMenu(QueueTrack track, uint64 playlistId) {
 					id.peer,
 					Window::SectionShow::Way::Forward,
 					id.msg);
-				controller->window().activate();
 			},
 			&st::menuIconShowInChat);
 	}
@@ -3717,9 +3878,285 @@ void MusicWindow::showTrackMenu(QueueTrack track, uint64 playlistId) {
 }
 
 void MusicWindow::activate() {
-	_panel->showAndActivate();
+	_host->show();
+	_host->raise();
 	layoutHeader();
+	_controller->window().activate();
+	// Typing must not go to the message field of the chat underneath.
+	_search->field()->setFocusFast();
 }
+
+// The cover and the line of the lyrics that plays, in a small window over
+// everything, like karaoke. It is dragged anywhere and snaps into the
+// corner of the screen it is let go near; a double click opens the music.
+class Karaoke final : public Ui::RpWidget {
+public:
+	Karaoke();
+
+	void setOpenCallback(Fn<void()> callback) {
+		_open = std::move(callback);
+	}
+
+protected:
+	void paintEvent(QPaintEvent *e) override;
+	void mousePressEvent(QMouseEvent *e) override;
+	void mouseMoveEvent(QMouseEvent *e) override;
+	void mouseReleaseEvent(QMouseEvent *e) override;
+	void mouseDoubleClickEvent(QMouseEvent *e) override;
+	void enterEventHook(QEnterEvent *e) override;
+	void leaveEventHook(QEvent *e) override;
+
+private:
+	void updateTrack();
+	void updatePosition(crl::time position);
+	void snapToCorner();
+	[[nodiscard]] QRect closeRect() const;
+
+	Artwork _artwork;
+	AudioMsgId _audio;
+	QString _title;
+	Lyrics _lyrics;
+	int _line = -1;
+	uint64 _generation = 0;
+	Fn<void()> _open;
+	QPoint _pressOffset;
+	bool _pressed = false;
+	bool _moved = false;
+	bool _over = false;
+
+};
+
+Karaoke::Karaoke()
+: RpWidget(nullptr)
+, _artwork([=] { update(); }) {
+	setWindowFlags(Qt::Tool
+		| Qt::FramelessWindowHint
+		| Qt::WindowStaysOnTopHint
+		| Qt::NoDropShadowWindowHint);
+	setAttribute(Qt::WA_TranslucentBackground);
+	setAttribute(Qt::WA_ShowWithoutActivating);
+	setAttribute(Qt::WA_DeleteOnClose);
+	setMouseTracking(true);
+	setWindowTitle(Tr("Karaoke", "Караоке"));
+	resize(st::hoursgramKaraokeSize);
+
+	Player()->trackChanged(
+	) | rpl::filter([](AudioMsgId::Type type) {
+		return (type == kType);
+	}) | rpl::on_next([=] {
+		updateTrack();
+	}, lifetime());
+	Player()->updatedNotifier(
+	) | rpl::filter([](const Media::Player::TrackState &track) {
+		return (track.id.type() == kType);
+	}) | rpl::on_next([=](const Media::Player::TrackState &track) {
+		const auto frequency = track.frequency
+			? track.frequency
+			: Media::Player::kDefaultFrequency;
+		updatePosition((track.position * 1000LL) / frequency);
+	}, lifetime());
+	Tint().changes.events() | rpl::on_next([=] {
+		update();
+	}, lifetime());
+	updateTrack();
+}
+
+void Karaoke::updateTrack() {
+	const auto audio = Player()->current(kType);
+	if (audio == _audio && !_title.isEmpty()) {
+		return;
+	}
+	_audio = audio;
+	_line = -1;
+	const auto generation = ++_generation;
+	if (const auto document = audio.audio()) {
+		_title = TrackPerformer(document) + u" — "_q + TrackTitle(document);
+		_artwork.setTrack(FromAudio(audio));
+		_lyrics = LoadLyrics(document);
+		if (_lyrics.empty()) {
+			SearchLyricsOnline(document, crl::guard(this, [=](Lyrics found) {
+				if (_generation == generation) {
+					_lyrics = std::move(found);
+					update();
+				}
+			}));
+		}
+	} else {
+		_title = Tr("Nothing is playing", "Ничего не играет");
+		_artwork.clear();
+		_lyrics = Lyrics();
+	}
+	update();
+}
+
+void Karaoke::updatePosition(crl::time position) {
+	const auto line = _lyrics.lineAt(position);
+	if (_line != line) {
+		_line = line;
+		update();
+	}
+}
+
+QRect Karaoke::closeRect() const {
+	const auto size = st::hoursgramKaraokeSkip * 2;
+	return QRect(width() - size - 6, 6, size, size);
+}
+
+void Karaoke::paintEvent(QPaintEvent *e) {
+	auto p = QPainter(this);
+	auto hq = PainterHighQualityEnabler(p);
+	const auto radius = st::hoursgramKaraokeRadius;
+	auto bg = Tinted(st::windowBg->c, 0.3);
+	bg.setAlpha(240);
+	p.setPen(QPen(st::windowBgRipple->c, st::lineWidth));
+	p.setBrush(bg);
+	p.drawRoundedRect(
+		QRectF(rect()).marginsRemoved({ 0.5, 0.5, 0.5, 0.5 }),
+		radius,
+		radius);
+
+	const auto padding = st::hoursgramKaraokePadding;
+	const auto size = st::hoursgramKaraokeCover;
+	const auto cover = QRect(
+		padding.left(),
+		(height() - size) / 2,
+		size,
+		size);
+	_artwork.paint(
+		p,
+		cover,
+		st::hoursgramKaraokeCoverRadius,
+		st::hoursgramPlayerCoverIcon,
+		st::windowBgOver->c);
+
+	const auto left = cover.x() + size + st::hoursgramKaraokeSkip;
+	const auto available = std::max(width() - left - padding.right(), 1);
+	const auto &titleFont = st::hoursgramKaraokeTitle;
+	const auto &lineFont = st::hoursgramKaraokeLine;
+	const auto &nextFont = st::hoursgramKaraokeNext;
+	auto current = QString();
+	auto next = QString();
+	const auto &lines = _lyrics.lines;
+	if (_line >= 0 && _line < int(lines.size())) {
+		current = lines[_line].text;
+		if (_line + 1 < int(lines.size())) {
+			next = lines[_line + 1].text;
+		}
+	} else if (!lines.empty()) {
+		current = QString::fromUtf8("\xE2\x99\xAA");
+		next = lines.front().text;
+	} else {
+		current = Tr("No lyrics for this track", "Текст не найден");
+	}
+	const auto block = titleFont->height + 6 + lineFont->height + 4
+		+ nextFont->height;
+	auto top = (height() - block) / 2;
+	p.setPen(st::windowSubTextFg);
+	p.setFont(titleFont);
+	p.drawText(
+		left,
+		top + titleFont->ascent,
+		titleFont->elided(_title, available));
+	top += titleFont->height + 6;
+	p.setPen(st::windowBoldFg);
+	p.setFont(lineFont);
+	p.drawText(
+		left,
+		top + lineFont->ascent,
+		lineFont->elided(current, available));
+	top += lineFont->height + 4;
+	p.setPen(st::windowSubTextFg);
+	p.setFont(nextFont);
+	p.drawText(
+		left,
+		top + nextFont->ascent,
+		nextFont->elided(next, available));
+
+	if (_over) {
+		const auto close = closeRect();
+		p.setPen(Qt::NoPen);
+		p.setBrush(st::windowBgOver);
+		p.drawEllipse(close);
+		const auto inset = close.width() / 3.;
+		p.setPen(QPen(st::windowBoldFg->c, 1.6, Qt::SolidLine, Qt::RoundCap));
+		const auto r = QRectF(close).marginsRemoved(
+			{ inset, inset, inset, inset });
+		p.drawLine(r.topLeft(), r.bottomRight());
+		p.drawLine(r.topRight(), r.bottomLeft());
+	}
+}
+
+void Karaoke::enterEventHook(QEnterEvent *e) {
+	_over = true;
+	update();
+}
+
+void Karaoke::leaveEventHook(QEvent *e) {
+	_over = false;
+	update();
+}
+
+void Karaoke::mousePressEvent(QMouseEvent *e) {
+	if (e->button() != Qt::LeftButton) {
+		return;
+	}
+	if (closeRect().contains(e->pos())) {
+		close();
+		return;
+	}
+	_pressed = true;
+	_moved = false;
+	_pressOffset = e->globalPosition().toPoint() - pos();
+}
+
+void Karaoke::mouseMoveEvent(QMouseEvent *e) {
+	if (!_pressed) {
+		return;
+	}
+	const auto target = e->globalPosition().toPoint() - _pressOffset;
+	if (!_moved && (target - pos()).manhattanLength() < 3) {
+		return;
+	}
+	_moved = true;
+	move(target);
+}
+
+void Karaoke::mouseReleaseEvent(QMouseEvent *e) {
+	if (_pressed && _moved) {
+		snapToCorner();
+	}
+	_pressed = false;
+}
+
+void Karaoke::mouseDoubleClickEvent(QMouseEvent *e) {
+	if (_open) {
+		_open();
+	}
+}
+
+void Karaoke::snapToCorner() {
+	const auto screen = this->screen();
+	if (!screen) {
+		return;
+	}
+	const auto area = screen->availableGeometry();
+	const auto snap = st::hoursgramKaraokeSnap;
+	const auto margin = st::hoursgramKaraokeMargin;
+	auto target = pos();
+	if (x() - area.x() < snap) {
+		target.setX(area.x() + margin);
+	} else if (area.x() + area.width() - (x() + width()) < snap) {
+		target.setX(area.x() + area.width() - width() - margin);
+	}
+	if (y() - area.y() < snap) {
+		target.setY(area.y() + margin);
+	} else if (area.y() + area.height() - (y() + height()) < snap) {
+		target.setY(area.y() + area.height() - height() - margin);
+	}
+	move(target);
+}
+
+QPointer<Karaoke> KaraokeInstance;
 
 std::unique_ptr<MusicWindow> GlobalWindow;
 
@@ -3768,6 +4205,36 @@ void ShowPlayerWindow(
 		Player()->play(audioId);
 	}
 	ShowMusic(controller, Section::NowPlaying);
+}
+
+void ToggleKaraoke(not_null<Window::SessionController*> controller) {
+	if (const auto open = KaraokeInstance.data()) {
+		open->close();
+		return;
+	}
+	const auto karaoke = new Karaoke();
+	KaraokeInstance = karaoke;
+	const auto weak = base::make_weak(controller);
+	karaoke->setOpenCallback([=] {
+		if (const auto strong = weak.get()) {
+			ShowPlayer(strong);
+		}
+	});
+	// The track and its cover belong to the session: the window goes with it.
+	controller->lifetime().add([guard = QPointer<Karaoke>(karaoke)] {
+		if (const auto strong = guard.data()) {
+			delete strong;
+		}
+	});
+	const auto screen = controller->widget()->screen();
+	if (screen) {
+		const auto area = screen->availableGeometry();
+		const auto margin = st::hoursgramKaraokeMargin;
+		karaoke->move(
+			area.x() + area.width() - karaoke->width() - margin,
+			area.y() + area.height() - karaoke->height() - margin);
+	}
+	karaoke->show();
 }
 
 } // namespace HoursGram::Music

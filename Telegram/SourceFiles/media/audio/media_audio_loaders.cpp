@@ -160,9 +160,19 @@ void Loaders::equalize(
 		? 1
 		: 0;
 	if (!channels || from >= data.size()) {
+		if (!channels && !_songEqualizerLogged) {
+			_songEqualizerLogged = true;
+			LOG(("[eq] Song format %1 is not 16 bit, no equalizer.").arg(
+				format));
+		}
 		return;
 	}
 	const auto frames = (data.size() - from) / (channels * int(sizeof(int16)));
+	if (!_songEqualizerLogged) {
+		_songEqualizerLogged = true;
+		LOG(("[eq] Song decoded: %1 Hz, %2 channel(s).").arg(
+			loader->samplesFrequency()).arg(channels));
+	}
 	_songEqualizer.process(
 		reinterpret_cast<int16*>(data.data() + from),
 		frames,
@@ -182,7 +192,8 @@ void Loaders::loadData(AudioMsgId audio, crl::time positionMs) {
 	}
 
 	const auto sampleSize = l->sampleSize();
-	const auto speedChanged = !EqualSpeeds(setup.newSpeed, setup.oldSpeed);
+	const auto speedChanged = !EqualSpeeds(setup.newSpeed, setup.oldSpeed)
+		|| setup.rebuffer;
 	auto updatedWithSpeed = speedChanged
 		? rebufferOnSpeedChange(setup)
 		: std::optional<Mixer::Track::WithSpeed>();
@@ -427,7 +438,13 @@ Loaders::SetupLoaderResult Loaders::setupLoader(
 		std::unique_ptr<AudioPlayerLoader> *loader = nullptr;
 		switch (audio.type()) {
 		case AudioMsgId::Type::Voice: _audio = audio; loader = &_audioLoader; break;
-		case AudioMsgId::Type::Song: _song = audio; loader = &_songLoader; _songEqualizer.reset(); break;
+		case AudioMsgId::Type::Song:
+			_song = audio;
+			loader = &_songLoader;
+			_songEqualizer.reset();
+			_songEqualizerLogged = false;
+			_songRebuffer = false;
+			break;
 		case AudioMsgId::Type::Video: _video = audio; loader = &_videoLoader; break;
 		}
 
@@ -465,7 +482,10 @@ Loaders::SetupLoaderResult Loaders::setupLoader(
 			track->state.length,
 			track->speed);
 		return { .loader = l, .justStarted = true };
-	} else if (!EqualSpeeds(track->nextSpeed, track->speed)) {
+	} else if (const auto rebuffer = (audio.type() == AudioMsgId::Type::Song)
+			&& _songRebuffer.exchange(false)
+			&& (track->speed > 0.)
+		; rebuffer || !EqualSpeeds(track->nextSpeed, track->speed)) {
 		return {
 			.loader = l,
 			.oldSpeed = track->speed,
@@ -474,6 +494,7 @@ Loaders::SetupLoaderResult Loaders::setupLoader(
 			.position = track->withSpeed.fineTunedPosition,
 			.normalLength = track->state.length,
 			.frequency = track->state.frequency,
+			.rebuffer = rebuffer,
 		};
 	} else if (track->loaded) {
 		LOG(("Audio Error: trying to load part of audio, that is already loaded to the end"));
@@ -509,6 +530,10 @@ Mixer::Track::WithSpeed Loaders::rebufferOnSpeedChange(
 			base::SafeRound(setup.fadeStartPosition * change)),
 	};
 	const auto l = setup.loader;
+	if (l == _songLoader.get()) {
+		// The samples go through the filters again from an earlier point.
+		_songEqualizer.reset();
+	}
 	l->dropFramesTill(normalPosition);
 	const auto normalFrom = l->startReadingQueuedFrames(speed);
 	if (normalFrom < 0) {

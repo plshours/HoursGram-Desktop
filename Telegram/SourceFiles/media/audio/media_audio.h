@@ -158,6 +158,9 @@ public:
 	// Thread: Main. Locks: AudioMutex.
 	void setSpeedFromExternal(const AudioMsgId &audioId, float64 speed);
 
+	// HoursGram: lets an equalizer change be heard right away.
+	void hoursgramRebufferSong();
+
 	Streaming::TimePoint getExternalSyncTimePoint(
 		const AudioMsgId &audio) const;
 	crl::time getExternalCorrectedTime(

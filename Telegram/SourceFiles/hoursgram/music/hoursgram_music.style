@@ -400,3 +400,31 @@ hoursgramMusicLyricsActive: TextStyle(defaultTextStyle) {
 hoursgramMusicLyricsPadding: margins(16px, 80px, 16px, 80px);
 hoursgramMusicLyricsLineSkip: 16px;
 hoursgramMusicSlideShift: 28px;
+
+// The music section inside the main window: the header over it, and the
+// button back to the chats.
+hoursgramMusicHeaderHeight: 56px;
+hoursgramMusicBack: IconButton(defaultIconButton) {
+	width: 40px;
+	height: 40px;
+	icon: icon {{ "box_button_close", windowSubTextFg }};
+	iconOver: icon {{ "box_button_close", windowBoldFg }};
+	rippleAreaPosition: point(0px, 0px);
+	rippleAreaSize: 40px;
+	ripple: RippleAnimation(defaultRippleAnimation) {
+		color: windowBgOver;
+	}
+}
+
+// The karaoke window: the cover and the line that plays, over everything.
+hoursgramKaraokeSize: size(400px, 120px);
+hoursgramKaraokeRadius: 24px;
+hoursgramKaraokePadding: margins(14px, 14px, 18px, 14px);
+hoursgramKaraokeCover: 92px;
+hoursgramKaraokeCoverRadius: 18px;
+hoursgramKaraokeSkip: 14px;
+hoursgramKaraokeTitle: font(12px semibold);
+hoursgramKaraokeLine: font(17px semibold);
+hoursgramKaraokeNext: font(13px);
+hoursgramKaraokeSnap: 64px;
+hoursgramKaraokeMargin: 18px;

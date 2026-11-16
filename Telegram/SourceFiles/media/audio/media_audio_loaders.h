@@ -11,6 +11,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/audio/media_child_ffmpeg_loader.h"
 #include "hoursgram/music/music_equalizer.h"
 
+#include <atomic>
+
 class AudioPlayerLoader;
 class ChildFFMpegLoader;
 
@@ -37,6 +39,14 @@ public Q_SLOTS:
 	void onLoad(const AudioMsgId &audio);
 	void onCancel(const AudioMsgId &audio);
 
+public:
+	// HoursGram: the equalizer changed, the next load of the song decodes
+	// what is buffered again from the position that plays, so the change
+	// is heard at once and not after the seconds already in the buffers.
+	void hoursgramRequestRebuffer() {
+		_songRebuffer = true;
+	}
+
 private:
 	struct SetupLoaderResult {
 		AudioPlayerLoader *loader = nullptr;
@@ -48,6 +58,7 @@ private:
 		int frequency = 0;
 		bool errorAtStart = false;
 		bool justStarted = false;
+		bool rebuffer = false;
 	};
 
 	void videoSoundAdded();
@@ -71,6 +82,8 @@ private:
 		int from,
 		not_null<AudioPlayerLoader*> loader);
 	HoursGram::Music::EqualizerProcessor _songEqualizer;
+	std::atomic<bool> _songRebuffer = false;
+	bool _songEqualizerLogged = false;
 
 	AudioMsgId _audio, _song, _video;
 	std::unique_ptr<AudioPlayerLoader> _audioLoader;
