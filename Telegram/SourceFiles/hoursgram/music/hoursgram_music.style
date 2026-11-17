@@ -166,3 +166,15 @@ hoursgramPlaylistEmpty: FlatLabel(defaultFlatLabel) {
 		font: font(14px);
 	}
 }
+
+hoursgramSearchWindowSize: size(460px, 600px);
+hoursgramSearchPadding: margins(20px, 16px, 20px, 0px);
+hoursgramSearchFieldHeight: 36px;
+hoursgramSearchSliderSkip: 10px;
+hoursgramSearchSources: PillTabs(defaultPillTabs) {
+	height: 32px;
+}
+hoursgramSearchDurationWidth: 52px;
+hoursgramSearchDuration: TextStyle(defaultTextStyle) {
+	font: font(12px);
+}

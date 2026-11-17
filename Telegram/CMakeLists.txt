@@ -1312,6 +1312,10 @@ PRIVATE
     hoursgram/music/music_playlists.h
     hoursgram/music/music_playlists_box.cpp
     hoursgram/music/music_playlists_box.h
+    hoursgram/music/music_search.cpp
+    hoursgram/music/music_search.h
+    hoursgram/music/music_soundcloud.cpp
+    hoursgram/music/music_soundcloud.h
 
     info/bot/earn/info_bot_earn_list.cpp
     info/bot/earn/info_bot_earn_list.h
