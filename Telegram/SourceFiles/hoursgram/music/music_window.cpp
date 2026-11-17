@@ -197,6 +197,47 @@ void SetTintFrom(const QImage &image) {
 	return Tinted(st::windowBg->c, 0.12);
 }
 
+// What is blue in the theme, the buttons, the chosen item, the sliders,
+// takes the color of the cover instead: brighter than the tint of the
+// cards, so it still stands out as the thing to press.
+[[nodiscard]] QColor AccentColor() {
+	const auto &tint = Tint().shown;
+	if (tint.alpha() == 0) {
+		return st::windowBgActive->c;
+	}
+	auto hue = 0.f, saturation = 0.f, lightness = 0.f;
+	tint.getHslF(&hue, &saturation, &lightness);
+	const auto accent = QColor::fromHslF(
+		std::max(hue, 0.f),
+		std::clamp(saturation + 0.1f, 0.35f, 0.7f),
+		0.5f);
+	return anim::color(st::windowBgActive->c, accent, tint.alphaF());
+}
+
+void TintButton(not_null<Ui::RoundButton*> button, bool primary) {
+	const auto apply = [=] {
+		button->setBrushOverride(QBrush(primary
+			? AccentColor()
+			: Tinted(st::windowBgOver->c, 0.3)));
+		button->update();
+	};
+	Tint().changes.events() | rpl::on_next(apply, button->lifetime());
+	apply();
+}
+
+void TintSlider(not_null<Ui::MediaSlider*> slider) {
+	const auto apply = [=] {
+		const auto accent = AccentColor();
+		slider->setColorOverrides({
+			.activeFg = accent,
+			.seekFg = accent,
+		});
+		slider->update();
+	};
+	Tint().changes.events() | rpl::on_next(apply, slider->lifetime());
+	apply();
+}
+
 [[nodiscard]] int SectionOrder(Section section, uint64 playlistId) {
 	switch (section) {
 	case Section::Home: return 0;
@@ -817,7 +858,7 @@ void ChartCard::paintEvent(QPaintEvent *e) {
 			font->width(text) + skip * 4,
 			font->height + skip * 2);
 		p.setPen(Qt::NoPen);
-		p.setBrush(st::windowBgActive);
+		p.setBrush(AccentColor());
 		p.drawRoundedRect(badge, badge.height() / 2., badge.height() / 2.);
 		p.setPen(st::activeButtonFg);
 		p.setFont(font);
@@ -837,7 +878,7 @@ void ChartCard::paintEvent(QPaintEvent *e) {
 		p.translate(center);
 		p.scale(scale, scale);
 		p.setPen(Qt::NoPen);
-		p.setBrush(st::windowBgActive);
+		p.setBrush(AccentColor());
 		p.drawEllipse(QRectF(-size / 2., -size / 2., size, size));
 		if (_state.current && (_state.playing || _state.loading)) {
 			PaintEqualizer(
@@ -1082,6 +1123,7 @@ HeroBanner::HeroBanner(QWidget *parent, std::vector<ChartTrack> covers)
 	rpl::single(Tr("Play the wave", "Слушать волну")),
 	st::hoursgramMusicActionSecondary) {
 	resize(width(), st::hoursgramMusicHeroHeight);
+	TintButton(_play.data(), false);
 	for (const auto &track : covers) {
 		if (int(_covers.size()) >= kHeroCovers) {
 			break;
@@ -1135,10 +1177,9 @@ void HeroBanner::paintEvent(QPaintEvent *e) {
 	auto hq = PainterHighQualityEnabler(p);
 	const auto radius = st::hoursgramMusicHeroRadius;
 	auto gradient = QLinearGradient(0, 0, width(), height());
-	gradient.setColorAt(0., st::windowBgActive->c);
-	gradient.setColorAt(
-		1.,
-		anim::color(st::windowBgActive, CardColor(), 0.85));
+	const auto accent = AccentColor();
+	gradient.setColorAt(0., accent);
+	gradient.setColorAt(1., anim::color(accent, CardColor(), 0.85));
 	p.setPen(Qt::NoPen);
 	p.setBrush(gradient);
 	p.drawRoundedRect(rect(), radius, radius);
@@ -2039,7 +2080,7 @@ void SideMenu::paintEvent(QPaintEvent *e) {
 	}
 	auto hq = PainterHighQualityEnabler(p);
 	p.setPen(Qt::NoPen);
-	p.setBrush(st::windowBgActive);
+	p.setBrush(AccentColor());
 	p.drawRoundedRect(
 		QRect(
 			padding.left(),
@@ -2153,6 +2194,9 @@ PlayerBar::PlayerBar(QWidget *parent)
 	_lyrics->setClickedCallback([=] {
 		_openRequests.fire({});
 	});
+	TintButton(_lyrics.data(), false);
+	TintSlider(_slider.data());
+	TintSlider(_volume.data());
 	_add->setClickedCallback([=] {
 		_addRequests.fire({});
 	});
@@ -2513,7 +2557,7 @@ void PlayerBar::paintEvent(QPaintEvent *e) {
 	const auto center = play.center();
 	const auto radius = (play.width() / 2.) * (1. + pop);
 	p.setPen(Qt::NoPen);
-	p.setBrush(_audio ? st::windowBgActive->c : st::windowBgRipple->c);
+	p.setBrush(_audio ? AccentColor() : st::windowBgRipple->c);
 	p.drawEllipse(center, radius, radius);
 
 	if (_audio) {
@@ -2620,7 +2664,7 @@ void SearchPill::paintEvent(QPaintEvent *e) {
 	p.setBrush(anim::color(st::windowBgOver, st::windowBgRipple, focus * 0.5));
 	p.drawRoundedRect(rect(), radius, radius);
 	if (focus > 0.) {
-		auto pen = QPen(st::windowBgActive->c);
+		auto pen = QPen(AccentColor());
 		pen.setWidthF(style::ConvertScaleExact(1.5));
 		auto color = pen.color();
 		color.setAlphaF(focus);
@@ -3037,6 +3081,10 @@ void FillTracks(
 		rename,
 		remove,
 	};
+	TintButton(play, true);
+	TintButton(shuffle, false);
+	TintButton(rename, false);
+	TintButton(remove, false);
 	for (const auto button : all) {
 		button->show();
 	}
@@ -3197,10 +3245,13 @@ void FillTracks(
 		raw,
 		rpl::single(Tr("Karaoke", "Караоке")),
 		st::hoursgramMusicActionSecondary);
+	const auto controller = context.controller;
 	karaoke->setClickedCallback([=] {
-		const auto controller = context.controller;
 		ToggleKaraoke(controller);
 	});
+	TintButton(add, true);
+	TintButton(attach, false);
+	TintButton(karaoke, false);
 	const auto lyrics = Ui::CreateChild<LyricsView>(raw);
 	for (const auto widget : std::initializer_list<QWidget*>{
 			cover,
@@ -3225,7 +3276,7 @@ void FillTracks(
 			(full - size) / 2,
 			size,
 			size);
-		auto glow = st::windowBgActive->c;
+		auto glow = AccentColor();
 		glow.setAlphaF(0.16 * scale);
 		p.setPen(Qt::NoPen);
 		p.setBrush(glow);
@@ -3263,8 +3314,12 @@ void FillTracks(
 		attach->moveToLeft(
 			padding.left() + add->width() + st::hoursgramMusicActionSkip,
 			top);
+		// Under the middle of the two buttons above it.
+		const auto row = add->width()
+			+ st::hoursgramMusicActionSkip
+			+ attach->width();
 		karaoke->moveToLeft(
-			padding.left(),
+			padding.left() + (row - karaoke->width()) / 2,
 			top + add->height() + st::hoursgramMusicActionSkip);
 		lyrics->setGeometry(
 			padding.left() + leftWidth,
@@ -3321,6 +3376,7 @@ void FillTracks(
 		const auto document = audio.audio();
 		add->setVisible(document != nullptr);
 		attach->setVisible(document != nullptr);
+		karaoke->setVisible(document != nullptr);
 		if (!document) {
 			title->setText(Tr("Nothing is playing", "Ничего не играет"));
 			performer->setText(Tr(
@@ -3467,7 +3523,8 @@ private:
 MusicWindow::MusicWindow(not_null<Window::SessionController*> controller)
 : _controller(controller)
 , _session(&controller->session())
-, _host(base::make_unique_q<Ui::RpWidget>(controller->content().get()))
+, _host(base::make_unique_q<Ui::RpWidget>(
+	controller->content()->parentWidget()))
 , _searchTimer([=] { searchChanged(); }) {
 	_show = controller->uiShow();
 
@@ -3486,8 +3543,8 @@ MusicWindow::MusicWindow(not_null<Window::SessionController*> controller)
 void MusicWindow::setupHost() {
 	const auto host = _host.get();
 	const auto content = _controller->content();
-	content->sizeValue() | rpl::on_next([=](QSize size) {
-		host->setGeometry(QRect(QPoint(), size));
+	content->geometryValue() | rpl::on_next([=](QRect geometry) {
+		host->setGeometry(geometry);
 	}, host->lifetime());
 	host->paintRequest() | rpl::on_next([=](QRect clip) {
 		QPainter(host).fillRect(clip, PageColor());
