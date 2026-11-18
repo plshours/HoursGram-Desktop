@@ -239,7 +239,7 @@ public:
 			_more = false;
 			_done(_tracks, MTP::IgnoreError(error) ? QString() : error.type());
 		};
-		const auto request = Api::PrepareGlobalMediaRequest(
+		auto request = Api::PrepareGlobalMediaRequest(
 			session,
 			_rate,
 			_offset,
@@ -249,7 +249,7 @@ public:
 			_more = false;
 			return;
 		}
-		_requestId = session->api().request(*request
+		_requestId = session->api().request(std::move(*request)
 		).done(received).fail(failed).send();
 	}
 
