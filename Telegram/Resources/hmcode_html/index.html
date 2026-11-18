@@ -193,6 +193,8 @@ body.no-breadcrumbs #breadcrumbs { display: none; }
 #editor, #viewer { position: absolute; inset: 0; }
 #viewer { display: none; overflow: auto; }
 #welcome { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--sub); background: var(--bg); }
+.welcome-icon { width: 64px; height: 64px; color: var(--accent); }
+.welcome-title { text-align: center; display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
 #welcome h1 { margin: 0; color: var(--text); font-size: 34px; font-weight: 800; letter-spacing: -.5px; }
 #welcome h1 b { color: var(--accent); }
 #welcome .row { display: flex; gap: 10px; }
@@ -321,7 +323,29 @@ body.no-manul #manul { display: none; }
 .ctool .grow { flex: 1; }
 .ctool .icon-btn:hover { background: var(--hover); }
 .ctool .mode { background: var(--hover); }
-.msel { height: 32px; background: var(--hover); color: var(--sub); border: 0; border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 600; outline: none; max-width: 120px; cursor: pointer; }
+.msel { height: 32px; background: var(--hover); color: var(--text); border: 0; border-radius: 999px; padding: 0 10px 0 12px; font-size: 12px; font-weight: 600;
+	display: inline-flex; align-items: center; gap: 6px; max-width: 170px; cursor: pointer; transition: background .15s; }
+.msel:hover { background: #383838; }
+.msel .model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel svg { flex: none; color: var(--sub); transition: transform .2s var(--ease); }
+.msel.open svg { transform: rotate(180deg); }
+.msel.wide { max-width: 230px; }
+.model-pop { position: fixed; z-index: 75; width: 300px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-l); padding: 6px;
+	box-shadow: var(--shadow); animation: pop .14s ease-out; display: flex; flex-direction: column; gap: 2px; }
+.model-pop .head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 10px; font-size: 12px; color: var(--sub); font-weight: 600; }
+.model-pop .list { max-height: 300px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.model-pop .m { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-m); cursor: pointer; transition: background .12s; }
+.model-pop .m:hover { background: var(--card); }
+.model-pop .m.on { background: var(--accent-soft); }
+.model-pop .m .t { flex: 1; min-width: 0; }
+.model-pop .m .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-pop .m .id { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-pop .m .tags { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.model-pop .m .tags span { font-size: 10px; font-weight: 600; color: var(--sub); background: var(--card); border-radius: 999px; padding: 1px 7px; }
+.model-pop .m.on .tags span { background: #ffffff14; }
+.model-pop .m .check { width: 16px; height: 16px; color: var(--accent); flex: none; opacity: 0; }
+.model-pop .m.on .check { opacity: 1; }
+.model-pop .field { height: 32px; margin-bottom: 4px; }
 .lim { font-size: 11px; color: var(--dim); }
 .send { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center;
 	transition: background .15s, transform .1s; flex: none; }
@@ -434,8 +458,8 @@ body.status-accent #status .live { color: #fff; }
 				</div>
 			</div>
 			<div class="workspace-pick" id="wsPick">
-				<button class="btn primary" data-cmd="openFolder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4c.6 0 1.1.2 1.5.6l1.3 1.4h5.4a2.7 2.7 0 0 1 2.7 2.7v8.1a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/></svg>Открыть папку</button>
-				<button class="btn" data-cmd="createWorkspace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать свою</button>
+				<button class="btn primary" data-cmd="openFolder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4l2.4 2h6a2.5 2.5 0 0 1 2.5 2.5v8.3a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/></svg>Открыть проект</button>
+				<button class="btn" data-cmd="createWorkspace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать проект</button>
 				<div class="hint">Своя папка хранится внутри HM Code. Папка с компьютера открывается напрямую — Ctrl+S сохраняет прямо в её файлы.</div>
 			</div>
 			<div class="ws-name" id="wsName" style="display:none"></div>
@@ -455,12 +479,11 @@ body.status-accent #status .live { color: #fff; }
 			<div id="editor"></div>
 			<div id="viewer"></div>
 			<div id="welcome">
-				<div class="orbit" id="orbit">
-					<div class="core"><h1>HM <b>Code</b></h1><div>Редактор кода внутри HoursGram</div></div>
-				</div>
+				<svg class="welcome-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 15 6 24l9 9M33 15l9 9-9 9M27.5 10l-7 28"/></svg>
+				<div class="welcome-title"><h1>HM <b>Code</b></h1><div>Редактор кода внутри HoursGram</div></div>
 				<div class="row">
-					<button class="btn primary" data-cmd="openFolder">Открыть папку</button>
-					<button class="btn" data-cmd="createWorkspace">Создать свою</button>
+					<button class="btn primary" data-cmd="openFolder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4l2.4 2h6a2.5 2.5 0 0 1 2.5 2.5v8.3a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/></svg>Открыть проект</button>
+					<button class="btn" data-cmd="createWorkspace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать проект</button>
 				</div>
 				<div class="row" id="recent"></div>
 				<div class="hint"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>P</kbd> — команды · <kbd>Ctrl</kbd> <kbd>P</kbd> — файлы · <kbd>Alt</kbd> <kbd>\</kbd> — Manul допишет</div>
@@ -498,7 +521,7 @@ body.status-accent #status .live { color: #fff; }
 				<div class="ctool">
 					<button class="icon-btn" id="attach" title="Приложить файлы проекта"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.4 3.4 0 0 1 4.8 4.8l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"/></svg></button>
 					<div class="mode" id="seg"><span class="mode-pill" id="modePill"></span><button class="on" data-mode="chat">Чат</button><button data-mode="agent">Агент</button></div>
-					<select id="modelSelect" class="msel" title="Модель"><option>glm-5.3</option></select>
+					<select id="modelSelect" hidden><option>glm-5.3</option></select><button class="msel" data-model-picker title="Модель"><span class="model-name">glm-5.3</span><svg viewBox="0 0 12 12" width="10" height="10"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 					<span class="grow"></span>
 					<span class="lim" id="limit"></span>
 					<button class="send" id="send" title="Отправить (Enter)" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
@@ -534,7 +557,7 @@ body.status-accent #status .live { color: #fff; }
 					<button class="btn primary small" id="keyCheck">Проверить</button>
 				</div>
 				<div class="hint" id="keyState"></div>
-				<div class="set"><label>Модель по умолчанию</label><select id="setModel"><option>glm-5.3</option></select></div>
+				<div class="set"><label>Модель</label><button class="msel wide" data-model-picker><span class="model-name">glm-5.3</span><svg viewBox="0 0 12 12" width="10" height="10"><path d="m3 4.5 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
 				<div class="set"><label>Дописывать код по Alt+\<span class="d">Серым текстом с места курсора, Tab — принять</span></label><div class="switch" data-set="aiInline"></div></div>
 				<div class="set"><label>Агент применяет изменения сам<span class="d">Без кнопки «Применить» — сразу в файлы (можно отменить Ctrl+Z)</span></label><div class="switch" data-set="agentAuto"></div></div>
 			</div>
@@ -2402,14 +2425,99 @@ document.getElementById("keyCheck").onclick = async () => {
 		if (ids.length) fillModels(ids);
 	} catch (e) { state.textContent = e.message; }
 };
+// ----- выбор модели: своё меню вместо системного списка -----
+function modelList() {
+	const saved = JSON.parse(localStorage.getItem("hmcode.models") || "null");
+	const list = Array.isArray(saved) && saved.length ? saved : [settings.model];
+	return list.includes(settings.model) ? list : [settings.model, ...list];
+}
+// «manul-qwen-3.8-flash-next-uncensored» → «Qwen 3.8» и метки flash, next, uncensored.
+const MODEL_TAGS = new Set(["flash", "fast", "next", "uncensored", "mini", "pro", "turbo", "lite", "preview", "max", "coder", "thinking"]);
+function describeModel(id) {
+	const parts = id.replace(/^manul-/i, "").split("-");
+	const tags = [];
+	const name = [];
+	for (const part of parts) {
+		if (MODEL_TAGS.has(part.toLowerCase())) tags.push(part.toLowerCase());
+		else name.push(part);
+	}
+	const words = name.join(" ").replace(/\b([a-z])/g, (c) => c.toUpperCase()).replace(/\bGlm\b/, "GLM").replace(/\bGpt\b/, "GPT");
+	return { title: words || id, tags };
+}
+function setModel(id) {
+	settings.model = id;
+	saveSettings();
+	const select = document.getElementById("modelSelect");
+	if (![...select.options].some((o) => o.value === id)) select.add(new Option(id, id));
+	select.value = id;
+	const { title } = describeModel(id);
+	document.querySelectorAll("[data-model-picker] .model-name").forEach((el) => { el.textContent = title; el.parentElement.title = id; });
+}
 function fillModels(ids) {
 	localStorage.setItem("hmcode.models", JSON.stringify(ids));
-	for (const sel of [document.getElementById("modelSelect"), document.getElementById("setModel")]) {
-		sel.innerHTML = ids.map((id) => `<option${id === settings.model ? " selected" : ""}>${escapeHtml(id)}</option>`).join("");
-	}
+	const select = document.getElementById("modelSelect");
+	select.innerHTML = ids.map((id) => `<option>${escapeHtml(id)}</option>`).join("");
+	setModel(ids.includes(settings.model) ? settings.model : ids[0]);
 }
-document.getElementById("setModel").onchange = (e) => { settings.model = e.target.value; document.getElementById("modelSelect").value = e.target.value; saveSettings(); };
-document.getElementById("modelSelect").onchange = (e) => { settings.model = e.target.value; saveSettings(); };
+const CHECK = '<svg class="check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function openModelPicker(anchor) {
+	document.querySelector(".model-pop")?.remove();
+	anchor.classList.add("open");
+	const pop = document.createElement("div");
+	pop.className = "model-pop";
+	const models = modelList();
+	pop.innerHTML = `<div class="head"><span>Модель Manul</span><button class="btn small" data-refresh>Обновить</button></div>
+		${models.length > 6 ? '<input class="field" placeholder="Найти модель">' : ""}<div class="list"></div>`;
+	const list = pop.querySelector(".list");
+	const fill = (q = "") => {
+		list.innerHTML = "";
+		for (const id of models.filter((m) => m.toLowerCase().includes(q.toLowerCase()))) {
+			const { title, tags } = describeModel(id);
+			const row = document.createElement("div");
+			row.className = "m" + (id === settings.model ? " on" : "");
+			row.title = id;
+			row.innerHTML = `<div class="t"><div class="n">${escapeHtml(title)}</div><div class="id">${escapeHtml(id)}</div>${tags.length ? `<div class="tags">${tags.map((t) => `<span>${t}</span>`).join("")}</div>` : ""}</div>${CHECK}`;
+			row.onclick = () => { setModel(id); close(); };
+			list.appendChild(row);
+		}
+		if (!list.children.length) list.innerHTML = '<div class="hint" style="padding:8px 10px">Ничего не нашлось</div>';
+	};
+	fill();
+	pop.querySelector("input")?.addEventListener("input", (e) => fill(e.target.value));
+	pop.querySelector("[data-refresh]").onclick = async () => {
+		const b = pop.querySelector("[data-refresh]");
+		b.textContent = "…";
+		try {
+			const json = await manulRequest("/models");
+			const ids = (json?.data || []).map((m) => m.id).filter(Boolean);
+			if (ids.length) fillModels(ids);
+			close();
+			toast(`Моделей: ${ids.length}`);
+		} catch (e) {
+			b.textContent = "Обновить";
+			toast(e.message);
+		}
+	};
+	document.body.appendChild(pop);
+	const r = anchor.getBoundingClientRect();
+	const left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8));
+	const above = r.top - pop.offsetHeight - 8;
+	pop.style.left = left + "px";
+	pop.style.top = (above > 8 ? above : r.bottom + 8) + "px";
+	pop.querySelector("input")?.focus();
+	function close() {
+		pop.remove();
+		anchor.classList.remove("open");
+		document.removeEventListener("mousedown", outside);
+	}
+	function outside(e) { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); }
+	setTimeout(() => document.addEventListener("mousedown", outside), 0);
+}
+document.querySelectorAll("[data-model-picker]").forEach((b) => b.onclick = (e) => {
+	e.stopPropagation();
+	if (b.classList.contains("open")) { document.querySelector(".model-pop")?.remove(); b.classList.remove("open"); return; }
+	openModelPicker(b);
+});
 document.getElementById("exportSettings").onclick = () => {
 	copyText(JSON.stringify(settings, null, 2));
 	toast("Настройки скопированы — пришли их мне");
@@ -2474,11 +2582,10 @@ function buildOrbit() {
 		orbit.appendChild(el);
 	}
 }
-buildOrbit();
 
 const savedModels = JSON.parse(localStorage.getItem("hmcode.models") || "null");
 if (savedModels) fillModels(savedModels);
-document.getElementById("modelSelect").value = settings.model;
+setModel(settings.model);
 applyLayout();
 setMode(mode);
 renderChips();
