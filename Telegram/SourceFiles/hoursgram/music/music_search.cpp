@@ -15,6 +15,7 @@ carries the full SoundCloud usage notice.
 */
 #include "hoursgram/music/music_search.h"
 
+#include "apiwrap.h"
 #include "base/algorithm.h"
 #include "base/timer.h"
 #include "base/unique_qptr.h"
@@ -552,6 +553,7 @@ void PlayRow(int index) {
 }
 
 void LoadMore();
+void RebuildRows();
 
 void ApplyResults(std::vector<FoundTrack> tracks, QString error) {
 	auto &state = Shared();
