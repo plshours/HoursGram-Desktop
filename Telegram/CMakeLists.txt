@@ -1298,6 +1298,8 @@ PRIVATE
     history/history_widget.h
     hoursgram/chats/chats_selection.cpp
     hoursgram/chats/chats_selection.h
+    hoursgram/code/hm_code.cpp
+    hoursgram/code/hm_code.h
     hoursgram/chats/copy_media.cpp
     hoursgram/chats/copy_media.h
     hoursgram/customization/menu_attention.cpp
@@ -2325,6 +2327,7 @@ PRIVATE
     qrc/telegram/fonts.qrc
     qrc/telegram/export_rich.qrc
     qrc/telegram/picker.qrc
+    qrc/telegram/hmcode.qrc
     qrc/telegram/telegram.qrc
     qrc/telegram/sounds.qrc
     winrc/Telegram.rc

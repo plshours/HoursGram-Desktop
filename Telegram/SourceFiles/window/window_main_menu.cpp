@@ -29,6 +29,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_badge.h"
 #include "settings/settings_common.h"
 #include "hoursgram/music/music_window.h"
+#include "hoursgram/code/hm_code.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "info/saved/info_saved_music_widget.h"
 #include "info/profile/info_profile_emoji_status_panel.h"
@@ -825,6 +826,12 @@ void MainMenu::setupMenu() {
 			{ &st::menuIconMusic }
 		)->setClickedCallback([=] {
 			HoursGram::Music::ShowMusic(controller);
+		});
+		addAction(
+			rpl::single(u"HM Code"_q),
+			{ &st::hoursgramMenuIconCode }
+		)->setClickedCallback([=] {
+			HoursGram::Code::Show(controller);
 		});
 
 		if (settings.showLReadToggleInDrawer()) {

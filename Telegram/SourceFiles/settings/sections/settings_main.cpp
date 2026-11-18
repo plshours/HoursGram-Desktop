@@ -99,6 +99,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ayu/ui/settings/settings_local_nft.h"
 #include "ayu/ui/settings/settings_other.h"
 #include "hoursgram/music/music_window.h"
+#include "hoursgram/code/hm_code.h"
 #include "styles/style_hoursgram_design.h"
 #include "ayu/ui/utils/ayu_profile_values.h"
 #include "ayu/utils/telegram_helpers.h"
@@ -529,6 +530,17 @@ void BuildGraphiteSectionButtons(SectionBuilder &builder) {
 			}
 		},
 		.keywords = { u"music"_q, u"player"_q, u"lyrics"_q },
+	});
+	builder.addButton({
+		.id = u"hoursgram/code"_q,
+		.title = rpl::single(u"HM Code"_q),
+		.icon = HoursGramIcon(st::hoursgramIconCode),
+		.onClick = [=] {
+			if (controller) {
+				HoursGram::Code::Show(controller);
+			}
+		},
+		.keywords = { u"code"_q, u"editor"_q, u"python"_q, u"manul"_q },
 	});
 	builder.addSectionButton({
 		.title = HoursGramLabel(u"Local gifts"_q, u"Локальные подарки"_q),

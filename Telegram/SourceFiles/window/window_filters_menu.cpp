@@ -15,6 +15,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_filters_favorite.h"
 #include "hoursgram/customization/graphite_frame.h"
 #include "hoursgram/music/music_window.h"
+#include "hoursgram/code/hm_code.h"
 #include "lang/lang_instance.h"
 #include "ui/widgets/buttons.h"
 #include "main/main_session.h"
@@ -340,6 +341,9 @@ void FiltersMenu::setupHoursGramBottom() {
 	});
 	add(u"Music"_q, u"Музыка"_q, st::hoursgramSideBarMusic, st::hoursgramSideBarMusicActive, [=] {
 		HoursGram::Music::ShowMusic(_session);
+	});
+	add(u"HM Code"_q, u"HM Code"_q, st::hoursgramSideBarCode, st::hoursgramSideBarCodeActive, [=] {
+		HoursGram::Code::Show(_session);
 	});
 	_hoursgramBottom->resizeToWidth(st::windowFiltersWidth);
 	_graphiteFrame = base::make_unique_q<

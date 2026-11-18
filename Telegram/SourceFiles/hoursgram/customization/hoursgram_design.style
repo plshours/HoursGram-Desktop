@@ -73,6 +73,8 @@ hoursgramIconFilters: icon {{ "hoursgram/settings_filters", hoursgramIconFg }};
 hoursgramIconAppearance: icon {{ "hoursgram/settings_appearance", hoursgramIconFg }};
 hoursgramIconPlugins: icon {{ "hoursgram/settings_plugins", hoursgramIconFg }};
 hoursgramIconMusic: icon {{ "hoursgram/settings_music", hoursgramIconFg }};
+hoursgramIconCode: icon {{ "hoursgram/settings_code", hoursgramIconFg }};
+hoursgramMenuIconCode: icon {{ "hoursgram/menu_code", menuIconColor }};
 hoursgramIconGifts: icon {{ "hoursgram/settings_gifts", hoursgramIconFg }};
 hoursgramIconMore: icon {{ "hoursgram/settings_more", hoursgramIconFg }};
 hoursgramIconDevices: icon {{ "hoursgram/settings_devices", hoursgramIconFg }};
@@ -83,6 +85,8 @@ hoursgramSideBarSaved: icon {{ "hoursgram/sidebar_saved", sideBarIconFg }};
 hoursgramSideBarSavedActive: icon {{ "hoursgram/sidebar_saved", sideBarIconFgActive }};
 hoursgramSideBarMusic: icon {{ "hoursgram/sidebar_music", sideBarIconFg }};
 hoursgramSideBarMusicActive: icon {{ "hoursgram/sidebar_music", sideBarIconFgActive }};
+hoursgramSideBarCode: icon {{ "hoursgram/sidebar_code", sideBarIconFg }};
+hoursgramSideBarCodeActive: icon {{ "hoursgram/sidebar_code", sideBarIconFgActive }};
 
 // Motion of HorusGram: how far things travel while they appear.
 hoursgramMessageAppearShift: 34px;

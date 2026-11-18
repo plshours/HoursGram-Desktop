@@ -1,0 +1,2488 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>HM Code — прототип</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* =====================================================================
+   HM Code — единый стиль HoursGram Graphite
+   Подложка #121212, на ней панели #181818, на панелях карточки #232323.
+   Три скругления: строки 10px, карточки/поля/панели 14px, окна 18px.
+   Кнопки, вкладки, переключатели, списки выбора и метки — «таблетки».
+   ===================================================================== */
+:root {
+	--side: #121212;        /* подложка: заголовок, левая колонка, строка состояния */
+	--bg: #181818;          /* панели: файлы, редактор, вывод, Manul, окна, меню */
+	--card: #232323;        /* карточки и поля на панели */
+	--hover: #2E2E2E;       /* наведение и поля внутри карточек */
+	--line: #262626;
+	--text: #FFFFFF;
+	--sub: #B8B8B8;
+	--dim: #7A7A7A;
+	--accent: #5B8CF5;
+	--accent-press: #4F80EA;
+	--accent-soft: #22304C;
+	--accent-text: #FFFFFF;
+	--danger: #E06C75;
+	--ok: #95CB95;
+	--ui-font: "Segoe UI", system-ui, sans-serif;
+	--ui-size: 13px;
+	--r-s: 6px;
+	--r-m: 10px;
+	--r-l: 14px;
+	--r-xl: 18px;
+	--gap: 8px;
+	--shadow: 0 16px 48px rgba(0,0,0,.5);
+	--ease: cubic-bezier(.3,.8,.25,1);
+}
+body.light {
+	--side: #E9EBEF; --bg: #FFFFFF; --card: #F0F2F5; --hover: #E3E6EB; --line: #E3E6EB;
+	--text: #16181D; --sub: #5F6470; --dim: #9AA0AB; --accent-soft: #DCE7FD;
+	--shadow: 0 16px 48px rgba(0,0,0,.18);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--side); color: var(--text);
+	font-family: var(--ui-font); font-size: var(--ui-size); overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #3A3A3A; border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { rotate: 360deg; } }
+
+/* ---------------- сетка: панели-карточки на подложке ---------------- */
+#app { display: grid; height: 100vh; grid-template-rows: 44px 1fr 26px; column-gap: var(--gap); padding-right: var(--gap);
+	grid-template-columns: 76px var(--sidebar-w, 260px) 1fr var(--manul-w, 380px); }
+body.no-sidebar #app { --sidebar-w: 0px; }
+body.no-manul #app { --manul-w: 0px; }
+body.no-sidebar #app, body.no-manul #app { column-gap: 0; }
+body.no-sidebar #main, body.no-manul #main { margin: 0 var(--gap); }
+body.manul-left #app { grid-template-columns: 76px var(--manul-w, 380px) var(--sidebar-w, 260px) 1fr; }
+.panel, #sidebar, #manul, #editorWrap, #bottom { background: var(--bg); border-radius: var(--r-l); overflow: hidden; }
+
+/* ---------------- общие элементы ---------------- */
+.btn { height: 34px; border: 0; border-radius: 999px; padding: 0 16px; cursor: pointer; background: var(--card); color: var(--text);
+	font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+	transition: background .15s, transform .1s; }
+.btn:hover { background: var(--hover); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--accent); color: var(--accent-text); }
+.btn.primary:hover { background: var(--accent-press); }
+.btn.danger { color: var(--danger); }
+.btn.small { height: 28px; padding: 0 12px; font-size: 12px; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+.icon-btn { width: 30px; height: 30px; border: 0; border-radius: 50%; background: none; color: var(--sub); cursor: pointer;
+	display: grid; place-items: center; flex: none; transition: background .15s, color .15s; }
+.icon-btn:hover { background: var(--card); color: var(--text); }
+.icon-btn svg { width: 18px; height: 18px; }
+.hint { color: var(--sub); font-size: 12px; line-height: 1.45; }
+.field { width: 100%; height: 36px; background: var(--card); border: 1.5px solid transparent; border-radius: var(--r-l);
+	padding: 0 12px; outline: none; transition: border-color .15s; }
+.field:focus { border-color: var(--accent); }
+select, input[type=number] { appearance: auto; }
+kbd { background: var(--hover); border-radius: var(--r-s); padding: 1px 6px; font-family: inherit; font-size: 11px; color: var(--text); }
+.fi { width: 16px; height: 16px; flex: none; display: block; }
+.ui-i { width: 14px; height: 14px; flex: none; vertical-align: -2px; }
+.tag, .ws-name .tag, .change .badge { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 8px; }
+/* переключатель из «таблеток»: режимы Manul, вкладки вывода */
+.mode, .seg-tabs { display: flex; gap: 2px; background: var(--card); border-radius: 999px; padding: 3px; }
+.mode button, .seg-tabs button, #bottom .heads > button:not(.icon-btn) { height: 26px; border: 0; background: none; color: var(--sub); border-radius: 999px;
+	padding: 0 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.mode button:hover, #bottom .heads > button:not(.icon-btn):hover { color: var(--text); }
+.mode button.on, #bottom .heads > button.on { background: var(--accent-soft); color: var(--accent); }
+/* заголовки панелей одинаковые */
+.side-head, .m-head, #bottom .heads { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 14px; font-weight: 600; flex: none; }
+.side-head { justify-content: space-between; }
+.side-head .tools { display: flex; gap: 0; }
+/* всплывающие окна и меню одинаковые */
+.ctxmenu, .attach-pop { position: fixed; z-index: 70; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-l);
+	padding: 6px; box-shadow: var(--shadow); animation: pop .12s ease-out; }
+.ctxmenu { min-width: 200px; }
+.ctxmenu div, .attach-pop .it, #palette .item { padding: 8px 10px; border-radius: var(--r-m); cursor: pointer; }
+.ctxmenu div:hover, .attach-pop .it:hover, #palette .item:hover, #palette .item.sel { background: var(--card); }
+.ctxmenu div.danger { color: var(--danger); }
+.ctxmenu hr { border: 0; height: 1px; background: var(--line); margin: 4px 6px; }
+
+/* ---------------- заголовок ---------------- */
+#title { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 6px 0 14px; user-select: none; }
+#title .logo { font-weight: 700; font-size: 14px; }
+#title .logo b { color: var(--accent); }
+#title .menu { display: flex; gap: 2px; }
+#title .menu button { height: 30px; background: none; border: 0; padding: 0 12px; border-radius: 999px; cursor: pointer; color: var(--sub); }
+#title .menu button:hover { background: var(--card); color: var(--text); }
+#title .center { flex: 1; display: flex; justify-content: center; }
+#cmdbox { width: min(460px, 46vw); height: 30px; border-radius: 999px; background: var(--card); color: var(--sub);
+	display: flex; align-items: center; gap: 8px; padding: 0 6px 0 14px; cursor: pointer; font-size: 12px; transition: background .15s; }
+#cmdbox:hover { background: var(--hover); }
+#cmdbox svg { width: 14px; height: 14px; }
+#cmdbox kbd { margin-left: auto; border-radius: 999px; padding: 2px 8px; }
+
+/* ---------------- левая колонка как папки HoursGram ---------------- */
+#activity { grid-row: 2; display: flex; flex-direction: column; align-items: center; padding: 0 0 var(--gap); gap: 4px; position: relative; }
+#actPill { position: absolute; left: 6px; top: 0; width: 64px; border-radius: var(--r-l); background: var(--accent-soft);
+	transition: transform .32s var(--ease), height .32s, opacity .2s; pointer-events: none; }
+#activity button { position: relative; z-index: 1; width: 64px; padding: 8px 0 6px; border-radius: var(--r-l); border: 0; background: none; cursor: pointer;
+	color: var(--sub); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; transition: background .2s, color .2s; }
+#activity button svg { width: 24px; height: 24px; }
+#activity button:hover { background: var(--card); color: var(--text); }
+#activity button.on { color: var(--text); }
+#activity button.on:hover { background: none; }
+#activity button.on svg { color: var(--accent); }
+#activity .spacer { flex: 1; }
+
+/* ---------------- файлы ---------------- */
+#sidebar { grid-row: 2; display: flex; flex-direction: column; min-width: 0; margin-bottom: var(--gap); }
+body.no-sidebar #sidebar { display: none; }
+.side-view { display: none; flex: 1; overflow: auto; flex-direction: column; }
+.side-view.on { display: flex; }
+.workspace-pick { margin: 0 10px 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--card); border-radius: var(--r-l); }
+.workspace-pick .btn { width: 100%; }
+.workspace-pick .btn:not(.primary) { background: var(--hover); }
+.workspace-pick .btn:not(.primary):hover { background: #383838; }
+.ws-name { margin: 0 10px 8px; height: 40px; padding: 0 6px 0 12px; background: var(--card); border-radius: var(--r-l); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.ws-name > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-name .tag { margin-left: auto; }
+.ws-name .ws-close { width: 26px; height: 26px; }
+.ws-name .ws-close svg { width: 11px; height: 11px; }
+.ws-name .ws-close:hover { background: var(--hover); }
+#recent:empty { display: none; }
+#tree { padding: 0 8px 10px; user-select: none; min-height: 60px; position: relative; border-radius: var(--r-m); }
+.node { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; height: 30px; padding-right: 8px; border-radius: var(--r-m);
+	cursor: pointer; white-space: nowrap; transition: background .12s; }
+.node:hover { background: var(--card); }
+.node.active, .node.active:hover { background: transparent; }
+.node.drop, #tree.drop-root { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.node.dragging { opacity: .45; }
+.node .chev { width: 14px; height: 14px; color: var(--dim); flex: none; display: grid; place-items: center; transition: transform .15s; }
+.node .chev svg { width: 10px; height: 10px; }
+.node.open .chev { transform: rotate(90deg); }
+.node .ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+.node .name { overflow: hidden; text-overflow: ellipsis; }
+.node .dirty { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.slide-pill { position: absolute; left: 0; top: 0; border-radius: var(--r-m); background: var(--accent-soft); pointer-events: none; z-index: 0;
+	transition: transform .3s var(--ease), width .3s var(--ease), height .3s, opacity .2s; }
+#tabPill { border-radius: 999px; }
+#searchInput { margin: 0 10px; width: calc(100% - 20px); }
+.search-res { padding: 6px 8px; }
+.search-res .file { color: var(--sub); font-size: 12px; margin: 10px 6px 4px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.search-res .hit { padding: 6px 10px; border-radius: var(--r-m); cursor: pointer; font-family: Consolas, monospace; font-size: 12px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.search-res .hit:hover { background: var(--card); }
+.search-res mark { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 1px; }
+
+/* ---------------- редактор ---------------- */
+#main { grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#tabs { display: flex; gap: 4px; height: 44px; align-items: center; padding: 0 7px; overflow-x: auto; flex: none; position: relative; background: var(--bg); border-radius: var(--r-l) var(--r-l) 0 0; }
+#main:not(.has-tabs) #tabs, #main:not(.has-tabs) #breadcrumbs { display: none; }
+#main.has-tabs #editorWrap { border-radius: 0 0 var(--r-l) var(--r-l); }
+#tabs::-webkit-scrollbar { height: 0; }
+.tab { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 12px; border-radius: 999px;
+	cursor: pointer; color: var(--sub); white-space: nowrap; transition: background .15s, color .15s; flex: none; }
+.tab .fi { width: 15px; height: 15px; }
+.tab:hover { background: var(--card); color: var(--text); }
+.tab.on, .tab.on:hover { background: transparent; color: var(--text); }
+.tab .x { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; opacity: .55; }
+.tab .x:hover { background: var(--hover); opacity: 1; }
+.tab.dirty .x::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.tab.dirty .x span { display: none; }
+.tab.dirty:hover .x::before { content: none; }
+.tab.dirty:hover .x span { display: inline; }
+#breadcrumbs { height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 16px; background: var(--bg); color: var(--dim); font-size: 12px; flex: none; }
+body.no-breadcrumbs #breadcrumbs { display: none; }
+#editorWrap { flex: 1; position: relative; min-height: 0; margin-bottom: var(--gap); }
+#editor, #viewer { position: absolute; inset: 0; }
+#viewer { display: none; overflow: auto; }
+#welcome { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--sub); background: var(--bg); }
+#welcome h1 { margin: 0; color: var(--text); font-size: 34px; font-weight: 800; letter-spacing: -.5px; }
+#welcome h1 b { color: var(--accent); }
+#welcome .row { display: flex; gap: 10px; }
+.orbit { container-type: inline-size; position: relative; width: min(440px, 80vw, 56vh); margin: 28px 0 8px; aspect-ratio: 1; display: grid; place-items: center; flex: none; }
+.orbit .core { position: relative; z-index: 2; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.ring { position: absolute; inset: 0; margin: auto; border-radius: 50%; border: 1px dashed color-mix(in srgb, var(--sub) 22%, transparent);
+	animation: spin var(--dur) linear infinite var(--dir, normal), orbitIn .9s var(--ease) both; }
+.ring .lang { position: absolute; left: 50%; top: 50%; transform: rotate(var(--a)) translate(var(--r)) rotate(calc(-1 * var(--a))); }
+.ring .lang > div { translate: -50% -50%; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 9px; border-radius: 999px;
+	background: var(--card); border: 1px solid var(--line); white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text);
+	animation: spin var(--dur) linear infinite var(--back, reverse); transition: background .2s, border-color .2s, scale .2s; cursor: default; }
+.ring .lang > div:hover { background: var(--accent-soft); border-color: var(--accent); scale: 1.06; }
+.ring .lang .fi { width: 18px; height: 18px; }
+.orbit:hover .ring, .orbit:hover .ring .lang > div { animation-play-state: paused; }
+@keyframes orbitIn { from { opacity: 0; scale: .85; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .ring, .ring .lang > div { animation: none !important; } }
+
+/* просмотр картинок и шрифтов */
+.img-view { min-height: 100%; display: flex; flex-direction: column; }
+.img-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 8px 0 14px; background: var(--bg); }
+.img-bar .info { color: var(--sub); font-size: 12px; margin-right: auto; }
+.img-bar .zoom { min-width: 52px; text-align: center; font-weight: 600; }
+.img-stage { flex: 1; display: grid; place-items: center; padding: 24px; cursor: grab; }
+.img-stage.checker { background-image: linear-gradient(45deg, #ffffff0d 25%, transparent 25%), linear-gradient(-45deg, #ffffff0d 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ffffff0d 75%), linear-gradient(-45deg, transparent 75%, #ffffff0d 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
+.img-stage img { max-width: none; border-radius: var(--r-s); transition: width .12s; }
+.img-stage img.pixel { image-rendering: pixelated; }
+.font-view { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.font-view .head { display: flex; align-items: center; gap: 10px; }
+.font-view .head .name { font-size: 18px; font-weight: 700; margin-right: auto; }
+.font-card { background: var(--card); border-radius: var(--r-l); padding: 14px 16px; }
+.font-card .lbl { color: var(--sub); font-size: 11px; margin-bottom: 6px; }
+.font-sample { outline: none; word-break: break-word; }
+
+/* вывод */
+#bottom { height: var(--bottom-h, 170px); display: flex; flex-direction: column; flex: none; margin-bottom: var(--gap); }
+body.no-bottom #bottom { display: none; }
+#bottom .heads { padding-left: 8px; gap: 4px; }
+#bottom .heads .grow { flex: 1; }
+#output { flex: 1; overflow: auto; padding: 0 16px 10px; font-family: Consolas, monospace; font-size: 12.5px; white-space: pre-wrap; }
+#output .err { color: var(--danger); }
+#output .info { color: var(--dim); }
+#problems { flex: 1; overflow: auto; padding: 0 8px 10px; display: none; }
+#problems .pr { padding: 6px 10px; border-radius: var(--r-m); cursor: pointer; }
+#problems .pr:hover { background: var(--card); }
+
+/* ---------------- Manul ---------------- */
+#manul { grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin-bottom: var(--gap); }
+body.manul-left #manul { grid-column: 2; }
+body.manul-left #sidebar { grid-column: 3; }
+body.manul-left #main { grid-column: 4; }
+body.no-manul #manul { display: none; }
+.ava { width: 34px; height: 34px; border-radius: 50%; background: #F3EFE7 url(data:image/jpeg;base64,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) center / 112% no-repeat; flex: none; position: relative; }
+.ava.online::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); border: 2px solid var(--bg); }
+.m-head { padding-left: 12px; gap: 10px; }
+.m-head .who { flex: 1; min-width: 0; line-height: 1.25; }
+.m-head .who .n { font-weight: 600; }
+.m-head .who .s { font-size: 11.5px; color: var(--sub); font-weight: 400; }
+.m-head .who .s.live { color: var(--accent); }
+.dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+/* Чат и Агент — две ленты рядом; переключение сдвигает их, как страницы */
+#chatStage { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+#chatTrack { display: flex; width: 200%; height: 100%; transition: transform .4s var(--ease); }
+#chatTrack.agent { transform: translateX(-50%); }
+.pane { width: 50%; height: 100%; overflow: auto; padding: 6px 14px 10px; display: flex; flex-direction: column; gap: 16px; transition: opacity .3s ease; }
+#chatTrack.agent #pane-chat, #chatTrack:not(.agent) #pane-agent { opacity: 0; }
+.mode { position: relative; }
+.mode-pill { position: absolute; top: 3px; left: 0; height: 26px; border-radius: 999px; background: var(--accent-soft); transition: transform .32s var(--ease), width .32s var(--ease); }
+.mode button { position: relative; z-index: 1; }
+.mode button.on { background: transparent; }
+#modeHint { transition: opacity .2s; }
+#modeHint.fade { opacity: 0; }
+.msg-me { align-self: flex-end; max-width: 86%; background: var(--accent-soft); padding: 9px 13px; border-radius: var(--r-l) var(--r-l) var(--r-s) var(--r-l); line-height: 1.45; word-wrap: break-word; animation: pop .18s ease-out; }
+.msg-me .ctx { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.msg-me .ctx span { display: flex; align-items: center; gap: 4px; font-size: 11px; background: #ffffff12; border-radius: 999px; padding: 2px 8px; }
+.msg-bot { display: flex; gap: 10px; align-items: flex-start; animation: pop .18s ease-out; }
+.msg-bot .ava { width: 26px; height: 26px; margin-top: 1px; }
+.msg-bot .content { flex: 1; min-width: 0; line-height: 1.55; word-wrap: break-word; }
+.msg-bot .name { font-weight: 600; margin-bottom: 2px; display: flex; gap: 8px; align-items: baseline; }
+.msg-bot .name .time { color: var(--dim); font-weight: 400; font-size: 11px; }
+.msg-bot code { font-family: Consolas, monospace; font-size: 12px; background: var(--card); padding: 1px 5px; border-radius: var(--r-s); }
+.typing-dots { display: flex; gap: 4px; padding: 8px 0 4px; }
+.typing-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--sub); animation: bounce 1.2s infinite; }
+.typing-dots i:nth-child(2) { animation-delay: .15s; } .typing-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes bounce { 0%, 60%, 100% { transform: none; opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }
+.msg-err { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border-radius: var(--r-l); padding: 10px 12px; font-size: 12.5px; line-height: 1.45; animation: pop .18s ease-out; }
+.msg-err svg { color: var(--danger); width: 16px; height: 16px; flex: none; margin-top: 1px; }
+.msg-err b { display: block; color: var(--danger); margin-bottom: 1px; }
+.codebox { margin: 8px 0 4px; border-radius: var(--r-l); overflow: hidden; background: var(--card); }
+.codebox .bar { display: flex; align-items: center; gap: 2px; height: 34px; padding: 0 4px 0 12px; font-size: 11px; color: var(--sub); }
+.codebox .bar .lang { margin-right: auto; font-weight: 600; }
+.codebox .bar button { height: 24px; border: 0; background: none; color: var(--sub); border-radius: 999px; padding: 0 10px; cursor: pointer; font-size: 11px; font-weight: 600; }
+.codebox .bar button:hover { background: var(--hover); color: var(--text); }
+.codebox pre { margin: 0; padding: 0 12px 11px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; max-height: 320px; }
+.change { background: var(--card); border-radius: var(--r-l); margin: 8px 0 2px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.change .top { display: flex; align-items: center; gap: 8px; }
+.change .path { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.change .stat { font-size: 11px; font-family: Consolas, monospace; }
+.change .stat .a { color: var(--ok); } .change .stat .d { color: var(--danger); }
+.change .acts { display: flex; gap: 6px; }
+.change .acts .btn:not(.primary) { background: var(--hover); }
+.change.done { opacity: .6; }
+.m-empty { margin: auto; text-align: center; padding: 10px 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.m-empty .ava { width: 104px; height: 104px; animation: float 4s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.m-empty h3 { margin: 8px 0 0; font-size: 18px; font-weight: 700; }
+.nokey { margin-top: 10px; background: var(--card); border-radius: var(--r-l); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; max-width: 290px; }
+.nokey .t { font-weight: 600; color: var(--danger); display: flex; align-items: center; gap: 6px; }
+.nokey .t svg { width: 16px; height: 16px; }
+.nokey a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.nokey a:hover { text-decoration: underline; }
+/* поле ввода — как .field: карточка, рамка появляется при наборе */
+.composer { padding: 0 10px 10px; flex: none; }
+.cbox { background: var(--card); border: 1.5px solid transparent; border-radius: var(--r-l); transition: border-color .15s; }
+.cbox:focus-within { border-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 9px 10px 0; }
+.chips:empty { display: none; }
+.chip { display: flex; align-items: center; gap: 5px; height: 24px; font-size: 11.5px; background: var(--hover); border-radius: 999px; padding: 0 3px 0 9px; }
+.chip span { display: flex; align-items: center; gap: 5px; }
+.chip.off { opacity: .45; }
+.chip button { border: 0; background: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; color: var(--sub); display: grid; place-items: center; }
+.chip button:hover { background: #3A3A3A; color: var(--text); }
+#prompt { display: block; width: 100%; background: none; border: 0; outline: none; resize: none; padding: 11px 14px 4px; min-height: 44px; max-height: 200px; line-height: 1.45; }
+#prompt::placeholder { color: var(--dim); }
+.ctool { display: flex; align-items: center; gap: 6px; padding: 4px 6px 6px; }
+.ctool .grow { flex: 1; }
+.ctool .icon-btn:hover { background: var(--hover); }
+.ctool .mode { background: var(--hover); }
+.msel { height: 32px; background: var(--hover); color: var(--sub); border: 0; border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 600; outline: none; max-width: 120px; cursor: pointer; }
+.lim { font-size: 11px; color: var(--dim); }
+.send { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center;
+	transition: background .15s, transform .1s; flex: none; }
+.send:hover { background: var(--accent-press); }
+.send:active { transform: scale(.92); }
+.send:disabled { background: var(--hover); color: var(--dim); cursor: default; }
+.send svg { width: 17px; height: 17px; }
+.cfoot { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--dim); padding: 6px 6px 0; white-space: nowrap; }
+.cfoot span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.attach-pop { width: 280px; max-height: 300px; overflow: auto; }
+.attach-pop input { margin-bottom: 4px; }
+.attach-pop .it { display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------- строка состояния ---------------- */
+#status { grid-column: 1 / -1; color: var(--sub); display: flex; align-items: center; gap: 16px; padding: 0 6px 0 14px; font-size: 12px; }
+#status span { display: flex; align-items: center; gap: 4px; }
+body.status-accent #status { background: var(--accent); color: #fff; }
+#status .grow { flex: 1; }
+#status .live { color: var(--accent); }
+body.status-accent #status .live { color: #fff; }
+
+/* ---------------- окна ---------------- */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: flex-start; justify-content: center; z-index: 50; }
+.overlay.on { display: flex; }
+.modal { margin-top: 7vh; width: min(640px, 92vw); max-height: 84vh; overflow: auto; background: var(--bg); border: 1px solid var(--line);
+	border-radius: var(--r-xl); box-shadow: var(--shadow); animation: pop .18s ease-out; }
+.modal h2 { margin: 0; min-height: 56px; padding: 0 10px 0 18px; font-size: 16px; font-weight: 700; display: flex; align-items: center; }
+.modal h2 .icon-btn { margin-left: auto; }
+.modal .body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--card); border-radius: var(--r-l); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.card h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--accent); }
+.set { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
+.set label { flex: 1; }
+.set .d { display: block; font-size: 11.5px; color: var(--sub); margin-top: 2px; }
+.switch { width: 40px; height: 24px; border-radius: 12px; background: var(--hover); position: relative; cursor: pointer; flex: none; transition: background .2s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .2s var(--ease); }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 19px; }
+.set select, .set input[type=number] { height: 32px; background: var(--hover); color: var(--text); border: 0; border-radius: 999px; padding: 0 12px; width: 190px; outline: none; }
+.card .btn:not(.primary) { background: var(--hover); }
+.card .btn:not(.primary):hover { background: #383838; }
+.swatches { display: flex; gap: 8px; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid var(--card); outline: 2px solid transparent; transition: outline-color .15s; }
+.swatch.on { outline-color: var(--text); }
+.key-row { display: flex; gap: 8px; align-items: center; }
+.key-row .field { flex: 1; background: var(--hover); }
+.font-preview { font-size: 15px; padding: 10px 12px; background: var(--bg); border-radius: var(--r-m); }
+#palette .modal { margin-top: 10vh; }
+#paletteInput { width: 100%; height: 56px; background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 0 18px; font-size: 15px; color: var(--text); outline: none; }
+#palette .list { max-height: 52vh; overflow: auto; padding: 8px; }
+#palette .item { display: flex; justify-content: space-between; align-items: center; }
+#palette .item > span:first-child { display: flex; align-items: center; gap: 8px; }
+#palette .item .k { color: var(--sub); font-size: 11px; }
+#diffModal .modal { width: min(1200px, 96vw); max-height: none; }
+#diffBox { height: 66vh; margin: 0 12px; border-radius: var(--r-l); overflow: hidden; }
+#diffModal .acts { display: flex; justify-content: flex-end; gap: 8px; padding: 12px; }
+#toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--card); border: 1px solid var(--line);
+	height: 40px; display: flex; align-items: center; padding: 0 18px; border-radius: 999px; opacity: 0; transition: all .22s; pointer-events: none; z-index: 80;
+	box-shadow: var(--shadow); font-weight: 600; }
+#toast.on { opacity: 1; transform: translateX(-50%); }
+</style>
+</head>
+<body>
+<div id="app">
+	<div id="title">
+		<div class="logo">HM <b>Code</b></div>
+		<div class="menu">
+			<button data-cmd="newFile">Файл</button>
+			<button data-cmd="palette">Команды</button>
+			<button data-cmd="run">Запуск</button>
+			<button data-cmd="settings">Настройки</button>
+		</div>
+		<div class="center"><div id="cmdbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m15.5 15.5 4 4"/></svg>Поиск команд и файлов <kbd>Ctrl+Shift+P</kbd></div></div>
+		<div class="hint" id="titleWs"></div>
+	</div>
+
+	<div id="activity">
+		<div id="actPill"></div>
+		<button class="on" data-view="explorer" title="Проводник (Ctrl+Shift+E)">
+			<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4c.6 0 1.1.2 1.5.6l1.3 1.4h5.4a2.7 2.7 0 0 1 2.7 2.7v8.1a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/></svg>
+			Файлы
+		</button>
+		<button data-view="search" title="Поиск по файлам (Ctrl+Shift+F)">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m15.5 15.5 4 4"/></svg>
+			Поиск
+		</button>
+		<button data-toggle="manul" class="on" title="Manul (Ctrl+L)">
+			<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5c-4.9 0-8.5 3.3-8.5 7.6 0 2.3 1 4.3 2.8 5.7l-.6 3 3.2-1.6c1 .3 2 .5 3.1.5 4.9 0 8.5-3.3 8.5-7.6S16.9 3.5 12 3.5zm-3.4 8.9a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6zm6.8 0a1.3 1.3 0 1 1 0-2.6 1.3 1.3 0 0 1 0 2.6z"/></svg>
+			Manul
+		</button>
+		<button data-cmd="run" title="Запустить Python (F5)">
+			<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.6v12.8c0 .8.9 1.3 1.6.9l10-6.4c.6-.4.6-1.3 0-1.7l-10-6.4c-.7-.5-1.6 0-1.6.8z"/></svg>
+			Запуск
+		</button>
+		<div class="spacer"></div>
+		<button data-cmd="settings" title="Настройки (Ctrl+,)">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+			Настройки
+		</button>
+	</div>
+
+	<div id="sidebar">
+		<div class="side-view on" id="explorerView">
+			<div class="side-head"><span>Файлы</span>
+				<div class="tools">
+					<button class="icon-btn" title="Новый файл" data-cmd="newFile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5M12 11v6M9 14h6"/></svg></button>
+					<button class="icon-btn" title="Новая папка" data-cmd="newFolder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4l2.8 2h5.4a2.7 2.7 0 0 1 2.7 2.7v8.1a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/><path d="M12 10.5v6M9 13.5h6"/></svg></button>
+					<button class="icon-btn" title="Загрузить файлы" data-cmd="upload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15v2.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V15"/></svg></button>
+					<button class="icon-btn" title="Свернуть всё" data-cmd="collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m7 14 5-5 5 5"/></svg></button>
+				</div>
+			</div>
+			<div class="workspace-pick" id="wsPick">
+				<button class="btn primary" data-cmd="openFolder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 7.2A2.7 2.7 0 0 1 6.2 4.5h3.4c.6 0 1.1.2 1.5.6l1.3 1.4h5.4a2.7 2.7 0 0 1 2.7 2.7v8.1a2.7 2.7 0 0 1-2.7 2.7H6.2a2.7 2.7 0 0 1-2.7-2.7z"/></svg>Открыть папку</button>
+				<button class="btn" data-cmd="createWorkspace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Создать свою</button>
+				<div class="hint">Своя папка хранится внутри HM Code. Папка с компьютера открывается напрямую — Ctrl+S сохраняет прямо в её файлы.</div>
+			</div>
+			<div class="ws-name" id="wsName" style="display:none"></div>
+			<div id="tree"></div>
+		</div>
+		<div class="side-view" id="searchView">
+			<div class="side-head"><span>Поиск</span></div>
+			<input id="searchInput" class="field" placeholder="Искать во всех файлах">
+			<div class="search-res" id="searchRes"></div>
+		</div>
+	</div>
+
+	<div id="main">
+		<div id="tabs"></div>
+		<div id="breadcrumbs"></div>
+		<div id="editorWrap">
+			<div id="editor"></div>
+			<div id="viewer"></div>
+			<div id="welcome">
+				<div class="orbit" id="orbit">
+					<div class="core"><h1>HM <b>Code</b></h1><div>Редактор кода внутри HoursGram</div></div>
+				</div>
+				<div class="row">
+					<button class="btn primary" data-cmd="openFolder">Открыть папку</button>
+					<button class="btn" data-cmd="createWorkspace">Создать свою</button>
+				</div>
+				<div class="row" id="recent"></div>
+				<div class="hint"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>P</kbd> — команды · <kbd>Ctrl</kbd> <kbd>P</kbd> — файлы · <kbd>Alt</kbd> <kbd>\</kbd> — Manul допишет</div>
+			</div>
+		</div>
+		<div id="bottom">
+			<div class="heads">
+				<button class="on" data-bottom="output">Вывод</button>
+				<button data-bottom="problems">Проблемы</button>
+				<div class="grow"></div>
+				<button class="icon-btn" title="Очистить" data-cmd="clearOutput"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 12h8l1-12"/></svg></button>
+				<button class="icon-btn" title="Скрыть" data-cmd="toggleBottom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+			</div>
+			<div id="output"><span class="info">Здесь будет вывод программы. F5 запускает открытый .py файл — Python работает прямо в HM Code.</span>
+</div>
+			<div id="problems"></div>
+		</div>
+	</div>
+
+	<div id="manul">
+		<div class="m-head">
+			<div class="ava" id="headAva"></div>
+			<div class="who">
+				<div class="n">Manul</div>
+				<div class="s" id="manulState">помощник по коду</div>
+			</div>
+			<button class="icon-btn" title="Новый чат" id="newChat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+			<button class="icon-btn" title="Ещё" id="manulMore"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5.5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18.5" r="1.8"/></svg></button>
+		</div>
+		<div id="chatStage"><div id="chatTrack"><div class="pane" id="pane-chat"></div><div class="pane" id="pane-agent"></div></div></div>
+		<div class="composer">
+			<div class="cbox">
+				<div class="chips" id="chips"></div>
+				<textarea id="prompt" rows="1" placeholder="Спроси Manul о коде…"></textarea>
+				<div class="ctool">
+					<button class="icon-btn" id="attach" title="Приложить файлы проекта"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.4 3.4 0 0 1 4.8 4.8l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"/></svg></button>
+					<div class="mode" id="seg"><span class="mode-pill" id="modePill"></span><button class="on" data-mode="chat">Чат</button><button data-mode="agent">Агент</button></div>
+					<select id="modelSelect" class="msel" title="Модель"><option>glm-5.3</option></select>
+					<span class="grow"></span>
+					<span class="lim" id="limit"></span>
+					<button class="send" id="send" title="Отправить (Enter)" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+				</div>
+			</div>
+			<div class="cfoot"><span id="modeHint"></span><span title="Shift+Enter — новая строка">Enter — отправить</span></div>
+		</div>
+	</div>
+
+	<div id="status">
+		<span>HM Code</span>
+		<span id="stProblems"></span>
+		<span class="grow"></span>
+		<span id="stPos">Стр 1, стлб 1</span>
+		<span id="stIndent">Пробелы: 4</span>
+		<span>UTF-8</span>
+		<span id="stLang">—</span>
+		<span id="stManul" class="live">Manul: нет ключа</span>
+	</div>
+</div>
+
+<!-- настройки -->
+<div class="overlay" id="settings">
+	<div class="modal">
+		<h2>Настройки HM Code <button class="icon-btn" data-close><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></h2>
+		<div class="body">
+			<div class="card">
+				<h3>Manul</h3>
+				<div class="hint">Ключ выдаёт бот <b>@tgmanulaibot</b>. Он хранится только на этом компьютере и уходит только на api.manulchiki.shop.</div>
+				<div class="key-row">
+					<input class="field" id="apiKey" type="password" placeholder="manul-…" autocomplete="off">
+					<button class="icon-btn" id="keyShow" title="Показать"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+					<button class="btn primary small" id="keyCheck">Проверить</button>
+				</div>
+				<div class="hint" id="keyState"></div>
+				<div class="set"><label>Модель по умолчанию</label><select id="setModel"><option>glm-5.3</option></select></div>
+				<div class="set"><label>Дописывать код по Alt+\<span class="d">Серым текстом с места курсора, Tab — принять</span></label><div class="switch" data-set="aiInline"></div></div>
+				<div class="set"><label>Агент применяет изменения сам<span class="d">Без кнопки «Применить» — сразу в файлы (можно отменить Ctrl+Z)</span></label><div class="switch" data-set="agentAuto"></div></div>
+			</div>
+			<div class="card">
+				<h3>Вид</h3>
+				<div class="set"><label>Тема</label><select data-set="theme"><option value="graphite">HoursGram Графит</option><option value="light">Светлая</option></select></div>
+				<div class="set"><label>Акцентный цвет</label><div class="swatches" id="swatches"></div></div>
+				<div class="set"><label>Размер интерфейса</label><select data-set="uiSize"><option value="12">Маленький</option><option value="13">Обычный</option><option value="14">Крупный</option><option value="15">Очень крупный</option></select></div>
+				<div class="set"><label>Панель файлов</label><div class="switch" data-set="showSidebar"></div></div>
+				<div class="set"><label>Панель Manul</label><div class="switch" data-set="showManul"></div></div>
+				<div class="set"><label>Manul слева<span class="d">Рядом с файлами, а не справа</span></label><div class="switch" data-set="manulLeft"></div></div>
+				<div class="set"><label>Нижняя панель (вывод)</label><div class="switch" data-set="showBottom"></div></div>
+				<div class="set"><label>Путь к файлу над кодом</label><div class="switch" data-set="breadcrumbs"></div></div>
+				<div class="set"><label>Цветная строка состояния</label><div class="switch" data-set="statusAccent"></div></div>
+			</div>
+			<div class="card">
+				<h3>Шрифты</h3>
+				<div class="set"><label>Шрифт интерфейса</label><select data-set="uiFont" id="uiFontSelect"></select></div>
+				<div class="set"><label>Шрифт кода</label><select data-set="codeFont" id="codeFontSelect"></select></div>
+				<div class="font-preview" id="fontPreview">def привет(имя): return f"Hello, {имя}!"  # 0O 1lI {} =&gt; != ===</div>
+				<div class="set"><label>Размер шрифта кода</label><input type="number" min="10" max="30" data-set="fontSize"></div>
+				<div class="set"><label>Высота строки</label><select data-set="lineHeight"><option value="0">Обычная</option><option value="1.5">1.5</option><option value="1.7">1.7</option><option value="2">2</option></select></div>
+				<div class="set"><label>Лигатуры<span class="d">=&gt; и != одним знаком (Fira Code, JetBrains Mono, Cascadia)</span></label><div class="switch" data-set="ligatures"></div></div>
+				<div class="key-row">
+					<button class="btn small" id="addFont">Добавить свой шрифт (.ttf, .otf, .woff)</button>
+					<span class="hint" id="customFontsInfo"></span>
+				</div>
+			</div>
+			<div class="card">
+				<h3>Редактор</h3>
+				<div class="set"><label>Размер табуляции</label><select data-set="tabSize"><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></div>
+				<div class="set"><label>Мини-карта справа</label><div class="switch" data-set="minimap"></div></div>
+				<div class="set"><label>Перенос строк</label><div class="switch" data-set="wordWrap"></div></div>
+				<div class="set"><label>Номера строк</label><div class="switch" data-set="lineNumbers"></div></div>
+				<div class="set"><label>Подсказки при вводе</label><div class="switch" data-set="quickSuggest"></div></div>
+				<div class="set"><label>Цветные скобки</label><div class="switch" data-set="bracketColors"></div></div>
+				<div class="set"><label>Плавный курсор и прокрутка</label><div class="switch" data-set="smoothCaret"></div></div>
+				<div class="set"><label>Автосохранение</label><div class="switch" data-set="autoSave"></div></div>
+			</div>
+			<div class="card">
+				<h3>Передать настройки</h3>
+				<div class="hint">Настрой всё как нравится, нажми «Скопировать» и пришли мне — сделаю так же в клиенте. Ключ Manul в копию не попадает.</div>
+				<div class="key-row">
+					<button class="btn primary" id="exportSettings">Скопировать настройки</button>
+					<button class="btn danger" id="resetSettings">Сбросить</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="overlay" id="palette">
+	<div class="modal">
+		<input id="paletteInput" placeholder="Команда или имя файла">
+		<div class="list" id="paletteList"></div>
+	</div>
+</div>
+
+<div class="overlay" id="diffModal">
+	<div class="modal">
+		<h2 id="diffTitle">Изменения</h2>
+		<div id="diffBox"></div>
+		<div class="acts">
+			<button class="btn" data-close>Закрыть</button>
+			<button class="btn danger" id="diffReject">Отклонить</button>
+			<button class="btn primary" id="diffApply">Применить</button>
+		</div>
+	</div>
+</div>
+<input type="file" id="filePicker" multiple hidden>
+<input type="file" id="fontPicker" accept=".ttf,.otf,.woff,.woff2" hidden>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+<script>
+"use strict";
+// =====================================================================
+//  Настройки
+// =====================================================================
+const DEFAULTS = {
+	theme: "graphite", accent: "#5B8CF5", uiSize: "13",
+	showSidebar: true, showManul: true, manulLeft: false, showBottom: true,
+	breadcrumbs: true, statusAccent: false,
+	uiFont: "Segoe UI", codeFont: "JetBrains Mono", fontSize: 14, lineHeight: "0", ligatures: false, tabSize: "4",
+	minimap: true, wordWrap: false, lineNumbers: true, quickSuggest: true,
+	bracketColors: true, smoothCaret: true, autoSave: false,
+	aiInline: true, agentAuto: false, model: "glm-5.3",
+};
+// Акценты: синий HoursGram и цвета имён из палитры, поярче.
+const ACCENTS = ["#5B8CF5", "#8A7CF0", "#AA95CB", "#E06C75", "#E5A050", "#7FC98A", "#56B6C2"];
+const UI_FONTS = [
+	["Segoe UI", false], ["Inter", true], ["Golos Text", true], ["Onest", true], ["Manrope", true],
+	["Roboto", true], ["Rubik", true], ["Montserrat", true], ["Nunito", true], ["Open Sans", true], ["IBM Plex Sans", true],
+];
+const CODE_FONTS = [
+	["Consolas", false], ["Cascadia Code", false], ["JetBrains Mono", true], ["Fira Code", true], ["Source Code Pro", true],
+	["IBM Plex Mono", true], ["Roboto Mono", true], ["Ubuntu Mono", true], ["PT Mono", true], ["Victor Mono", true],
+	["Inconsolata", true], ["Space Mono", true], ["Red Hat Mono", true], ["Anonymous Pro", true],
+];
+const settings = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("hmcode.settings") || "{}"));
+let apiKey = localStorage.getItem("hmcode.manulKey") || "";
+const saveSettings = () => localStorage.setItem("hmcode.settings", JSON.stringify(settings));
+
+// Свои шрифты: хранятся внутри HM Code и подключаются при запуске.
+let customFonts = JSON.parse(localStorage.getItem("hmcode.fonts") || "[]");
+const loadedGoogle = new Set();
+function ensureFont(name) {
+	const google = [...UI_FONTS, ...CODE_FONTS].find(([n, g]) => n === name && g);
+	if (google && !loadedGoogle.has(name)) {
+		loadedGoogle.add(name);
+		const link = document.createElement("link");
+		link.rel = "stylesheet";
+		link.href = "https://fonts.googleapis.com/css2?family=" + name.replace(/ /g, "+") + ":wght@400;500;600;700&display=swap";
+		document.head.appendChild(link);
+	}
+	document.fonts.load(`14px "${name}"`).then(() => window.monaco && monaco.editor.remeasureFonts()).catch(() => {});
+}
+async function registerCustomFont(font) {
+	try {
+		const face = new FontFace(font.name, `url(${font.data})`);
+		await face.load();
+		document.fonts.add(face);
+	} catch (e) { console.warn("font", font.name, e); }
+}
+
+function applyLayout() {
+	const b = document.body;
+	b.classList.toggle("light", settings.theme === "light");
+	b.classList.toggle("no-sidebar", !settings.showSidebar);
+	b.classList.toggle("no-manul", !settings.showManul);
+	b.classList.toggle("manul-left", settings.manulLeft);
+	b.classList.toggle("no-bottom", !settings.showBottom);
+	b.classList.toggle("no-breadcrumbs", !settings.breadcrumbs);
+	b.classList.toggle("status-accent", settings.statusAccent);
+	b.style.setProperty("--accent", settings.accent);
+	b.style.setProperty("--accent-press", shade(settings.accent, -0.08));
+	if (settings.theme !== "light") {
+		b.style.setProperty("--accent-soft", mix(settings.accent, "#181818", 0.72));
+		b.style.setProperty("--out", mix(settings.accent, "#181818", 0.68));
+	} else {
+		b.style.removeProperty("--accent-soft");
+		b.style.removeProperty("--out");
+	}
+	ensureFont(settings.uiFont);
+	ensureFont(settings.codeFont);
+	b.style.setProperty("--ui-font", `"${settings.uiFont}", "Segoe UI", system-ui, sans-serif`);
+	b.style.setProperty("--ui-size", settings.uiSize + "px");
+	document.getElementById("fontPreview").style.fontFamily = codeFamily();
+	document.querySelector('[data-toggle="manul"]').classList.toggle("on", settings.showManul);
+	requestAnimationFrame(() => { moveActPill(); moveModePill(); });
+	if (editor) {
+		applyEditorSettings();
+		setTimeout(() => editor.layout(), 0);
+	}
+}
+const codeFamily = () => `"${settings.codeFont}", Consolas, "Courier New", monospace`;
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function rgbToHex(r, g, b) { return "#" + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join(""); }
+function mix(a, b, t) { const x = hexToRgb(a), y = hexToRgb(b); return rgbToHex(...x.map((v, i) => v + (y[i] - v) * t)); }
+function shade(a, t) { return mix(a, t < 0 ? "#000000" : "#ffffff", Math.abs(t)); }
+
+// =====================================================================
+//  Папка: с компьютера или своя внутри HM Code
+// =====================================================================
+// Узел: { name, kind: "file"|"dir", children?, handle?, content?, binary? }
+let ws = null;
+const models = new Map();   // путь -> { model, node, saved } для текста
+const views = new Map();    // путь -> { type: "image"|"font", url, info } для картинок и шрифтов
+let openTabs = [];
+let activePath = null;
+const expanded = new Set([""]);
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|ico|svg|avif)$/i;
+const FONT_EXT = /\.(ttf|otf|woff2?)$/i;
+const TEXT_EXT = /\.(py|pyw|txt|md|json|js|mjs|ts|tsx|jsx|html|htm|css|scss|xml|yml|yaml|toml|ini|cfg|c|h|cpp|hpp|cc|cs|java|kt|go|rs|rb|php|sh|bat|ps1|sql|lua|r|swift|dart|vue|env|gitignore|csv|log|svg)$/i;
+const SKIP_DIRS = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", ".idea", "dist", "build"]);
+const viewType = (name) => IMAGE_EXT.test(name) ? "image" : FONT_EXT.test(name) ? "font" : null;
+
+function langOf(name) {
+	const ext = (name.split(".").pop() || "").toLowerCase();
+	return ({ py: "python", pyw: "python", js: "javascript", mjs: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript",
+		json: "json", html: "html", htm: "html", css: "css", scss: "scss", md: "markdown", xml: "xml", svg: "xml", yml: "yaml", yaml: "yaml",
+		c: "c", h: "cpp", cpp: "cpp", hpp: "cpp", cc: "cpp", cs: "csharp", java: "java", kt: "kotlin", go: "go", rs: "rust",
+		rb: "ruby", php: "php", sh: "shell", bat: "bat", ps1: "powershell", sql: "sql", lua: "lua", r: "r", swift: "swift",
+		dart: "dart", ini: "ini", toml: "ini", cfg: "ini" })[ext] || "plaintext";
+}
+// Иконки файлов: свои SVG, одинаковые на любой системе.
+const PAGE = '<path d="M4.2 1.5h4.9l3.4 3.4v8.4c0 .7-.5 1.2-1.2 1.2H4.2c-.7 0-1.2-.5-1.2-1.2V2.7c0-.7.5-1.2 1.2-1.2z" fill="#8C8C8C"/><path d="M9.1 1.5v2.6c0 .5.4.8.8.8h2.6z" fill="#C8C8C8"/>';
+const svg16 = (body) => `<svg class="fi" viewBox="0 0 16 16">${body}</svg>`;
+const badge = (text, color, size = 6.2) => svg16(`<rect x="1.5" y="2" width="13" height="12" rx="3.2" fill="${color}"/><text x="8" y="10.4" text-anchor="middle" font-size="${size}" font-weight="800" font-family="Segoe UI, Arial, sans-serif" fill="#181818">${text}</text>`);
+const glyph = (text, color, size = 12.5) => svg16(`<text x="8" y="12.4" text-anchor="middle" font-size="${size}" font-weight="800" font-family="Consolas, Segoe UI, monospace" fill="${color}">${text}</text>`);
+const ICONS = {
+	folder: svg16('<path d="M1.5 4.3c0-.9.7-1.6 1.6-1.6h3.1l1.5 1.4h5.1c.9 0 1.7.8 1.7 1.7v6.1c0 .9-.8 1.6-1.7 1.6H3.1c-.9 0-1.6-.7-1.6-1.6z" fill="#7FA3F7"/>'),
+	folderOpen: svg16('<path d="M1.5 4.3c0-.9.7-1.6 1.6-1.6h3.1l1.5 1.4h5.1c.9 0 1.7.8 1.7 1.7v.6H4.5c-.7 0-1.3.4-1.6 1.1L1.5 10.6z" fill="#5677C9"/><path d="M3.1 7.4c.2-.5.7-.9 1.3-.9h9.8c.6 0 1.1.6.9 1.2l-1.4 4.4c-.2.6-.7.9-1.3.9H2.6c-.6 0-1-.6-.9-1.2z" fill="#7FA3F7"/>'),
+	file: svg16(PAGE),
+	text: svg16(PAGE + '<path d="M5 7.6h5.2M5 9.6h5.2M5 11.6h3.4" stroke="#181818" stroke-width="1.1" stroke-linecap="round" opacity=".55"/>'),
+	python: svg16('<path d="M7.9 1.3c-3.1 0-2.9 1.3-2.9 1.3v1.4h3v.5H3.8S1.8 4.3 1.8 7.4s1.7 3 1.7 3h1.1V8.9s0-1.7 1.7-1.7h2.9s1.6 0 1.6-1.6V2.9s.3-1.6-2.9-1.6zM6.3 2.2a.55.55 0 1 1 0 1.1.55.55 0 0 1 0-1.1z" fill="#5B8CF5"/><path d="M8.1 14.7c3.1 0 2.9-1.3 2.9-1.3V12H8v-.5h4.2s2-.1 2-3.2-1.7-3-1.7-3h-1.1v1.5s0 1.7-1.7 1.7H6.8s-1.6 0-1.6 1.6v2.7s-.3 1.6 2.9 1.6zm1.6-.9a.55.55 0 1 1 0-1.1.55.55 0 0 1 0 1.1z" fill="#E5C07B"/>'),
+	image: svg16('<rect x="1.5" y="2.5" width="13" height="11" rx="2.6" fill="#95CB95"/><circle cx="5.4" cy="6.1" r="1.4" fill="#181818" opacity=".5"/><path d="M2.6 12.4 6.4 8.6l2.4 2.4 1.9-1.9 2.7 2.7v.6H2.6z" fill="#181818" opacity=".45"/>'),
+	font: glyph("Aa", "#AA95CB", 10.5),
+	js: badge("JS", "#E5C07B"), ts: badge("TS", "#5B8CF5"), json: glyph("{}", "#E5A050"), html: glyph("&lt;&gt;", "#E5A050", 11),
+	css: glyph("#", "#56B6C2", 14), scss: glyph("#", "#CB9598", 14), md: glyph("M↓", "#7FA3F7", 9.5), xml: glyph("&lt;/&gt;", "#E5A050", 8.5),
+	c: badge("C", "#56B6C2", 8), cpp: badge("C++", "#5B8CF5", 5.4), h: badge("H", "#AA95CB", 8), cs: badge("C#", "#AA95CB"),
+	java: badge("JV", "#E06C75"), kt: badge("KT", "#AA95CB"), go: badge("GO", "#56B6C2"), rs: badge("RS", "#E5A050"),
+	rb: badge("RB", "#E06C75"), php: badge("PHP", "#8A7CF0", 5), lua: badge("LUA", "#5B8CF5", 5), swift: badge("SW", "#E5A050"),
+	dart: badge("DT", "#56B6C2"), sql: glyph("DB", "#E5C07B", 9), sh: glyph("&gt;_", "#95CB95", 11),
+	cfg: svg16('<circle cx="8" cy="8" r="2.2" fill="none" stroke="#B8B8B8" stroke-width="1.6"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4" stroke="#B8B8B8" stroke-width="1.6" stroke-linecap="round"/>'),
+	csv: svg16('<rect x="2" y="2.5" width="12" height="11" rx="2" fill="none" stroke="#95CB95" stroke-width="1.4"/><path d="M2 6.2h12M2 9.8h12M6.3 2.5v11" stroke="#95CB95" stroke-width="1.2"/>'),
+	git: svg16('<path d="M8 1.6 14.4 8 8 14.4 1.6 8z" fill="#E06C75"/><circle cx="8" cy="5.6" r="1" fill="#181818"/><circle cx="8" cy="10.4" r="1" fill="#181818"/><path d="M8 5.6v4.8" stroke="#181818" stroke-width="1"/>'),
+};
+const EXT_ICON = { py: "python", pyw: "python", js: "js", mjs: "js", jsx: "js", ts: "ts", tsx: "ts", json: "json", html: "html", htm: "html",
+	css: "css", scss: "scss", md: "md", xml: "xml", c: "c", cpp: "cpp", cc: "cpp", hpp: "h", h: "h", cs: "cs", java: "java", kt: "kt",
+	go: "go", rs: "rs", rb: "rb", php: "php", lua: "lua", swift: "swift", dart: "dart", sql: "sql", sh: "sh", bat: "sh", ps1: "sh",
+	ini: "cfg", cfg: "cfg", toml: "cfg", yml: "cfg", yaml: "cfg", env: "cfg", csv: "csv", gitignore: "git", txt: "text", log: "text" };
+function iconOf(name, dir, open) {
+	if (dir) return open ? ICONS.folderOpen : ICONS.folder;
+	if (IMAGE_EXT.test(name)) return ICONS.image;
+	if (FONT_EXT.test(name)) return ICONS.font;
+	const base = name.split("/").pop().toLowerCase();
+	const ext = base.includes(".") ? base.split(".").pop() : base;
+	return ICONS[EXT_ICON[ext]] || ICONS.file;
+}
+const UI = {
+	chevron: '<svg viewBox="0 0 10 10"><path d="M3.5 2 6.5 5l-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+	clip: '<svg class="ui-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.4 3.4 0 0 1 4.8 4.8l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.5-7.5"/></svg>',
+	error: '<svg class="ui-i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+	warn: '<svg class="ui-i" viewBox="0 0 16 16"><path d="M8 2 14.5 13.5h-13z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+	key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/></svg>',
+};
+
+// ---------------------------------------------------------------------
+//  Мост к клиенту HoursGram. Внутри клиента страница открыта не по https,
+//  поэтому папки с диска, буфер обмена и запросы к Manul делает сам клиент:
+//  страница посылает ему просьбу, он отвечает через window.hmNative.
+// ---------------------------------------------------------------------
+const bridge = (window.external && typeof window.external.invoke === "function") ? window.external : null;
+const nativeWaiting = new Map();
+let nativeSeq = 0;
+window.hmNative = (id, result) => {
+	const done = nativeWaiting.get(id);
+	if (done) { nativeWaiting.delete(id); done(result || {}); }
+};
+function native(op, args = {}) {
+	return new Promise((resolve, reject) => {
+		const id = ++nativeSeq;
+		nativeWaiting.set(id, (r) => r.error ? reject(new Error(r.error)) : resolve(r));
+		bridge.invoke(JSON.stringify(Object.assign({ event: "native", op, id }, args)));
+	});
+}
+function copyText(text) {
+	if (bridge) { native("copy", { text }).catch(() => {}); return; }
+	if (navigator.clipboard && window.isSecureContext) { copyText(text); return; }
+	const area = document.createElement("textarea");
+	area.value = text;
+	document.body.appendChild(area);
+	area.select();
+	document.execCommand("copy");
+	area.remove();
+}
+const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp",
+	ico: "image/x-icon", svg: "image/svg+xml", avif: "image/avif", ttf: "font/ttf", otf: "font/otf", woff: "font/woff", woff2: "font/woff2" };
+const mimeOf = (name) => MIME[(name.split(".").pop() || "").toLowerCase()] || "application/octet-stream";
+const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+async function blobToB64(blob) {
+	const buf = new Uint8Array(await blob.arrayBuffer());
+	let out = "";
+	for (let i = 0; i < buf.length; i += 0x8000) out += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+	return btoa(out);
+}
+const joinPath = (a, b) => a ? a + "/" + b : b;
+// Папка с диска через клиент, с тем же видом, что у браузерных папок.
+class NativeFile {
+	constructor(path, name) { this.kind = "file"; this.path = path; this.name = name; }
+	async getFile() {
+		const r = await native("read", { path: this.path });
+		return new File([b64ToBytes(r.data)], this.name, { type: mimeOf(this.name) });
+	}
+	async createWritable() {
+		const parts = [];
+		return {
+			write: async (data) => { parts.push(data); },
+			close: async () => { await native("write", { path: this.path, data: await blobToB64(new Blob(parts)) }); },
+		};
+	}
+	async move(target) {
+		const to = typeof target === "string"
+			? joinPath(this.path.includes("/") ? this.path.slice(0, this.path.lastIndexOf("/")) : "", target)
+			: joinPath(target.path, this.name);
+		await native("move", { from: this.path, to });
+		this.path = to;
+		this.name = to.split("/").pop();
+	}
+}
+class NativeDir extends NativeFile {
+	constructor(path, name) { super(path, name); this.kind = "directory"; }
+	async *entries() {
+		const r = await native("list", { path: this.path });
+		for (const e of r.entries || []) {
+			const p = joinPath(this.path, e.name);
+			yield [e.name, e.dir ? new NativeDir(p, e.name) : new NativeFile(p, e.name)];
+		}
+	}
+	async getFileHandle(name, opts = {}) {
+		const p = joinPath(this.path, name);
+		if (opts.create) await native("touch", { path: p });
+		return new NativeFile(p, name);
+	}
+	async getDirectoryHandle(name, opts = {}) {
+		const p = joinPath(this.path, name);
+		if (opts.create) await native("mkdir", { path: p });
+		return new NativeDir(p, name);
+	}
+	async removeEntry(name) { await native("remove", { path: joinPath(this.path, name) }); }
+}
+if (bridge) {
+	window.showDirectoryPicker = async () => {
+		const r = await native("pickFolder");
+		if (!r.name) throw new DOMException("Отменено", "AbortError");
+		return new NativeDir("", r.name);
+	};
+}
+
+async function readLocalDir(handle, depth = 0) {
+	const children = [];
+	for await (const [name, child] of handle.entries()) {
+		if (child.kind === "directory") {
+			if (SKIP_DIRS.has(name) || depth > 8) continue;
+			children.push({ name, kind: "dir", handle: child, children: await readLocalDir(child, depth + 1) });
+		} else {
+			children.push({ name, kind: "file", handle: child });
+		}
+	}
+	return sortNodes(children);
+}
+function sortNodes(list) {
+	return list.sort((a, b) => (a.kind !== b.kind) ? (a.kind === "dir" ? -1 : 1) : a.name.localeCompare(b.name));
+}
+
+async function openFolder() {
+	if (!window.showDirectoryPicker) { toast("Этот браузер не умеет открывать папки — в клиенте HoursGram будет работать"); return; }
+	try {
+		const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+		ws = { name: handle.name, kind: "local", root: { name: handle.name, kind: "dir", handle, children: await readLocalDir(handle) } };
+		resetEditorState();
+		renderTree();
+		renderChips();
+		log(`Открыта папка «${handle.name}»`, "info");
+	} catch (e) {
+		if (e.name !== "AbortError") toast("Не удалось открыть папку: " + e.message);
+	}
+}
+function createWorkspace() {
+	const name = prompt("Название папки", "Мой проект");
+	if (!name) return;
+	ws = { name, kind: "own", root: { name, kind: "dir", children: [
+		{ name: "main.py", kind: "file", content:
+`# ${name}
+# Ctrl+Space — подсказки, Alt+\\ — Manul допишет, F5 — запустить
+
+
+def greet(name: str) -> str:
+    return f"Привет, {name}!"
+
+
+if __name__ == "__main__":
+    print(greet("HoursGram"))
+` },
+		{ name: "README.md", kind: "file", content: `# ${name}\n\nПроект создан в HM Code.\n` },
+	] } };
+	resetEditorState();
+	persistOwn();
+	renderTree();
+	openFile("main.py");
+}
+function persistOwn() {
+	if (!ws || ws.kind !== "own") return;
+	const strip = (n) => n.kind === "dir"
+		? { name: n.name, kind: "dir", children: n.children.map(strip) }
+		: { name: n.name, kind: "file", content: n.content ?? "", binary: !!n.binary };
+	try {
+		localStorage.setItem("hmcode.own", JSON.stringify({ name: ws.name, root: strip(ws.root) }));
+	} catch {
+		toast("Своей папке не хватает места — большие картинки лучше держать в папке с компьютера");
+	}
+}
+function restoreOwn() {
+	const saved = JSON.parse(localStorage.getItem("hmcode.own") || "null");
+	if (saved) ws = { name: saved.name, kind: "own", root: saved.root };
+}
+function nodeAt(path) {
+	if (!ws) return null;
+	if (path === "") return ws.root;
+	let node = ws.root;
+	for (const part of path.split("/")) {
+		node = (node.children || []).find((c) => c.name === part);
+		if (!node) return null;
+	}
+	return node;
+}
+const parentOf = (path) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+const join = (dir, name) => dir ? dir + "/" + name : name;
+
+function renderTree() {
+	document.getElementById("wsPick").style.display = ws ? "none" : "";
+	const nameBox = document.getElementById("wsName");
+	nameBox.style.display = ws ? "" : "none";
+	document.getElementById("titleWs").textContent = ws ? ws.name : "";
+	if (!ws) { tree.innerHTML = ""; return; }
+	nameBox.innerHTML = `${ICONS.folderOpen}<span>${escapeHtml(ws.name)}</span><span class="tag">${ws.kind === "local" ? "с компьютера" : "своя"}</span><button class="icon-btn ws-close" title="Закрыть проект"><svg viewBox="0 0 12 12" width="11" height="11"><path d="m3 3 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>`;
+	nameBox.querySelector(".ws-close").onclick = closeWorkspace;
+	tree.innerHTML = "";
+	const walk = (node, path, depth) => {
+		for (const child of node.children || []) {
+			const childPath = join(path, child.name);
+			const row = document.createElement("div");
+			const isDir = child.kind === "dir";
+			const open = expanded.has(childPath);
+			row.className = "node" + (open ? " open" : "") + (childPath === activePath ? " active" : "");
+			row.style.paddingLeft = (8 + depth * 14) + "px";
+			row.innerHTML = `<span class="chev">${isDir ? UI.chevron : ""}</span><span class="ico">${iconOf(child.name, isDir, open)}</span><span class="name">${escapeHtml(child.name)}</span>${isDirty(childPath) ? '<span class="dirty"></span>' : ""}`;
+			row.onclick = () => {
+				if (isDir) { open ? expanded.delete(childPath) : expanded.add(childPath); renderTree(); }
+				else openFile(childPath);
+			};
+			row.oncontextmenu = (e) => { e.preventDefault(); nodeMenu(e, childPath, child); };
+			row.draggable = true;
+			row.ondragstart = (e) => { dragPath = childPath; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", childPath); };
+			row.ondragend = () => { dragPath = null; row.classList.remove("dragging"); clearDrop(); };
+			row.ondragover = (e) => {
+				const target = isDir ? childPath : parentOf(childPath);
+				if (!canDrop(dragPath, target)) return;
+				e.preventDefault();
+				e.stopPropagation();
+				clearDrop();
+				const host = isDir ? row : [...tree.children].find((r) => r.dataset.path === target);
+				host ? host.classList.add("drop") : tree.classList.add("drop-root");
+				if (isDir && !open) { clearTimeout(openTimer); openTimer = setTimeout(() => { expanded.add(childPath); renderTree(); }, 700); }
+			};
+			row.ondrop = (e) => { e.preventDefault(); e.stopPropagation(); clearDrop(); moveNode(dragPath, isDir ? childPath : parentOf(childPath)); };
+			row.dataset.path = childPath;
+			tree.appendChild(row);
+			if (isDir && open) walk(child, childPath, depth + 1);
+		}
+	};
+	walk(ws.root, "", 0);
+	slidePill(tree, "treePill", tree.querySelector(".node.active"));
+}
+// Подсветка выбранного файла и вкладки переезжает к новому месту, как у папок.
+const pillAt = {};
+function slidePill(host, id, target) {
+	let pill = document.getElementById(id);
+	if (!pill) {
+		pill = document.createElement("div");
+		pill.id = id;
+		pill.className = "slide-pill";
+		pill.style.opacity = 0;
+	}
+	if (pill.parentNode !== host) host.prepend(pill);
+	if (!target) { pill.style.opacity = 0; pillAt[id] = null; return; }
+	const to = { x: target.offsetLeft, y: target.offsetTop, w: target.offsetWidth, h: target.offsetHeight };
+	const from = pillAt[id];
+	const place = (r) => {
+		pill.style.width = r.w + "px";
+		pill.style.height = r.h + "px";
+		pill.style.transform = `translate(${r.x}px, ${r.y}px)`;
+	};
+	if (!from || pill.style.opacity === "0") {
+		pill.style.transition = "none";
+		place(to);
+		void pill.offsetWidth;
+		pill.style.transition = "";
+		pill.style.opacity = 1;
+	} else {
+		pill.style.transition = "none";
+		place(from);
+		void pill.offsetWidth;
+		pill.style.transition = "";
+		place(to);
+	}
+	pillAt[id] = to;
+}
+let dragPath = null, openTimer = null;
+const tree = document.getElementById("tree");
+function clearDrop() {
+	clearTimeout(openTimer);
+	document.querySelectorAll(".node.drop").forEach((n) => n.classList.remove("drop"));
+	tree.classList.remove("drop-root");
+}
+function canDrop(src, dir) {
+	if (src === null || src === undefined) return false;
+	if (parentOf(src) === dir) return false;
+	return !(dir === src || dir.startsWith(src + "/"));
+}
+tree.ondragover = (e) => { if (canDrop(dragPath, "")) { e.preventDefault(); clearDrop(); tree.classList.add("drop-root"); } };
+tree.ondragleave = (e) => { if (e.target === tree) tree.classList.remove("drop-root"); };
+tree.ondrop = (e) => { e.preventDefault(); clearDrop(); if (canDrop(dragPath, "")) moveNode(dragPath, ""); };
+
+async function copyLocal(node, destDir) {
+	if (node.kind === "file") {
+		const file = await node.handle.getFile();
+		const handle = await destDir.getFileHandle(node.name, { create: true });
+		const w = await handle.createWritable();
+		await w.write(file);
+		await w.close();
+		return handle;
+	}
+	const dir = await destDir.getDirectoryHandle(node.name, { create: true });
+	for (const child of node.children) child.handle = await copyLocal(child, dir);
+	return dir;
+}
+async function moveNode(src, destDir) {
+	if (!ws || !canDrop(src, destDir)) return;
+	const node = nodeAt(src);
+	const from = nodeAt(parentOf(src));
+	const to = nodeAt(destDir);
+	if (!node || !to || to.kind !== "dir") return;
+	if (to.children.some((c) => c.name === node.name)) { toast(`В «${to.name}» уже есть «${node.name}»`); return; }
+	const affected = openTabs.filter((p) => p === src || p.startsWith(src + "/"));
+	if (affected.some(isDirty)) { toast("Сначала сохрани открытые файлы (Ctrl+S)"); return; }
+	const wasActive = affected.includes(activePath) ? activePath : null;
+	try {
+		if (ws.kind === "local") {
+			if (node.kind === "file" && node.handle.move) {
+				await node.handle.move(to.handle);
+			} else {
+				node.handle = await copyLocal(node, to.handle);
+				await from.handle.removeEntry(node.name, { recursive: true });
+			}
+		}
+	} catch (e) {
+		toast("Не удалось переместить: " + e.message);
+		return;
+	}
+	for (const p of affected) closeTab(p, true);
+	from.children = from.children.filter((c) => c !== node);
+	to.children.push(node);
+	sortNodes(to.children);
+	expanded.add(destDir);
+	persistOwn();
+	renderTree();
+	if (wasActive) openFile(join(destDir, wasActive.slice(parentOf(src) ? parentOf(src).length + 1 : 0)));
+	toast(`Перемещено в «${destDir || ws.name}»`);
+}
+document.getElementById("tree").oncontextmenu = (e) => {
+	if (e.target.id === "tree" && ws) { e.preventDefault(); nodeMenu(e, "", ws.root); }
+};
+function nodeMenu(e, path, node) {
+	const dir = node.kind === "dir" ? path : parentOf(path);
+	const items = [["Новый файл", () => newFile(dir)], ["Новая папка", () => newFolder(dir)], ["Загрузить файлы сюда", () => upload(dir)]];
+	if (path && node.kind === "file") items.push(["Спросить Manul об этом файле", () => { attachFile(path); promptBox.focus(); }]);
+	if (path) {
+		items.push(null);
+		items.push(["Переименовать", () => renameNode(path)]);
+		items.push(["Удалить", () => deleteNode(path), true]);
+	}
+	showMenu(e.clientX, e.clientY, items);
+}
+async function ensureDir(dirPath) {
+	let node = ws.root;
+	for (const part of dirPath ? dirPath.split("/") : []) {
+		let next = node.children.find((c) => c.name === part && c.kind === "dir");
+		if (!next) {
+			next = { name: part, kind: "dir", children: [] };
+			if (ws.kind === "local") next.handle = await node.handle.getDirectoryHandle(part, { create: true });
+			node.children.push(next);
+			sortNodes(node.children);
+		}
+		node = next;
+	}
+	return node;
+}
+async function createFileNode(path, content = "", binary = false) {
+	const parent = await ensureDir(parentOf(path));
+	const name = path.split("/").pop();
+	let node = parent.children.find((c) => c.name === name);
+	if (!node) {
+		node = { name, kind: "file", content, binary };
+		if (ws.kind === "local") node.handle = await parent.handle.getFileHandle(name, { create: true });
+		parent.children.push(node);
+		sortNodes(parent.children);
+	}
+	return node;
+}
+async function newFile(dir = activePath ? parentOf(activePath) : "") {
+	if (!ws) { toast("Сначала открой или создай папку"); return; }
+	const name = prompt("Имя файла", "script.py");
+	if (!name) return;
+	if (nodeAt(join(dir, name))) { toast("Такой файл уже есть"); return; }
+	await createFileNode(join(dir, name));
+	expanded.add(dir);
+	persistOwn();
+	renderTree();
+	openFile(join(dir, name));
+}
+async function newFolder(dir = activePath ? parentOf(activePath) : "") {
+	if (!ws) { toast("Сначала открой или создай папку"); return; }
+	const name = prompt("Имя папки", "src");
+	if (!name) return;
+	await ensureDir(join(dir, name));
+	expanded.add(dir);
+	expanded.add(join(dir, name));
+	persistOwn();
+	renderTree();
+}
+let uploadDir = "";
+function upload(dir = activePath ? parentOf(activePath) : "") {
+	if (!ws) { toast("Сначала открой или создай папку"); return; }
+	uploadDir = dir;
+	document.getElementById("filePicker").click();
+}
+document.getElementById("filePicker").onchange = async (e) => {
+	for (const file of e.target.files) {
+		const path = join(uploadDir, file.name);
+		const binary = !!viewType(file.name) && !/\.svg$/i.test(file.name);
+		if (ws.kind === "local") {
+			const node = await createFileNode(path);
+			const w = await node.handle.createWritable();
+			await w.write(file);
+			await w.close();
+		} else {
+			const content = binary ? await readAsDataUrl(file) : await file.text();
+			const node = await createFileNode(path, content, binary);
+			node.content = content;
+			node.binary = binary;
+		}
+	}
+	e.target.value = "";
+	expanded.add(uploadDir);
+	persistOwn();
+	renderTree();
+	toast("Файлы загружены");
+};
+const readAsDataUrl = (file) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(file); });
+async function renameNode(path) {
+	const node = nodeAt(path);
+	const name = prompt("Новое имя", node.name);
+	if (!name || name === node.name) return;
+	if (ws.kind === "local") {
+		if (!node.handle.move) { toast("Браузер не умеет переименовывать файлы на диске"); return; }
+		await node.handle.move(name);
+	}
+	closeTab(path, true);
+	node.name = name;
+	persistOwn();
+	renderTree();
+}
+async function deleteNode(path) {
+	const node = nodeAt(path);
+	if (!confirm(`Удалить «${node.name}»?`)) return;
+	const parent = nodeAt(parentOf(path));
+	if (ws.kind === "local") await parent.handle.removeEntry(node.name, { recursive: true });
+	parent.children = parent.children.filter((c) => c !== node);
+	for (const p of [...openTabs]) if (p === path || p.startsWith(path + "/")) closeTab(p, true);
+	persistOwn();
+	renderTree();
+}
+
+// =====================================================================
+//  Редактор
+// =====================================================================
+let editor = null;
+require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs" } });
+require(["vs/editor/editor.main"], async () => {
+	for (const f of customFonts) await registerCustomFont(f);
+	defineThemes();
+	editor = monaco.editor.create(document.getElementById("editor"), {
+		model: null, automaticLayout: true, padding: { top: 12 },
+		scrollBeyondLastLine: false, renderLineHighlight: "all", roundedSelection: true,
+		suggest: { preview: true, showStatusBar: true }, inlineSuggest: { enabled: true },
+	});
+	applyEditorSettings();
+	registerPythonHints();
+	registerManulInline();
+	registerKeys();
+	editor.onDidChangeCursorPosition((e) => {
+		document.getElementById("stPos").textContent = `Стр ${e.position.lineNumber}, стлб ${e.position.column}`;
+	});
+	editor.onDidChangeCursorSelection(renderChips);
+	monaco.editor.onDidChangeMarkers(updateProblems);
+	renderTree();
+	updateWelcome();
+});
+
+function defineThemes() {
+	const a = settings.accent;
+	monaco.editor.defineTheme("hm-graphite", {
+		base: "vs-dark", inherit: true,
+		rules: [
+			{ token: "comment", foreground: "7A7A7A", fontStyle: "italic" },
+			{ token: "keyword", foreground: "AA95CB" },
+			{ token: "string", foreground: "95CB95" },
+			{ token: "number", foreground: "E5A050" },
+			{ token: "type", foreground: "E5C07B" },
+			{ token: "identifier", foreground: "E8E8E8" },
+			{ token: "delimiter", foreground: "B8B8B8" },
+			{ token: "tag", foreground: a.slice(1) },
+			{ token: "attribute.name", foreground: "CB9598" },
+		],
+		colors: {
+			"editor.background": "#181818", "editor.lineHighlightBackground": "#1F1F1F", "editor.lineHighlightBorder": "#00000000",
+			"editorLineNumber.foreground": "#4A4A4A", "editorLineNumber.activeForeground": "#B8B8B8",
+			"editorCursor.foreground": a, "editor.selectionBackground": a + "40", "editor.inactiveSelectionBackground": a + "22",
+			"editor.wordHighlightBackground": a + "22", "editor.findMatchHighlightBackground": a + "33",
+			"editorIndentGuide.background1": "#232323", "editorIndentGuide.activeBackground1": "#3E3E3E",
+			"editorWidget.background": "#1F1F1F", "editorWidget.border": "#232323",
+			"editorSuggestWidget.background": "#1F1F1F", "editorSuggestWidget.border": "#232323",
+			"editorSuggestWidget.selectedBackground": mix(a, "#181818", 0.72), "editorSuggestWidget.highlightForeground": a,
+			"editorHoverWidget.background": "#1F1F1F", "editorHoverWidget.border": "#232323",
+			"editorGhostText.foreground": "#6E6E6E", "editorBracketMatch.background": a + "22", "editorBracketMatch.border": a + "88",
+			"minimap.background": "#181818", "scrollbarSlider.background": "#3E3E3E66", "scrollbarSlider.hoverBackground": "#3E3E3EAA",
+			"editorError.foreground": "#E06C75", "editorWarning.foreground": "#E5A050",
+			"diffEditor.insertedTextBackground": "#95CB9526", "diffEditor.removedTextBackground": "#E06C7526",
+		},
+	});
+	monaco.editor.defineTheme("hm-light", {
+		base: "vs", inherit: true, rules: [],
+		colors: { "editor.background": "#FFFFFF", "editorCursor.foreground": a, "editor.selectionBackground": a + "33", "editorSuggestWidget.highlightForeground": a },
+	});
+}
+function applyEditorSettings() {
+	if (!editor) return;
+	defineThemes();
+	monaco.editor.setTheme(settings.theme === "light" ? "hm-light" : "hm-graphite");
+	editor.updateOptions({
+		fontSize: +settings.fontSize, fontFamily: codeFamily(), fontLigatures: settings.ligatures,
+		lineHeight: +settings.lineHeight || 0,
+		minimap: { enabled: settings.minimap }, wordWrap: settings.wordWrap ? "on" : "off",
+		lineNumbers: settings.lineNumbers ? "on" : "off", quickSuggestions: settings.quickSuggest,
+		"bracketPairColorization.enabled": settings.bracketColors,
+		cursorSmoothCaretAnimation: settings.smoothCaret ? "on" : "off", cursorBlinking: settings.smoothCaret ? "smooth" : "blink",
+		smoothScrolling: settings.smoothCaret,
+	});
+	setTimeout(() => monaco.editor.remeasureFonts(), 300);
+	for (const { model } of models.values()) model.updateOptions({ tabSize: +settings.tabSize, insertSpaces: true });
+	document.getElementById("stIndent").textContent = "Пробелы: " + settings.tabSize;
+}
+
+async function fileUrl(node) {
+	if (ws.kind === "local") return URL.createObjectURL(await node.handle.getFile());
+	if (node.binary) return node.content;
+	return URL.createObjectURL(new Blob([node.content || ""], { type: /\.svg$/i.test(node.name) ? "image/svg+xml" : "application/octet-stream" }));
+}
+async function fileSize(node) {
+	if (ws.kind === "local") return (await node.handle.getFile()).size;
+	return node.binary ? Math.round((node.content.length - node.content.indexOf(",") - 1) * 0.75) : (node.content || "").length;
+}
+const prettySize = (n) => n < 1024 ? n + " Б" : n < 1048576 ? (n / 1024).toFixed(1) + " КБ" : (n / 1048576).toFixed(1) + " МБ";
+
+async function openFile(path, asText = false) {
+	const node = nodeAt(path);
+	if (!node || node.kind !== "file") return;
+	const type = asText ? null : viewType(node.name);
+	if (type && !views.has(path)) {
+		views.set(path, { type, url: await fileUrl(node), size: await fileSize(node), node });
+	} else if (!type && !models.has(path)) {
+		let text = "";
+		if (ws.kind === "local") {
+			const file = await node.handle.getFile();
+			if (file.size > 5 * 1024 * 1024) { toast("Файл больше 5 МБ, не открываю"); return; }
+			if (!TEXT_EXT.test(node.name) && file.size > 0) {
+				const head = new Uint8Array(await file.slice(0, 2048).arrayBuffer());
+				if (head.includes(0)) { toast("Это не текстовый файл"); return; }
+			}
+			text = await file.text();
+		} else if (node.binary) {
+			toast("Это не текстовый файл"); return;
+		} else {
+			text = node.content ?? "";
+		}
+		const model = monaco.editor.createModel(text, langOf(node.name), monaco.Uri.parse("hm:///" + encodeURI(path)));
+		model.updateOptions({ tabSize: +settings.tabSize, insertSpaces: true });
+		const entry = { model, node, saved: model.getAlternativeVersionId() };
+		model.onDidChangeContent(() => {
+			renderTabs();
+			renderTree();
+			if (settings.autoSave) scheduleSave(path);
+			if (model.getLanguageId() === "python") lintPython(model);
+		});
+		models.set(path, entry);
+		if (model.getLanguageId() === "python") lintPython(model);
+	}
+	if (!openTabs.includes(path)) openTabs.push(path);
+	activePath = path;
+	localStorage.setItem("hmcode.lastFile", path);
+	showActive();
+	renderTabs();
+	renderTree();
+	renderChips();
+	updateWelcome();
+}
+function showActive() {
+	const ed = document.getElementById("editor");
+	const viewer = document.getElementById("viewer");
+	const view = activePath && views.get(activePath);
+	if (view) {
+		ed.style.visibility = "hidden";
+		viewer.style.display = "block";
+		view.type === "image" ? renderImage(view) : renderFont(view);
+	} else {
+		viewer.style.display = "none";
+		ed.style.visibility = "";
+		editor.setModel(activePath && models.get(activePath) ? models.get(activePath).model : null);
+		if (activePath) editor.focus();
+	}
+}
+
+// ----- просмотр картинок -----
+function renderImage(view) {
+	const viewer = document.getElementById("viewer");
+	viewer.innerHTML = `<div class="img-view">
+		<div class="img-bar">
+			<span class="info" id="imgInfo">${escapeHtml(view.node.name)} · ${prettySize(view.size)}</span>
+			<button class="btn small" data-z="fit">Вписать</button>
+			<button class="btn small" data-z="1">100%</button>
+			<button class="icon-btn" data-z="-">−</button><span class="zoom" id="imgZoom"></span><button class="icon-btn" data-z="+">+</button>
+			<button class="btn small" data-z="bg">Фон</button>
+			${/\.svg$/i.test(view.node.name) ? '<button class="btn small primary" data-z="code">Код SVG</button>' : ""}
+		</div>
+		<div class="img-stage ${view.checker === false ? "" : "checker"}" id="imgStage"><img id="img" draggable="false"></div>
+	</div>`;
+	const img = document.getElementById("img");
+	const stage = document.getElementById("imgStage");
+	const setZoom = (z) => {
+		view.zoom = Math.max(0.05, Math.min(32, z));
+		img.style.width = img.naturalWidth * view.zoom + "px";
+		img.classList.toggle("pixel", view.zoom >= 3);
+		document.getElementById("imgZoom").textContent = Math.round(view.zoom * 100) + "%";
+	};
+	const fit = () => {
+		const w = stage.clientWidth - 48, h = viewer.clientHeight - 110;
+		setZoom(Math.min(1, w / (img.naturalWidth || 1), h / (img.naturalHeight || 1)));
+	};
+	img.onload = () => {
+		document.getElementById("imgInfo").textContent = `${view.node.name} · ${img.naturalWidth} × ${img.naturalHeight} · ${prettySize(view.size)}`;
+		view.zoom ? setZoom(view.zoom) : fit();
+	};
+	img.onerror = () => { stage.innerHTML = '<div class="hint">Картинка не открылась — файл повреждён или формат не поддерживается</div>'; };
+	img.src = view.url;
+	viewer.querySelectorAll("[data-z]").forEach((b) => b.onclick = () => {
+		const z = b.dataset.z;
+		if (z === "fit") fit();
+		else if (z === "1") setZoom(1);
+		else if (z === "+") setZoom(view.zoom * 1.25);
+		else if (z === "-") setZoom(view.zoom / 1.25);
+		else if (z === "bg") { view.checker = view.checker === false; stage.classList.toggle("checker", view.checker); }
+		else if (z === "code") { const p = activePath; closeTab(p, true); openFile(p, true); }
+	});
+	stage.onwheel = (e) => { e.preventDefault(); setZoom(view.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); };
+	let drag = null;
+	stage.onmousedown = (e) => { drag = [e.clientX, e.clientY, viewer.scrollLeft, viewer.scrollTop]; stage.style.cursor = "grabbing"; };
+	window.onmousemove = (e) => { if (drag) { viewer.scrollLeft = drag[2] - (e.clientX - drag[0]); viewer.scrollTop = drag[3] - (e.clientY - drag[1]); } };
+	window.onmouseup = () => { drag = null; stage.style.cursor = ""; };
+	document.getElementById("stLang").textContent = "Картинка";
+}
+
+// ----- просмотр шрифтов -----
+async function renderFont(view) {
+	const viewer = document.getElementById("viewer");
+	const family = "hm-preview-" + view.node.name.replace(/\W/g, "");
+	if (!view.loaded) {
+		try {
+			const face = new FontFace(family, `url(${view.url})`);
+			await face.load();
+			document.fonts.add(face);
+			view.loaded = true;
+		} catch {
+			viewer.innerHTML = '<div class="font-view"><div class="hint">Шрифт не открылся — файл повреждён</div></div>';
+			return;
+		}
+	}
+	const sample = (size, text) => `<div class="font-card"><div class="lbl">${size}px</div><div class="font-sample" contenteditable spellcheck="false" style="font-family:'${family}';font-size:${size}px">${text}</div></div>`;
+	viewer.innerHTML = `<div class="font-view">
+		<div class="head"><span class="name">${escapeHtml(view.node.name)}</span><span class="hint">${prettySize(view.size)}</span>
+			<button class="btn small" id="fontForUi">Для интерфейса</button>
+			<button class="btn small primary" id="fontForCode">Для кода</button></div>
+		<div class="hint">Текст ниже можно править, чтобы посмотреть свои слова.</div>
+		${sample(42, "Съешь же ещё этих мягких французских булок")}
+		${sample(28, "The quick brown fox jumps over the lazy dog")}
+		${sample(18, "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ<br>абвгдеёжзийклмнопрстуфхцчшщъыьэюя<br>ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz")}
+		${sample(16, "0123456789 !?.,:;()[]{}&lt;&gt; =&gt; != === -&gt; &amp;&amp; || #@$%^*")}
+		${sample(14, "def greet(name):<br>&nbsp;&nbsp;&nbsp;&nbsp;return f\"Привет, {name}!\"  # 0O 1lI")}
+	</div>`;
+	const use = async (where) => {
+		const data = ws.kind === "local" ? await readAsDataUrl(await view.node.handle.getFile()) : view.node.content;
+		const name = view.node.name.replace(/\.(ttf|otf|woff2?)$/i, "");
+		await addCustomFont(name, data);
+		settings[where] = name;
+		saveSettings();
+		applyLayout();
+		toast(`«${name}» теперь шрифт ${where === "codeFont" ? "кода" : "интерфейса"}`);
+	};
+	document.getElementById("fontForCode").onclick = () => use("codeFont");
+	document.getElementById("fontForUi").onclick = () => use("uiFont");
+	document.getElementById("stLang").textContent = "Шрифт";
+}
+async function addCustomFont(name, data) {
+	customFonts = customFonts.filter((f) => f.name !== name);
+	customFonts.push({ name, data });
+	try { localStorage.setItem("hmcode.fonts", JSON.stringify(customFonts)); }
+	catch { toast("Шрифт слишком большой, чтобы запомнить его насовсем"); }
+	await registerCustomFont({ name, data });
+	fillFontSelects();
+}
+
+function isDirty(path) {
+	const e = models.get(path);
+	return !!e && e.model.getAlternativeVersionId() !== e.saved;
+}
+const saveTimers = {};
+function scheduleSave(path) {
+	clearTimeout(saveTimers[path]);
+	saveTimers[path] = setTimeout(() => saveFile(path, true), 800);
+}
+async function saveFile(path = activePath, quiet = false) {
+	const e = models.get(path);
+	if (!e) return;
+	const text = e.model.getValue();
+	try {
+		if (ws.kind === "local") {
+			const w = await e.node.handle.createWritable();
+			await w.write(text);
+			await w.close();
+		} else {
+			e.node.content = text;
+			persistOwn();
+		}
+		e.saved = e.model.getAlternativeVersionId();
+		renderTabs();
+		renderTree();
+		if (!quiet) toast("Сохранено");
+	} catch (err) {
+		toast("Не удалось сохранить: " + err.message);
+	}
+}
+function closeTab(path, force = false) {
+	if (!force && isDirty(path) && !confirm("Файл не сохранён. Закрыть без сохранения?")) return;
+	openTabs = openTabs.filter((p) => p !== path);
+	const e = models.get(path);
+	if (e) { e.model.dispose(); models.delete(path); }
+	const v = views.get(path);
+	if (v) { if (v.url.startsWith("blob:")) URL.revokeObjectURL(v.url); views.delete(path); }
+	if (activePath === path) {
+		activePath = openTabs[openTabs.length - 1] || null;
+		showActive();
+	}
+	renderTabs();
+	renderTree();
+	renderChips();
+	updateWelcome();
+}
+function resetEditorState() {
+	for (const p of [...openTabs]) closeTab(p, true);
+	expanded.clear();
+	expanded.add("");
+}
+function renderTabs() {
+	const tabs = document.getElementById("tabs");
+	tabs.innerHTML = "";
+	for (const path of openTabs) {
+		const name = path.split("/").pop();
+		const tab = document.createElement("div");
+		tab.className = "tab" + (path === activePath ? " on" : "") + (isDirty(path) ? " dirty" : "");
+		tab.innerHTML = `<span>${iconOf(name)}</span><span>${escapeHtml(name)}</span><span class="x"><span><svg viewBox="0 0 12 12" width="10" height="10"><path d="m3 3 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span></span>`;
+		tab.onclick = () => openFile(path);
+		tab.onauxclick = (e) => { if (e.button === 1) closeTab(path); };
+		tab.querySelector(".x").onclick = (e) => { e.stopPropagation(); closeTab(path); };
+		tabs.appendChild(tab);
+	}
+	document.getElementById("main").classList.toggle("has-tabs", openTabs.length > 0);
+	slidePill(tabs, "tabPill", tabs.querySelector(".tab.on"));
+	tabs.querySelector(".tab.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	const crumbs = document.getElementById("breadcrumbs");
+	crumbs.innerHTML = activePath ? [ws.name, ...activePath.split("/")].map(escapeHtml).join(" <span>›</span> ") : "";
+	if (activePath && models.get(activePath)) {
+		const lang = models.get(activePath).model.getLanguageId();
+		document.getElementById("stLang").textContent = ({ python: "Python", javascript: "JavaScript", typescript: "TypeScript", plaintext: "Текст" })[lang] || lang;
+	} else if (!activePath) {
+		document.getElementById("stLang").textContent = "—";
+	}
+}
+function updateWelcome() {
+	document.getElementById("welcome").style.display = activePath ? "none" : "flex";
+	const recent = document.getElementById("recent");
+	const saved = JSON.parse(localStorage.getItem("hmcode.own") || "null");
+	recent.innerHTML = "";
+	if (!ws && saved) {
+		const b = document.createElement("button");
+		b.className = "btn";
+		b.innerHTML = `${ICONS.folder}<span>Продолжить «${escapeHtml(saved.name)}»</span>`;
+		b.onclick = continueOwn;
+		recent.appendChild(b);
+	}
+}
+function continueOwn() {
+	restoreOwn();
+	renderTree();
+	const last = localStorage.getItem("hmcode.lastFile");
+	if (ws && last && nodeAt(last)) openFile(last);
+	updateWelcome();
+}
+function closeWorkspace() {
+	if (openTabs.some(isDirty) && !confirm("Есть несохранённые файлы. Закрыть проект без сохранения?")) return;
+	resetEditorState();
+	ws = null;
+	activePath = null;
+	renderTree();
+	renderTabs();
+	renderChips();
+	updateWelcome();
+}
+
+// =====================================================================
+//  Подсказки при вводе: Python
+// =====================================================================
+const PY_BUILTINS = {
+	print: ["print(*values, sep=' ', end='\\n')", "Выводит значения в консоль"],
+	len: ["len(obj)", "Длина последовательности"], range: ["range(start, stop, step)", "Последовательность чисел"],
+	input: ["input(prompt='')", "Читает строку от пользователя"], open: ["open(file, mode='r', encoding='utf-8')", "Открывает файл"],
+	int: ["int(x)", "Целое число"], str: ["str(x)", "Строка"], float: ["float(x)", "Дробное число"], bool: ["bool(x)", "Логическое значение"],
+	list: ["list(iterable)", "Список"], dict: ["dict(**kwargs)", "Словарь"], set: ["set(iterable)", "Множество"], tuple: ["tuple(iterable)", "Кортеж"],
+	enumerate: ["enumerate(iterable, start=0)", "Пары (индекс, значение)"], zip: ["zip(*iterables)", "Склеивает последовательности"],
+	sorted: ["sorted(iterable, key=None, reverse=False)", "Отсортированный список"], reversed: ["reversed(seq)", "Обратный порядок"],
+	sum: ["sum(iterable, start=0)", "Сумма"], min: ["min(iterable)", "Минимум"], max: ["max(iterable)", "Максимум"], abs: ["abs(x)", "Модуль числа"],
+	round: ["round(number, ndigits=None)", "Округление"], map: ["map(func, iterable)", "Применяет функцию к каждому"],
+	filter: ["filter(func, iterable)", "Отбирает элементы"], isinstance: ["isinstance(obj, cls)", "Проверка типа"],
+	type: ["type(obj)", "Тип объекта"], any: ["any(iterable)", "Хоть один истинный"], all: ["all(iterable)", "Все истинные"],
+	getattr: ["getattr(obj, name, default)", "Атрибут по имени"], setattr: ["setattr(obj, name, value)", "Задать атрибут"],
+	hasattr: ["hasattr(obj, name)", "Есть ли атрибут"], super: ["super()", "Родительский класс"], id: ["id(obj)", "Идентификатор"],
+	format: ["format(value, spec)", "Форматирование"], chr: ["chr(i)", "Символ по коду"], ord: ["ord(c)", "Код символа"],
+};
+const PY_KEYWORDS = "False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case".split(" ");
+const PY_MODULES = {
+	os: ["path", "listdir", "getcwd", "makedirs", "remove", "rename", "environ", "walk", "system"],
+	sys: ["argv", "exit", "path", "platform", "version", "stdin", "stdout"],
+	math: ["sqrt", "pi", "e", "floor", "ceil", "sin", "cos", "tan", "log", "pow", "factorial", "gcd", "inf"],
+	random: ["random", "randint", "choice", "choices", "shuffle", "uniform", "sample", "seed"],
+	json: ["loads", "dumps", "load", "dump"], time: ["time", "sleep", "perf_counter", "strftime", "localtime"],
+	datetime: ["datetime", "date", "timedelta", "timezone"], re: ["match", "search", "findall", "sub", "compile", "split", "fullmatch"],
+	pathlib: ["Path"], collections: ["Counter", "defaultdict", "deque", "namedtuple", "OrderedDict"],
+	itertools: ["chain", "product", "permutations", "combinations", "groupby", "count", "cycle"],
+	asyncio: ["run", "sleep", "gather", "create_task", "Queue", "Lock"], typing: ["List", "Dict", "Optional", "Union", "Any", "Callable", "Tuple"],
+};
+const STR_METHODS = ["split", "strip", "replace", "join", "lower", "upper", "startswith", "endswith", "find", "format", "encode", "isdigit", "title", "count"];
+const LIST_METHODS = ["append", "extend", "insert", "pop", "remove", "sort", "reverse", "index", "count", "copy", "clear"];
+const DICT_METHODS = ["get", "items", "keys", "values", "update", "pop", "setdefault"];
+const PY_SNIPPETS = [
+	["def", "def ${1:name}(${2:args}):\n\t${3:pass}", "Функция"],
+	["class", "class ${1:Name}:\n\tdef __init__(self${2:, args}):\n\t\t${3:pass}", "Класс"],
+	["ifmain", "if __name__ == \"__main__\":\n\t${1:main()}", "Точка входа"],
+	["for", "for ${1:item} in ${2:items}:\n\t${3:pass}", "Цикл for"],
+	["fori", "for ${1:i} in range(${2:10}):\n\t${3:pass}", "Цикл по числам"],
+	["while", "while ${1:condition}:\n\t${2:pass}", "Цикл while"],
+	["try", "try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:print(e)}", "Обработка ошибок"],
+	["with", "with open(${1:\"file.txt\"}, ${2:\"r\"}, encoding=\"utf-8\") as ${3:f}:\n\t${4:data = f.read()}", "Работа с файлом"],
+	["lc", "[${1:x} for ${1:x} in ${2:items}${3: if ${4:cond}}]", "Генератор списка"],
+	["adef", "async def ${1:name}(${2:args}):\n\t${3:pass}", "Асинхронная функция"],
+	["dataclass", "from dataclasses import dataclass\n\n\n@dataclass\nclass ${1:Name}:\n\t${2:field}: ${3:int}", "Датакласс"],
+];
+function registerPythonHints() {
+	const K = monaco.languages.CompletionItemKind;
+	const R = monaco.languages.CompletionItemInsertTextRule;
+	monaco.languages.registerCompletionItemProvider("python", {
+		triggerCharacters: ["."],
+		provideCompletionItems(model, position) {
+			const word = model.getWordUntilPosition(position);
+			const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+			const before = model.getLineContent(position.lineNumber).slice(0, word.startColumn - 1);
+			const dot = before.match(/([A-Za-z_][\w]*)\.$/);
+			const items = [];
+			if (dot) {
+				const owner = dot[1];
+				let list = PY_MODULES[owner];
+				let kind = K.Function;
+				if (!list) {
+					const assign = new RegExp("\\b" + owner + "\\s*=\\s*(\\[|\\{|\"|'|f\"|dict\\(|list\\(|str\\()").exec(model.getValue());
+					list = !assign ? [...STR_METHODS, ...LIST_METHODS, ...DICT_METHODS]
+						: /^(\[|list)/.test(assign[1]) ? LIST_METHODS
+						: /^(\{|dict)/.test(assign[1]) ? DICT_METHODS : STR_METHODS;
+					kind = K.Method;
+				}
+				for (const name of [...new Set(list)]) items.push({ label: name, kind, insertText: name, range });
+				return { suggestions: items };
+			}
+			for (const kw of PY_KEYWORDS) items.push({ label: kw, kind: K.Keyword, insertText: kw, range, sortText: "2" + kw });
+			for (const [name, [sig, doc]] of Object.entries(PY_BUILTINS)) {
+				items.push({ label: name, kind: K.Function, detail: sig, documentation: doc,
+					insertText: name + "($0)", insertTextRules: R.InsertAsSnippet, range, sortText: "1" + name });
+			}
+			for (const mod of Object.keys(PY_MODULES)) items.push({ label: mod, kind: K.Module, detail: "модуль", insertText: mod, range, sortText: "3" + mod });
+			for (const [label, body, doc] of PY_SNIPPETS) {
+				items.push({ label, kind: K.Snippet, detail: doc, documentation: { value: "```python\n" + body.replace(/\$\{\d+:?([^}]*)\}/g, "$1") + "\n```" },
+					insertText: body, insertTextRules: R.InsertAsSnippet, range, sortText: "0" + label });
+			}
+			const seen = new Set();
+			for (const m of model.getValue().matchAll(/^\s*(?:def|class)\s+([A-Za-z_]\w*)|^\s*([A-Za-z_]\w*)\s*=/gm)) {
+				const name = m[1] || m[2];
+				if (!name || seen.has(name)) continue;
+				seen.add(name);
+				items.push({ label: name, kind: m[1] ? K.Function : K.Variable, detail: "в этом файле", insertText: name, range, sortText: "0" + name });
+			}
+			return { suggestions: items };
+		},
+	});
+	monaco.languages.registerSignatureHelpProvider("python", {
+		signatureHelpTriggerCharacters: ["(", ","],
+		provideSignatureHelp(model, position) {
+			const line = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+			const m = line.match(/([A-Za-z_]\w*)\(([^()]*)$/);
+			if (!m || !PY_BUILTINS[m[1]]) return null;
+			const [sig, doc] = PY_BUILTINS[m[1]];
+			const params = sig.slice(sig.indexOf("(") + 1, -1).split(",").map((p) => ({ label: p.trim() }));
+			return { value: { signatures: [{ label: sig, documentation: doc, parameters: params }], activeSignature: 0,
+				activeParameter: Math.min((m[2].match(/,/g) || []).length, params.length - 1) }, dispose() {} };
+		},
+	});
+	monaco.languages.registerHoverProvider("python", {
+		provideHover(model, position) {
+			const word = model.getWordAtPosition(position);
+			if (!word || !PY_BUILTINS[word.word]) return null;
+			const [sig, doc] = PY_BUILTINS[word.word];
+			return { contents: [{ value: "```python\n" + sig + "\n```" }, { value: doc }] };
+		},
+	});
+}
+function lintPython(model) {
+	const markers = [];
+	const opens = { "(": ")", "[": "]", "{": "}" };
+	const stack = [];
+	model.getLinesContent().forEach((raw, i) => {
+		const line = raw.replace(/#.*$/, "").replace(/(["'])(?:\\.|(?!\1).)*\1/g, '""');
+		const n = i + 1;
+		if (/^\s*(def|class|if|elif|else|for|while|try|except|finally|with)\b[^:]*$/.test(line) && !/[\\,(\[{]\s*$/.test(line) && line.trim() && !stack.length) {
+			markers.push({ severity: monaco.MarkerSeverity.Error, message: "Нет двоеточия в конце строки", startLineNumber: n, startColumn: raw.length + 1, endLineNumber: n, endColumn: raw.length + 2 });
+		}
+		const indent = raw.match(/^\s*/)[0];
+		if (/\t/.test(indent) && / /.test(indent)) {
+			markers.push({ severity: monaco.MarkerSeverity.Warning, message: "Табы и пробелы вперемешку в отступе", startLineNumber: n, startColumn: 1, endLineNumber: n, endColumn: indent.length + 1 });
+		}
+		if (/^\s*print\s+[^(=\s]/.test(line)) {
+			markers.push({ severity: monaco.MarkerSeverity.Error, message: "В Python 3 print пишется со скобками: print(...)", startLineNumber: n, startColumn: 1, endLineNumber: n, endColumn: raw.length + 1 });
+		}
+		[...line].forEach((ch, c) => {
+			if (opens[ch]) stack.push([ch, n, c + 1]);
+			else if (")]}".includes(ch)) {
+				const top = stack.pop();
+				if (!top || opens[top[0]] !== ch) markers.push({ severity: monaco.MarkerSeverity.Error, message: `Лишняя или не та скобка «${ch}»`, startLineNumber: n, startColumn: c + 1, endLineNumber: n, endColumn: c + 2 });
+			}
+		});
+	});
+	for (const [ch, n, c] of stack) markers.push({ severity: monaco.MarkerSeverity.Error, message: `Скобка «${ch}» не закрыта`, startLineNumber: n, startColumn: c, endLineNumber: n, endColumn: c + 1 });
+	monaco.editor.setModelMarkers(model, "hm-lint", markers);
+}
+function updateProblems() {
+	const all = monaco.editor.getModelMarkers({});
+	const errors = all.filter((m) => m.severity === monaco.MarkerSeverity.Error).length;
+	document.getElementById("stProblems").innerHTML = `${UI.error} ${errors} &nbsp;${UI.warn} ${all.length - errors}`;
+	const box = document.getElementById("problems");
+	box.innerHTML = all.length ? "" : '<span class="hint">Проблем нет</span>';
+	for (const m of all) {
+		const div = document.createElement("div");
+		div.className = "pr";
+		const path = decodeURI(m.resource.path.slice(1));
+		div.innerHTML = `<span style="color:${m.severity === monaco.MarkerSeverity.Error ? "var(--danger)" : "#E5A050"}">${m.severity === monaco.MarkerSeverity.Error ? UI.error : UI.warn}</span> ${escapeHtml(m.message)} <span class="hint">${escapeHtml(path)}:${m.startLineNumber}</span>`;
+		div.onclick = () => openFile(path).then(() => { editor.revealLineInCenter(m.startLineNumber); editor.setPosition({ lineNumber: m.startLineNumber, column: m.startColumn }); editor.focus(); });
+		box.appendChild(div);
+	}
+}
+
+// =====================================================================
+//  Manul: чат и агент
+// =====================================================================
+const MANUL_BASE = "https://api.manulchiki.shop/v1";
+// Сервис пускает один запрос за раз и три в минуту.
+const limiter = { busy: false, stamps: [] };
+function limiterWait() {
+	const now = Date.now();
+	limiter.stamps = limiter.stamps.filter((t) => now - t < 60000);
+	if (limiter.busy) return "Manul ещё отвечает на прошлый вопрос";
+	if (limiter.stamps.length >= 3) return `Лимит — 3 запроса в минуту, подожди ${Math.ceil((60000 - (now - limiter.stamps[0])) / 1000)} с`;
+	return null;
+}
+function updateLimit() {
+	const now = Date.now();
+	limiter.stamps = limiter.stamps.filter((t) => now - t < 60000);
+	const left = 3 - limiter.stamps.length;
+	document.getElementById("limit").textContent = `${left}/3`;
+	document.getElementById("limit").title = "Запросов к Manul осталось в эту минуту";
+	const state = document.getElementById("manulState");
+	state.className = "s" + (limiter.busy ? " live dots" : "");
+	state.textContent = limiter.busy ? (mode === "agent" ? "работает над файлами" : "печатает") : apiKey ? "в сети" : "нет API-ключа";
+	document.getElementById("headAva").classList.toggle("online", !!apiKey);
+	document.getElementById("stManul").textContent = apiKey ? (limiter.busy ? "Manul думает…" : "Manul в сети") : "Manul: нет ключа";
+}
+setInterval(updateLimit, 1000);
+
+async function manulRequest(path, body) {
+	if (!apiKey) throw new Error("У вас нет API-ключа. Получите его у @tgmanulaibot и вставьте в настройках (Ctrl+,)");
+	const wait = limiterWait();
+	if (wait) throw new Error(wait);
+	limiter.busy = true;
+	limiter.stamps.push(Date.now());
+	updateLimit();
+	try {
+		let status = 0, text = "";
+		if (bridge) {
+			// В клиенте запрос делает сам HoursGram — без ограничений браузера.
+			const r = await native("manul", { path, key: apiKey, body: body ? JSON.stringify(body) : "" });
+			status = r.status || 0;
+			text = r.text || "";
+		} else {
+			try {
+				const res = await fetch(MANUL_BASE + path, {
+					method: body ? "POST" : "GET",
+					headers: Object.assign({ Authorization: "Bearer " + apiKey }, body ? { "Content-Type": "application/json" } : {}),
+					body: body ? JSON.stringify(body) : undefined,
+				});
+				status = res.status;
+				text = await res.text();
+			} catch {
+				throw new Error("Сервер Manul недоступен из браузера. В клиенте HoursGram запросы пойдут напрямую.");
+			}
+		}
+		let json = null;
+		try { json = JSON.parse(text); } catch {}
+		if (status < 200 || status >= 300) {
+			const msg = json?.error?.message || json?.detail || text.slice(0, 200);
+			throw new Error(status === 0 ? `Нет связи с сервером Manul${msg ? ": " + msg : ""}`
+				: status === 401 ? "Ключ не подошёл (401)"
+				: status === 429 ? "Слишком часто (429), подожди минуту"
+				: `Ошибка ${status}: ${msg}`);
+		}
+		return json;
+	} finally {
+		limiter.busy = false;
+		updateLimit();
+	}
+}
+
+let mode = localStorage.getItem("hmcode.mode") || "chat";
+const histories = { chat: [], agent: [] };
+const pane = (m = mode) => document.getElementById("pane-" + m);
+let attached = [];           // приложенные файлы
+let useCurrent = true;       // открытый файл в контексте
+const SYSTEM_CHAT = "Ты Manul, помощник по программированию в редакторе HM Code внутри HoursGram. Отвечай по-русски, коротко и по делу. Код давай в блоках ```язык.";
+const SYSTEM_AGENT = `Ты Manul в режиме агента в редакторе HM Code. Ты можешь создавать и менять файлы проекта.
+Для КАЖДОГО файла, который создаёшь или меняешь, выдай блок ровно в таком виде, с ПОЛНЫМ новым содержимым файла:
+\`\`\`file:путь/от/корня/проекта.py
+...полное содержимое...
+\`\`\`
+Перед блоками коротко (1-3 предложения по-русски) скажи, что сделал. Не выдумывай файлы, которых не просили.`;
+
+const QUICK = {
+	chat: [["Объясни код", "Объясни, что делает этот код (или выделенный фрагмент)."], ["Найди ошибки", "Найди ошибки и баги в этом коде."],
+		["Как улучшить?", "Что в этом коде можно сделать лучше? Покажи пример."], ["Что значит ошибка?", "Объясни ошибку из вывода и как её исправить."]],
+	agent: [["Исправь ошибки", "Исправь ошибки в открытом файле."], ["Добавь комментарии", "Добавь понятные комментарии и докстринги в открытый файл."],
+		["Напиши тесты", "Создай файл test_<имя>.py с тестами pytest для открытого файла."], ["Улучши код", "Сделай код открытого файла чище, не меняя поведение."]],
+};
+function setMode(m) {
+	mode = m;
+	localStorage.setItem("hmcode.mode", m);
+	document.querySelectorAll("#seg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+	document.getElementById("chatTrack").classList.toggle("agent", m === "agent");
+	moveModePill();
+	const hint = document.getElementById("modeHint");
+	hint.classList.add("fade");
+	setTimeout(() => {
+		hint.textContent = m === "agent" ? "Агент правит файлы — ты подтверждаешь" : "Видит открытый файл и выделение";
+		hint.classList.remove("fade");
+	}, 160);
+	document.getElementById("prompt").placeholder = m === "agent" ? "Что сделать в проекте?" : "Спроси Manul о коде…";
+	refreshEmpty();
+	updateLimit();
+}
+function moveModePill() {
+	const on = document.querySelector("#seg button.on");
+	const pill = document.getElementById("modePill");
+	if (!on || !on.offsetWidth) return;
+	pill.style.width = on.offsetWidth + "px";
+	pill.style.transform = `translateX(${on.offsetLeft}px)`;
+}
+function refreshEmpty() {
+	for (const m of ["chat", "agent"]) if (!pane(m).querySelector(".msg-me")) renderEmpty(m);
+}
+document.querySelectorAll("#seg button").forEach((b) => b.onclick = () => setMode(b.dataset.mode));
+
+function renderEmpty(m = mode) {
+	const chat = pane(m);
+	const agent = m === "agent";
+	chat.innerHTML = `<div class="m-empty">
+		<div class="ava"></div>
+		<h3>Manul</h3>
+		<div class="hint">${agent ? "Опиши задачу — агент напишет код прямо в файлы проекта, а ты примешь или отклонишь каждое изменение." : "Помощник по коду. Видит открытый файл, выделение и файлы, которые ты приложишь скрепкой."}</div>
+		${apiKey ? "" : `<div class="nokey">
+			<div class="t">${UI.key}У вас нет API-ключа</div>
+			<div class="hint">Получите его тут: <a href="https://t.me/tgmanulaibot" target="_blank" rel="noopener">@tgmanulaibot</a> — и вставьте в настройках.</div>
+			<button class="btn primary small" onclick="openOverlay('settings')">Открыть настройки</button>
+		</div>`}
+	</div>`;
+}
+const now = () => new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" });
+function chatBox(m = mode) {
+	const chat = pane(m);
+	chat.querySelector(".m-empty")?.remove();
+	return chat;
+}
+function push(div, m = mode) {
+	const chat = chatBox(m);
+	chat.appendChild(div);
+	chat.scrollTop = chat.scrollHeight;
+	return div;
+}
+function addBubble(role, html, m = mode) {
+	const div = document.createElement("div");
+	if (role === "me") {
+		div.className = "msg-me";
+		div.innerHTML = html;
+	} else {
+		div.className = "msg-bot";
+		div.innerHTML = `<div class="ava"></div><div class="content"><div class="name">Manul <span class="time">${now()}</span></div>${html}</div>`;
+	}
+	return push(div, m);
+}
+function addService(text, m = mode) {
+	const div = document.createElement("div");
+	div.className = "msg-err";
+	div.innerHTML = `${UI.error}<div><b>Не получилось</b>${escapeHtml(text)}</div>`;
+	return push(div, m);
+}
+function addTyping(m = mode) {
+	const div = document.createElement("div");
+	div.className = "msg-bot";
+	div.innerHTML = '<div class="ava"></div><div class="content"><div class="name">Manul</div><div class="typing-dots"><i></i><i></i><i></i></div></div>';
+	return push(div, m);
+}
+const codeStore = {};
+function renderAnswer(text) {
+	// Блоки ```file:путь становятся карточками изменений, остальные — кодом с кнопками.
+	const re = /```([^\n`]*)\n([\s\S]*?)```/g;
+	let html = "", last = 0, m;
+	const changes = [];
+	while ((m = re.exec(text))) {
+		html += inlineMd(text.slice(last, m.index));
+		const head = m[1].trim();
+		const id = "c" + Math.random().toString(36).slice(2);
+		codeStore[id] = m[2];
+		if (head.startsWith("file:")) {
+			const path = head.slice(5).trim().replace(/^\.?\//, "");
+			changes.push({ id, path });
+			html += `<div class="change" id="ch-${id}"></div>`;
+		} else {
+			html += `<div class="codebox"><div class="bar"><span class="lang">${escapeHtml(head || "код")}</span>
+				<button onclick="codeAction('${id}','copy')">Копировать</button>
+				<button onclick="codeAction('${id}','insert')">Вставить</button></div><pre>${escapeHtml(m[2])}</pre></div>`;
+		}
+		last = re.lastIndex;
+	}
+	html += inlineMd(text.slice(last));
+	return { html, changes };
+}
+const inlineMd = (s) => escapeHtml(s.trim() ? s : "").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>").replace(/^(<br>)+|(<br>)+$/g, "");
+window.codeAction = (id, what) => {
+	const code = codeStore[id];
+	if (what === "copy") { copyText(code); toast("Скопировано"); return; }
+	if (!activePath || !models.get(activePath)) { toast("Открой файл с кодом"); return; }
+	editor.executeEdits("manul", [{ range: editor.getSelection(), text: code, forceMoveMarkers: true }]);
+	editor.focus();
+};
+
+// ----- изменения агента -----
+async function currentText(path) {
+	if (models.has(path)) return models.get(path).model.getValue();
+	const node = nodeAt(path);
+	if (!node || node.kind !== "file") return null;
+	return ws.kind === "local" ? await (await node.handle.getFile()).text() : (node.content ?? "");
+}
+function lineDiff(a, b) {
+	const x = (a ?? "").split("\n"), y = b.split("\n");
+	const setX = new Set(x), setY = new Set(y);
+	return [y.filter((l) => !setX.has(l)).length, x.filter((l) => !setY.has(l)).length];
+}
+async function renderChange(change) {
+	const card = document.getElementById("ch-" + change.id);
+	if (!card) return;
+	const old = ws ? await currentText(change.path) : null;
+	const [add, del] = lineDiff(old, codeStore[change.id]);
+	card.innerHTML = `<div class="top"><span>${iconOf(change.path)}</span><span class="path" title="${escapeHtml(change.path)}">${escapeHtml(change.path)}</span>
+		${old === null ? '<span class="badge">новый</span>' : ""}<span class="stat"><span class="a">+${add}</span> <span class="d">−${del}</span></span></div>
+		<div class="acts"><button class="btn small" data-a="diff">Посмотреть</button><button class="btn small primary" data-a="apply">Применить</button><button class="btn small danger" data-a="reject">Отклонить</button></div>`;
+	card.querySelector('[data-a="diff"]').onclick = () => showDiff(change, old);
+	card.querySelector('[data-a="apply"]').onclick = () => applyChange(change);
+	card.querySelector('[data-a="reject"]').onclick = () => finishChange(change, "Отклонено");
+}
+function finishChange(change, label) {
+	const card = document.getElementById("ch-" + change.id);
+	if (!card) return;
+	card.classList.add("done");
+	card.querySelector(".acts").innerHTML = `<span class="hint">${label}</span>`;
+}
+async function applyChange(change) {
+	if (!ws) { toast("Сначала открой или создай папку"); return; }
+	const text = codeStore[change.id];
+	if (!nodeAt(change.path)) {
+		await createFileNode(change.path, "");
+		expanded.add(parentOf(change.path));
+		persistOwn();
+	}
+	await openFile(change.path, true);
+	const model = models.get(change.path).model;
+	model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+	if (settings.autoSave) saveFile(change.path, true);
+	renderTree();
+	finishChange(change, "✓ Применено — Ctrl+S сохранить, Ctrl+Z отменить");
+}
+let diffEditor = null, diffChange = null;
+function showDiff(change, old) {
+	diffChange = change;
+	openOverlay("diffModal");
+	document.getElementById("diffTitle").textContent = change.path + (old === null ? " — новый файл" : "");
+	if (!diffEditor) {
+		diffEditor = monaco.editor.createDiffEditor(document.getElementById("diffBox"), {
+			automaticLayout: true, readOnly: true, renderSideBySide: true, fontFamily: codeFamily(), fontSize: +settings.fontSize,
+			minimap: { enabled: false }, scrollBeyondLastLine: false,
+		});
+	}
+	const lang = langOf(change.path);
+	const prev = diffEditor.getModel();
+	diffEditor.setModel({ original: monaco.editor.createModel(old ?? "", lang), modified: monaco.editor.createModel(codeStore[change.id], lang) });
+	if (prev) { prev.original.dispose(); prev.modified.dispose(); }
+}
+document.getElementById("diffApply").onclick = () => { closeOverlays(); if (diffChange) applyChange(diffChange); };
+document.getElementById("diffReject").onclick = () => { closeOverlays(); if (diffChange) finishChange(diffChange, "Отклонено"); };
+
+// ----- контекст: открытый файл, выделение, приложенные файлы -----
+function renderChips() {
+	const box = document.getElementById("chips");
+	box.innerHTML = "";
+	const chip = (label, onRemove, off) => {
+		const c = document.createElement("div");
+		c.className = "chip" + (off ? " off" : "");
+		c.innerHTML = `<span>${label}</span><button title="${off ? "Включить" : "Убрать"}">${off ? "+" : '<svg viewBox="0 0 12 12" width="10" height="10"><path d="m3 3 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'}</button>`;
+		c.querySelector("button").onclick = onRemove;
+		box.appendChild(c);
+	};
+	if (activePath && models.get(activePath)) {
+		const sel = editor?.getSelection();
+		const lines = sel && !sel.isEmpty() ? ` · строки ${sel.startLineNumber}–${sel.endLineNumber}` : "";
+		chip(`${iconOf(activePath)} ${escapeHtml(activePath.split("/").pop())}${lines}`, () => { useCurrent = !useCurrent; renderChips(); }, !useCurrent);
+	}
+	for (const p of attached) chip(`${UI.clip}${escapeHtml(p.split("/").pop())}`, () => { attached = attached.filter((x) => x !== p); renderChips(); });
+}
+function attachFile(path) {
+	if (!attached.includes(path) && path !== activePath) attached.push(path);
+	renderChips();
+}
+function allFiles() {
+	const out = [];
+	const walk = (node, path) => { for (const c of node.children || []) { const p = join(path, c.name); c.kind === "dir" ? walk(c, p) : out.push(p); } };
+	if (ws) walk(ws.root, "");
+	return out;
+}
+document.getElementById("attach").onclick = (e) => {
+	if (!ws) { toast("Сначала открой или создай папку"); return; }
+	document.querySelector(".attach-pop")?.remove();
+	const pop = document.createElement("div");
+	pop.className = "attach-pop";
+	pop.innerHTML = '<input class="field" placeholder="Найти файл">';
+	const list = document.createElement("div");
+	pop.appendChild(list);
+	const fill = (q) => {
+		list.innerHTML = "";
+		for (const p of allFiles().filter((p) => !viewType(p) && p.toLowerCase().includes(q.toLowerCase())).slice(0, 60)) {
+			const it = document.createElement("div");
+			it.className = "it";
+			it.innerHTML = iconOf(p) + `<span>${escapeHtml(p)}</span>`;
+			it.onclick = () => { attachFile(p); pop.remove(); };
+			list.appendChild(it);
+		}
+	};
+	fill("");
+	pop.querySelector("input").oninput = (ev) => fill(ev.target.value);
+	document.body.appendChild(pop);
+	const r = e.currentTarget.getBoundingClientRect();
+	pop.style.left = Math.min(r.left, innerWidth - 290) + "px";
+	pop.style.top = (r.top - pop.offsetHeight - 8) + "px";
+	pop.querySelector("input").focus();
+	setTimeout(() => document.addEventListener("mousedown", function off(ev) { if (!pop.contains(ev.target)) { pop.remove(); document.removeEventListener("mousedown", off); } }), 0);
+};
+async function buildContext(m = mode) {
+	let ctx = "";
+	const add = (path, text) => {
+		if (text.length > 12000) text = text.slice(0, 12000) + "\n# …файл обрезан";
+		ctx += `\n\nФайл ${path}:\n\`\`\`\n${text}\n\`\`\``;
+	};
+	if (useCurrent && activePath && models.get(activePath)) {
+		const model = models.get(activePath).model;
+		add(activePath, model.getValue());
+		const sel = editor.getSelection();
+		if (sel && !sel.isEmpty()) ctx += `\nВыделено (строки ${sel.startLineNumber}–${sel.endLineNumber}):\n\`\`\`\n${model.getValueInRange(sel)}\n\`\`\``;
+	}
+	for (const p of attached) { const t = await currentText(p); if (t !== null) add(p, t); }
+	if (m === "agent" && ws) ctx = `\n\nФайлы проекта «${ws.name}»:\n${allFiles().slice(0, 300).join("\n")}` + ctx;
+	return ctx;
+}
+async function ask(question) {
+	question = question.trim();
+	if (!question) return;
+	const m = mode;
+	const chips = [...document.querySelectorAll("#chips .chip:not(.off) > span")].map((s) => `<span>${s.innerHTML}</span>`).join("");
+	addBubble("me", (chips ? `<div class="ctx">${chips}</div>` : "") + escapeHtml(question).replace(/\n/g, "<br>"), m);
+	const typing = addTyping(m);
+	try {
+		const content = question + await buildContext(m);
+		const json = await manulRequest("/chat/completions", {
+			model: document.getElementById("modelSelect").value,
+			messages: [{ role: "system", content: m === "agent" ? SYSTEM_AGENT : SYSTEM_CHAT }, ...histories[m].slice(-8), { role: "user", content }],
+		});
+		const answer = json?.choices?.[0]?.message?.content ?? "(пустой ответ)";
+		histories[m].push({ role: "user", content: question }, { role: "assistant", content: answer });
+		typing.remove();
+		const { html, changes } = renderAnswer(answer);
+		addBubble("bot", html || "Готово.", m);
+		for (const ch of changes) {
+			await renderChange(ch);
+			if (settings.agentAuto) await applyChange(ch);
+		}
+	} catch (e) {
+		typing.remove();
+		addService(e.message, m);
+	}
+}
+const promptBox = document.getElementById("prompt");
+const sendBtn = document.getElementById("send");
+promptBox.addEventListener("input", () => {
+	promptBox.style.height = "auto";
+	promptBox.style.height = Math.min(promptBox.scrollHeight, 200) + "px";
+	sendBtn.disabled = !promptBox.value.trim();
+});
+promptBox.addEventListener("keydown", (e) => {
+	if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+});
+function send() { const q = promptBox.value; if (!q.trim()) return; promptBox.value = ""; promptBox.style.height = "auto"; sendBtn.disabled = true; ask(q); }
+document.getElementById("send").onclick = send;
+document.getElementById("newChat").onclick = () => { histories[mode] = []; attached = []; renderChips(); pane().innerHTML = ""; renderEmpty(); };
+document.getElementById("manulMore").onclick = (e) => {
+	const r = e.currentTarget.getBoundingClientRect();
+	showMenu(r.left - 170, r.bottom + 6, [
+		["Новый чат", () => document.getElementById("newChat").click()],
+		["Приложить все файлы папки", () => { allFiles().filter((p) => !viewType(p)).slice(0, 10).forEach(attachFile); }],
+		["Скопировать переписку", () => { copyText(histories[mode].map((m) => (m.role === "user" ? "Я: " : "Manul: ") + m.content).join("\n\n")); toast("Скопировано"); }],
+		null,
+		["Ключ и модель…", () => openOverlay("settings")],
+		[settings.manulLeft ? "Перенести вправо" : "Перенести влево", () => { settings.manulLeft = !settings.manulLeft; saveSettings(); applyLayout(); }],
+		["Скрыть панель", () => COMMANDS.toggleManul[1]()],
+		null,
+		...QUICK[mode].map(([label, text]) => [label, () => ask(text)]),
+	]);
+};
+
+// Alt+\ — Manul дописывает код с места курсора серым текстом.
+let inlineWanted = false;
+function registerManulInline() {
+	monaco.languages.registerInlineCompletionsProvider({ pattern: "**" }, {
+		async provideInlineCompletions(model, position) {
+			if (!inlineWanted || !settings.aiInline) return { items: [] };
+			inlineWanted = false;
+			const before = model.getValueInRange(new monaco.Range(Math.max(1, position.lineNumber - 60), 1, position.lineNumber, position.column));
+			const after = model.getValueInRange(new monaco.Range(position.lineNumber, position.column, Math.min(model.getLineCount(), position.lineNumber + 20), 1e4));
+			try {
+				const json = await manulRequest("/chat/completions", {
+					model: document.getElementById("modelSelect").value,
+					messages: [
+						{ role: "system", content: "Ты дописываешь код. Верни ТОЛЬКО продолжение кода с места курсора, без пояснений и без ```." },
+						{ role: "user", content: `Язык: ${model.getLanguageId()}\nКод до курсора:\n${before}\n<КУРСОР>\nКод после курсора:\n${after}` },
+					],
+				});
+				const text = (json?.choices?.[0]?.message?.content || "").replace(/^```\w*\n?|```\s*$/g, "");
+				return { items: text ? [{ insertText: text, range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column) }] : [] };
+			} catch (e) {
+				toast(e.message);
+				return { items: [] };
+			}
+		},
+		freeInlineCompletions() {},
+	});
+}
+
+// =====================================================================
+//  Запуск Python прямо здесь (Pyodide)
+// =====================================================================
+let pyodide = null;
+async function runPython() {
+	if (!activePath || !models.get(activePath) || models.get(activePath).model.getLanguageId() !== "python") { toast("Открой .py файл"); return; }
+	settings.showBottom = true; applyLayout(); showBottom("output");
+	const code = models.get(activePath).model.getValue();
+	log(`▶ ${activePath}`, "info");
+	try {
+		if (!pyodide) {
+			log("Загружаю Python (один раз, ~10 МБ)…", "info");
+			await loadScript("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
+			pyodide = await loadPyodide();
+			pyodide.setStdout({ batched: (s) => log(s) });
+			pyodide.setStderr({ batched: (s) => log(s, "err") });
+			pyodide.setStdin({ stdin: () => prompt("input():") ?? "" });
+		}
+		const started = performance.now();
+		await pyodide.runPythonAsync(code);
+		log(`✓ Готово за ${((performance.now() - started) / 1000).toFixed(2)} с`, "info");
+	} catch (e) {
+		log(String(e.message || e), "err");
+	}
+}
+function loadScript(src) {
+	return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => fail(new Error("нет сети")); document.head.appendChild(s); });
+}
+function log(text, cls) {
+	const out = document.getElementById("output");
+	const span = document.createElement("span");
+	if (cls) span.className = cls;
+	span.textContent = text + "\n";
+	out.appendChild(span);
+	out.scrollTop = out.scrollHeight;
+}
+function showBottom(which) {
+	document.querySelectorAll("[data-bottom]").forEach((b) => b.classList.toggle("on", b.dataset.bottom === which));
+	document.getElementById("output").style.display = which === "output" ? "" : "none";
+	document.getElementById("problems").style.display = which === "problems" ? "block" : "none";
+}
+document.querySelectorAll("[data-bottom]").forEach((b) => b.onclick = () => showBottom(b.dataset.bottom));
+
+// =====================================================================
+//  Поиск по файлам
+// =====================================================================
+async function searchFiles(query) {
+	const res = document.getElementById("searchRes");
+	res.innerHTML = "";
+	if (!ws || query.length < 2) return;
+	const lower = query.toLowerCase();
+	let shown = 0;
+	const walk = async (node, path) => {
+		for (const child of node.children || []) {
+			const p = join(path, child.name);
+			if (child.kind === "dir") { await walk(child, p); continue; }
+			if (!TEXT_EXT.test(child.name) || child.binary || shown > 200) continue;
+			const text = await currentText(p);
+			const hits = [];
+			text.split("\n").forEach((line, i) => { if (line.toLowerCase().includes(lower)) hits.push([i + 1, line]); });
+			if (!hits.length) continue;
+			const head = document.createElement("div");
+			head.className = "file";
+			head.innerHTML = `${iconOf(child.name)}<span>${escapeHtml(p)} · ${hits.length}</span>`;
+			res.appendChild(head);
+			for (const [n, line] of hits.slice(0, 20)) {
+				const div = document.createElement("div");
+				div.className = "hit";
+				const idx = line.toLowerCase().indexOf(lower);
+				div.innerHTML = `<span class="hint">${n}</span>  ` + escapeHtml(line.slice(0, idx)).trimStart() + "<mark>" + escapeHtml(line.slice(idx, idx + query.length)) + "</mark>" + escapeHtml(line.slice(idx + query.length));
+				div.onclick = async () => { await openFile(p, true); editor.revealLineInCenter(n); editor.setSelection(new monaco.Range(n, idx + 1, n, idx + 1 + query.length)); editor.focus(); };
+				res.appendChild(div);
+				shown++;
+			}
+		}
+	};
+	await walk(ws.root, "");
+	if (!res.children.length) res.innerHTML = '<div class="hint" style="padding:6px">Ничего не нашлось</div>';
+}
+let searchTimer;
+document.getElementById("searchInput").oninput = (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => searchFiles(e.target.value), 250); };
+
+// =====================================================================
+//  Команды, палитра, клавиши
+// =====================================================================
+const COMMANDS = {
+	newFile: ["Новый файл", () => newFile()], newFolder: ["Новая папка", () => newFolder()], upload: ["Загрузить файлы", () => upload()],
+	openFolder: ["Открыть папку с компьютера", openFolder], createWorkspace: ["Создать свою папку", createWorkspace],
+	save: ["Сохранить", () => saveFile(), "Ctrl+S"], run: ["Запустить Python", runPython, "F5"],
+	settings: ["Настройки", () => openOverlay("settings"), "Ctrl+,"], palette: ["Палитра команд", () => openPalette(">"), "Ctrl+Shift+P"],
+	toggleSidebar: ["Показать/скрыть файлы", () => { settings.showSidebar = !settings.showSidebar; saveSettings(); applyLayout(); }, "Ctrl+B"],
+	toggleManul: ["Показать/скрыть Manul", () => { settings.showManul = !settings.showManul; saveSettings(); applyLayout(); }, "Ctrl+L"],
+	toggleBottom: ["Показать/скрыть вывод", () => { settings.showBottom = !settings.showBottom; saveSettings(); applyLayout(); }, "Ctrl+J"],
+	agent: ["Manul: режим агента", () => { settings.showManul = true; applyLayout(); setMode("agent"); promptBox.focus(); }],
+	collapse: ["Свернуть все папки", () => { expanded.clear(); expanded.add(""); renderTree(); }],
+	clearOutput: ["Очистить вывод", () => document.getElementById("output").innerHTML = ""],
+	format: ["Форматировать документ", () => editor?.getAction("editor.action.formatDocument")?.run(), "Shift+Alt+F"],
+	closeWs: ["Закрыть проект", closeWorkspace],
+};
+document.querySelectorAll("[data-cmd]").forEach((b) => b.addEventListener("click", () => COMMANDS[b.dataset.cmd][1]()));
+document.getElementById("cmdbox").onclick = () => openPalette(">");
+
+let paletteItems = [], paletteSel = 0;
+function openPalette(start) {
+	openOverlay("palette");
+	const input = document.getElementById("paletteInput");
+	input.value = start;
+	input.focus();
+	renderPalette();
+}
+function renderPalette() {
+	const q = document.getElementById("paletteInput").value;
+	const list = document.getElementById("paletteList");
+	const isCmd = q.startsWith(">") || !ws;
+	const term = (q.startsWith(">") ? q.slice(1) : q).trim().toLowerCase();
+	paletteItems = isCmd
+		? Object.values(COMMANDS).filter((c) => c[0].toLowerCase().includes(term)).map((c) => ({ label: c[0], key: c[2] || "", run: c[1] }))
+		: allFiles().filter((p) => p.toLowerCase().includes(term)).slice(0, 50).map((p) => ({ label: p, icon: iconOf(p), key: "", run: () => openFile(p) }));
+	paletteSel = 0;
+	list.innerHTML = "";
+	paletteItems.forEach((item, i) => {
+		const div = document.createElement("div");
+		div.className = "item" + (i === 0 ? " sel" : "");
+		div.innerHTML = `<span>${item.icon || ""}${escapeHtml(item.label)}</span><span class="k">${item.key}</span>`;
+		div.onclick = () => runPaletteItem(i);
+		list.appendChild(div);
+	});
+}
+function runPaletteItem(i) {
+	const item = paletteItems[i];
+	if (!item) return;
+	closeOverlays();
+	item.run();
+}
+document.getElementById("paletteInput").addEventListener("input", renderPalette);
+document.getElementById("paletteInput").addEventListener("keydown", (e) => {
+	const items = document.querySelectorAll("#paletteList .item");
+	if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+		e.preventDefault();
+		paletteSel = (paletteSel + (e.key === "ArrowDown" ? 1 : -1) + items.length) % Math.max(items.length, 1);
+		items.forEach((el, i) => el.classList.toggle("sel", i === paletteSel));
+		items[paletteSel]?.scrollIntoView({ block: "nearest" });
+	} else if (e.key === "Enter") { runPaletteItem(paletteSel); }
+});
+
+function registerKeys() {
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveFile());
+	editor.addCommand(monaco.KeyCode.F5, runPython);
+	editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Backslash, () => {
+		if (!settings.aiInline) { toast("Включи в настройках «Дописывать код по Alt+\\»"); return; }
+		inlineWanted = true;
+		editor.trigger("manul", "editor.action.inlineSuggest.trigger", {});
+	});
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => { settings.showManul = true; saveSettings(); applyLayout(); promptBox.focus(); });
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => openPalette(""));
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => openPalette(">"));
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, COMMANDS.toggleSidebar[1]);
+	editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyJ, COMMANDS.toggleBottom[1]);
+}
+document.addEventListener("keydown", (e) => {
+	const ctrl = e.ctrlKey || e.metaKey;
+	if (e.key === "Escape") { closeOverlays(); document.querySelector(".ctxmenu")?.remove(); document.querySelector(".attach-pop")?.remove(); }
+	if (document.activeElement?.closest?.(".monaco-editor")) return;
+	if (ctrl && e.shiftKey && e.code === "KeyP") { e.preventDefault(); openPalette(">"); }
+	else if (ctrl && e.code === "KeyP") { e.preventDefault(); openPalette(""); }
+	else if (ctrl && e.code === "Comma") { e.preventDefault(); openOverlay("settings"); }
+	else if (ctrl && e.code === "KeyS") { e.preventDefault(); saveFile(); }
+	else if (ctrl && e.code === "KeyB") { e.preventDefault(); COMMANDS.toggleSidebar[1](); }
+	else if (ctrl && e.code === "KeyL") { e.preventDefault(); COMMANDS.toggleManul[1](); }
+	else if (ctrl && e.code === "KeyJ") { e.preventDefault(); COMMANDS.toggleBottom[1](); }
+	else if (ctrl && e.shiftKey && e.code === "KeyF") { e.preventDefault(); switchView("search"); }
+	else if (ctrl && e.shiftKey && e.code === "KeyE") { e.preventDefault(); switchView("explorer"); }
+	else if (e.key === "F5") { e.preventDefault(); runPython(); }
+});
+function moveActPill() {
+	const pill = document.getElementById("actPill");
+	const on = document.querySelector("#activity [data-view].on");
+	if (!on || !settings.showSidebar) { pill.style.opacity = 0; return; }
+	pill.style.opacity = 1;
+	pill.style.height = on.offsetHeight + "px";
+	pill.style.transform = `translateY(${on.offsetTop}px)`;
+}
+window.addEventListener("resize", () => { moveActPill(); moveModePill(); });
+function switchView(view) {
+	settings.showSidebar = true; applyLayout();
+	document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+	document.getElementById("explorerView").classList.toggle("on", view === "explorer");
+	document.getElementById("searchView").classList.toggle("on", view === "search");
+	if (view === "search") document.getElementById("searchInput").focus();
+	moveActPill();
+}
+document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => {
+	if (b.classList.contains("on") && settings.showSidebar) { settings.showSidebar = false; saveSettings(); applyLayout(); }
+	else switchView(b.dataset.view);
+});
+document.querySelector('[data-toggle="manul"]').onclick = COMMANDS.toggleManul[1];
+
+// =====================================================================
+//  Окно настроек
+// =====================================================================
+function openOverlay(id) {
+	closeOverlays();
+	document.getElementById(id).classList.add("on");
+	if (id === "settings") fillSettings();
+}
+window.openOverlay = openOverlay;
+function closeOverlays() { document.querySelectorAll(".overlay").forEach((o) => o.classList.remove("on")); }
+document.querySelectorAll(".overlay").forEach((o) => o.addEventListener("mousedown", (e) => { if (e.target === o) closeOverlays(); }));
+document.querySelectorAll("[data-close]").forEach((b) => b.onclick = closeOverlays);
+
+function fillFontSelects() {
+	const fill = (sel, list, current) => {
+		sel.innerHTML = "";
+		const groups = [["Свои", customFonts.map((f) => f.name)], ["Встроенные", list.map(([n]) => n)]];
+		for (const [label, names] of groups) {
+			if (!names.length) continue;
+			const g = document.createElement("optgroup");
+			g.label = label;
+			for (const n of names) { const o = document.createElement("option"); o.value = o.textContent = n; g.appendChild(o); }
+			sel.appendChild(g);
+		}
+		sel.value = current;
+	};
+	fill(document.getElementById("uiFontSelect"), UI_FONTS, settings.uiFont);
+	fill(document.getElementById("codeFontSelect"), CODE_FONTS, settings.codeFont);
+	document.getElementById("customFontsInfo").textContent = customFonts.length ? `Своих шрифтов: ${customFonts.length}` : "";
+}
+function fillSettings() {
+	fillFontSelects();
+	document.querySelectorAll("#settings [data-set]").forEach((el) => {
+		const key = el.dataset.set;
+		if (el.classList.contains("switch")) el.classList.toggle("on", !!settings[key]);
+		else el.value = settings[key];
+	});
+	document.getElementById("apiKey").value = apiKey;
+	const sw = document.getElementById("swatches");
+	sw.innerHTML = "";
+	for (const c of ACCENTS) {
+		const d = document.createElement("div");
+		d.className = "swatch" + (c.toLowerCase() === settings.accent.toLowerCase() ? " on" : "");
+		d.style.background = c;
+		d.onclick = () => { settings.accent = c; saveSettings(); applyLayout(); fillSettings(); };
+		sw.appendChild(d);
+	}
+}
+document.querySelectorAll("#settings [data-set]").forEach((el) => {
+	const key = el.dataset.set;
+	if (el.classList.contains("switch")) {
+		el.onclick = () => { settings[key] = !settings[key]; el.classList.toggle("on", settings[key]); saveSettings(); applyLayout(); };
+	} else {
+		el.onchange = () => { settings[key] = el.value; saveSettings(); applyLayout(); };
+	}
+});
+document.getElementById("addFont").onclick = () => document.getElementById("fontPicker").click();
+document.getElementById("fontPicker").onchange = async (e) => {
+	const file = e.target.files[0];
+	e.target.value = "";
+	if (!file) return;
+	const name = file.name.replace(/\.(ttf|otf|woff2?)$/i, "");
+	await addCustomFont(name, await readAsDataUrl(file));
+	toast(`Шрифт «${name}» добавлен — выбери его выше`);
+};
+document.getElementById("apiKey").onchange = (e) => {
+	apiKey = e.target.value.trim();
+	apiKey ? localStorage.setItem("hmcode.manulKey", apiKey) : localStorage.removeItem("hmcode.manulKey");
+	updateLimit();
+	refreshEmpty();
+};
+document.getElementById("keyShow").onclick = () => { const f = document.getElementById("apiKey"); f.type = f.type === "password" ? "text" : "password"; };
+document.getElementById("keyCheck").onclick = async () => {
+	const state = document.getElementById("keyState");
+	apiKey = document.getElementById("apiKey").value.trim();
+	apiKey ? localStorage.setItem("hmcode.manulKey", apiKey) : localStorage.removeItem("hmcode.manulKey");
+	state.textContent = "Проверяю…";
+	try {
+		const json = await manulRequest("/models");
+		const ids = (json?.data || []).map((m) => m.id).filter(Boolean);
+		state.textContent = `✓ Ключ работает, моделей: ${ids.length}`;
+		refreshEmpty();
+		if (ids.length) fillModels(ids);
+	} catch (e) { state.textContent = e.message; }
+};
+function fillModels(ids) {
+	localStorage.setItem("hmcode.models", JSON.stringify(ids));
+	for (const sel of [document.getElementById("modelSelect"), document.getElementById("setModel")]) {
+		sel.innerHTML = ids.map((id) => `<option${id === settings.model ? " selected" : ""}>${escapeHtml(id)}</option>`).join("");
+	}
+}
+document.getElementById("setModel").onchange = (e) => { settings.model = e.target.value; document.getElementById("modelSelect").value = e.target.value; saveSettings(); };
+document.getElementById("modelSelect").onchange = (e) => { settings.model = e.target.value; saveSettings(); };
+document.getElementById("exportSettings").onclick = () => {
+	copyText(JSON.stringify(settings, null, 2));
+	toast("Настройки скопированы — пришли их мне");
+};
+document.getElementById("resetSettings").onclick = () => { Object.assign(settings, DEFAULTS); saveSettings(); applyLayout(); fillSettings(); };
+
+// =====================================================================
+//  Мелочи
+// =====================================================================
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+let toastTimer;
+function toast(text) {
+	const t = document.getElementById("toast");
+	t.textContent = text;
+	t.classList.add("on");
+	clearTimeout(toastTimer);
+	toastTimer = setTimeout(() => t.classList.remove("on"), 2600);
+}
+function showMenu(x, y, items) {
+	document.querySelector(".ctxmenu")?.remove();
+	const menu = document.createElement("div");
+	menu.className = "ctxmenu";
+	for (const item of items) {
+		if (!item) { menu.appendChild(document.createElement("hr")); continue; }
+		const [label, run, danger] = item;
+		const d = document.createElement("div");
+		d.textContent = label;
+		if (danger) d.className = "danger";
+		d.onclick = () => { menu.remove(); run(); };
+		menu.appendChild(d);
+	}
+	document.body.appendChild(menu);
+	menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + "px";
+	menu.style.top = Math.min(y, innerHeight - menu.offsetHeight - 8) + "px";
+	setTimeout(() => document.addEventListener("mousedown", function off(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("mousedown", off); } }), 0);
+}
+window.addEventListener("beforeunload", (e) => { if (openTabs.some(isDirty)) { e.preventDefault(); e.returnValue = ""; } });
+
+function buildOrbit() {
+	const orbit = document.getElementById("orbit");
+	const rings = [
+		{ size: 0.7, dur: 38, dir: "normal", langs: [["python", "Python"], ["js", "JavaScript"], ["ts", "TypeScript"], ["cpp", "C++"], ["go", "Go"], ["rs", "Rust"]] },
+		{ size: 0.98, dur: 60, dir: "reverse", langs: [["cs", "C#"], ["java", "Java"], ["kt", "Kotlin"], ["swift", "Swift"], ["php", "PHP"], ["rb", "Ruby"], ["html", "HTML"], ["css", "CSS"], ["sql", "SQL"], ["sh", "Bash"], ["lua", "Lua"], ["dart", "Dart"]] },
+	];
+	for (const ring of rings) {
+		const el = document.createElement("div");
+		el.className = "ring";
+		const pct = ring.size * 100;
+		el.style.width = el.style.height = pct + "%";
+		el.style.setProperty("--dur", ring.dur + "s");
+		el.style.setProperty("--dir", ring.dir);
+		el.style.setProperty("--back", ring.dir === "normal" ? "reverse" : "normal");
+		const step = 360 / ring.langs.length;
+		ring.langs.forEach(([icon, name], i) => {
+			const lang = document.createElement("div");
+			lang.className = "lang";
+			lang.style.setProperty("--a", (i * step + (ring.dir === "normal" ? 0 : step / 2)) + "deg");
+			lang.style.setProperty("--r", (ring.size * 50) + "cqw");
+			lang.innerHTML = `<div>${ICONS[icon] || ICONS.file}<span>${name}</span></div>`;
+			el.appendChild(lang);
+		});
+		orbit.appendChild(el);
+	}
+}
+buildOrbit();
+
+const savedModels = JSON.parse(localStorage.getItem("hmcode.models") || "null");
+if (savedModels) fillModels(savedModels);
+document.getElementById("modelSelect").value = settings.model;
+applyLayout();
+setMode(mode);
+renderChips();
+updateLimit();
+</script>
+</body>
+</html>

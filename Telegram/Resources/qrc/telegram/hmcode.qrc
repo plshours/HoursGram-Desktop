@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/hmcode">
+    <file alias="index.html">../../hmcode_html/index.html</file>
+  </qresource>
+</RCC>
