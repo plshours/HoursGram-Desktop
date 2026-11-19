@@ -343,12 +343,18 @@ void ActivateTrack(
 	return { .chart = chart };
 }
 
+[[nodiscard]] QString UpgradeScArtwork(const QString &url) {
+	auto result = url;
+	result.replace(u"-large."_q, u"-t500x500."_q);
+	return result;
+}
+
 [[nodiscard]] QueueTrack FromSoundCloud(const ScTrack &sc) {
 	return {
 		.chart = {
 			.title = sc.title,
 			.artist = sc.artist,
-			.artworkUrl = sc.artworkUrl,
+			.artworkUrl = UpgradeScArtwork(sc.artworkUrl),
 		},
 		.soundcloud = std::make_shared<ScTrack>(sc),
 	};

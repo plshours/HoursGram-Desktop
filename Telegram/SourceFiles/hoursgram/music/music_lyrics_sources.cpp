@@ -44,7 +44,8 @@ constexpr auto kMaxTextBytes = 4 * 1024 * 1024;     // json/html-ответы и
 		&& url.scheme() == u"https"_q
 		&& url.userInfo().isEmpty()
 		&& url.port(-1) == -1
-		&& (host == u"lrclib.net"_q);
+		&& (host == u"lrclib.net"_q
+			|| host == u"genius.com"_q);
 }
 
 // Слишком большие ответы обрываем: readAll() не должен собирать гигабайты.
@@ -482,6 +483,108 @@ void RequestNetease(
 	});
 }
 
+// Genius: the public search API needs no key. The lyrics are scraped from
+// the song page HTML, where they sit inside data-lyrics-container divs.
+void GetHtml(const QString &address, Fn<void(QString)> done) {
+	auto url = QUrl(address);
+	if (!SafeMediaUrl(url)) {
+		done(QString());
+		return;
+	}
+	auto request = QNetworkRequest(url);
+	request.setRawHeader("User-Agent",
+		"HoursGram Desktop (https://github.com/plshours/HoursGram-Desktop)");
+	request.setAttribute(
+		QNetworkRequest::RedirectPolicyAttribute,
+		QNetworkRequest::NoLessSafeRedirectPolicy);
+	request.setTransferTimeout(15000);
+	const auto reply = Net().get(request);
+	LimitReply(reply, kMaxTextBytes);
+	QObject::connect(reply, &QNetworkReply::finished, [=] {
+		reply->deleteLater();
+		if (reply->error() != QNetworkReply::NoError) {
+			done(QString());
+			return;
+		}
+		done(QString::fromUtf8(reply->readAll()));
+	});
+}
+
+[[nodiscard]] Lyrics ParseGeniusHtml(const QString &html) {
+	auto result = Lyrics();
+	static const auto container = QRegularExpression(
+		uR"(data-lyrics-container="true"[^>]*>(.*?)</div>)"_q,
+		QRegularExpression::DotMatchesEverythingOption);
+	auto text = QString();
+	auto it = container.globalMatch(html);
+	while (it.hasNext()) {
+		auto block = it.next().captured(1);
+		block.replace(QRegularExpression(u"<br\\s*/?>"_q), u"\n"_q);
+		block.remove(QRegularExpression(u"<[^>]*>"_q));
+		block.replace(u"&#x27;"_q, u"'"_q);
+		block.replace(u"&amp;"_q, u"&"_q);
+		block.replace(u"&lt;"_q, u"<"_q);
+		block.replace(u"&gt;"_q, u">"_q);
+		block.replace(u"&quot;"_q, u"\""_q);
+		if (!text.isEmpty() && !block.isEmpty()) {
+			text += '\n';
+		}
+		text += block;
+	}
+	if (text.trimmed().isEmpty()) {
+		return result;
+	}
+	for (const auto &raw : text.split('\n')) {
+		result.lines.push_back({ 0, raw.trimmed() });
+	}
+	result.found = !result.lines.empty();
+	return result;
+}
+
+void RequestGenius(
+		const QString &trackName,
+		const QString &artistName,
+		Fn<void(Lyrics)> done) {
+	const auto query = artistName + u" "_q + trackName;
+	const auto encoded = QString::fromLatin1(
+		QUrl::toPercentEncoding(query));
+	const auto url = u"https://genius.com/api/search/multi?q="_q + encoded;
+	GetJson(url, [=](QJsonDocument doc) {
+		if (doc.isNull()) {
+			done({});
+			return;
+		}
+		auto songUrl = QString();
+		const auto sections = doc.object().value(
+			u"response"_q).toObject().value(
+			u"sections"_q).toArray();
+		for (const auto &section : sections) {
+			const auto obj = section.toObject();
+			if (obj.value(u"type"_q).toString() != u"song"_q) {
+				continue;
+			}
+			for (const auto &hit : obj.value(u"hits"_q).toArray()) {
+				const auto result = hit.toObject().value(
+					u"result"_q).toObject();
+				songUrl = result.value(u"url"_q).toString();
+				if (!songUrl.isEmpty()) {
+					break;
+				}
+			}
+			if (!songUrl.isEmpty()) {
+				break;
+			}
+		}
+		if (songUrl.isEmpty() || !songUrl.startsWith(u"https://genius.com/"_q)) {
+			done({});
+			return;
+		}
+		GetHtml(songUrl, [=](QString html) {
+			done(html.isEmpty() ? Lyrics() : ParseGeniusHtml(html));
+		});
+	}, "https://genius.com/");
+}
+
 void RequestFallback(
 		const QString &trackName,
 		const QString &artistName,
@@ -508,8 +611,17 @@ void RequestFallback(
 			}
 		});
 	};
+	const auto genius = [=](bool failed) {
+		RequestGenius(trackName, artistName, [=](Lyrics result) {
+			if (result.found) {
+				done(std::move(result));
+			} else {
+				kugou(failed);
+			}
+		});
+	};
 	if (durationMs <= 0 || unavailable) {
-		kugou(unavailable);
+		genius(unavailable);
 		return;
 	}
 	auto query = QUrlQuery();
@@ -518,7 +630,7 @@ void RequestFallback(
 		if (result.found) {
 			done(std::move(result));
 		} else {
-			kugou(result.unavailable);
+			genius(result.unavailable);
 		}
 	}, trackName);
 }
