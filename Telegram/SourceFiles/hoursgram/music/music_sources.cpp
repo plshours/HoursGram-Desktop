@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_sources.h"
 
 #include "apiwrap.h"
+#include "hoursgram/music/music_soundcloud.h"
 #include "base/flat_map.h"
 #include "base/flat_set.h"
 #include "data/data_audio_msg_id.h"
@@ -544,6 +545,30 @@ void SearchCatalog(
 	Get(deezer, kMaxResponseSize, [=](QByteArray bytes) {
 		state->deezer = ParseDeezer(bytes);
 		check();
+	});
+}
+
+void SearchSoundCloud(
+		const QString &query,
+		Fn<void(std::vector<ChartTrack>)> done) {
+	const auto trimmed = query.trimmed();
+	if (trimmed.isEmpty()) {
+		done({});
+		return;
+	}
+	SoundCloudSearch(trimmed, 0, [=](ScSearchResult result) {
+		auto tracks = std::vector<ChartTrack>();
+		tracks.reserve(result.tracks.size());
+		auto rank = 0;
+		for (const auto &sc : result.tracks) {
+			tracks.push_back({
+				.title = sc.title,
+				.artist = sc.artist,
+				.artworkUrl = sc.artworkUrl,
+				.rank = ++rank,
+			});
+		}
+		done(std::move(tracks));
 	});
 }
 

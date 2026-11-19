@@ -2958,6 +2958,7 @@ void FillTracks(
 	struct State {
 		std::optional<std::vector<ChartTrack>> catalog;
 		std::optional<std::vector<AudioMsgId>> telegram;
+		std::optional<std::vector<ChartTrack>> soundcloud;
 	};
 	const auto state = std::make_shared<State>();
 	const auto addSection = [=](QString title, QString about) {
@@ -2967,19 +2968,38 @@ void FillTracks(
 		AddSkipTo(body, st::hoursgramMusicHeaderButtonsSkip);
 	};
 	const auto fill = [=] {
-		if (!state->catalog || !state->telegram) {
+		if (!state->catalog || !state->telegram || !state->soundcloud) {
 			return;
 		}
 		body->clear();
 		const auto &catalog = *state->catalog;
 		const auto &telegram = *state->telegram;
-		if (catalog.empty() && telegram.empty()) {
+		const auto &soundcloud = *state->soundcloud;
+		if (catalog.empty() && telegram.empty() && soundcloud.empty()) {
 			AddEmptyText(body, Tr(
 				"Nothing found. Try other words.",
 				"Ничего не нашлось. Попробуйте другие слова."));
 			return;
 		}
+		auto hasPrevious = false;
+		if (!soundcloud.empty()) {
+			addSection(
+				Tr("SoundCloud", "SoundCloud"),
+				Tr(
+					"Found on SoundCloud, played from Telegram",
+					"Найдено на SoundCloud, играет из Telegram"));
+			auto tracks = std::vector<QueueTrack>();
+			tracks.reserve(soundcloud.size());
+			for (const auto &track : soundcloud) {
+				tracks.push_back(FromChart(track));
+			}
+			FillTracks(body, context, std::move(tracks), 0, true);
+			hasPrevious = true;
+		}
 		if (!catalog.empty()) {
+			if (hasPrevious) {
+				AddSkipTo(body, st::hoursgramMusicSectionSkip);
+			}
 			addSection(
 				Tr("On the platforms", "На площадках"),
 				Tr(
@@ -2991,9 +3011,10 @@ void FillTracks(
 				tracks.push_back(FromChart(track));
 			}
 			FillTracks(body, context, std::move(tracks), 0, true);
+			hasPrevious = true;
 		}
 		if (!telegram.empty()) {
-			if (!catalog.empty()) {
+			if (hasPrevious) {
 				AddSkipTo(body, st::hoursgramMusicSectionSkip);
 			}
 			addSection(
@@ -3010,6 +3031,10 @@ void FillTracks(
 		}
 		AddSkipTo(body, st::hoursgramMusicPagePadding.bottom());
 	};
+	SearchSoundCloud(query, crl::guard(body, [=](std::vector<ChartTrack> found) {
+		state->soundcloud = std::move(found);
+		fill();
+	}));
 	SearchCatalog(query, crl::guard(body, [=](std::vector<ChartTrack> found) {
 		state->catalog = std::move(found);
 		fill();

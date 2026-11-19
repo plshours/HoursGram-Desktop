@@ -1332,6 +1332,8 @@ PRIVATE
     hoursgram/music/music_playlists_box.h
     hoursgram/music/music_queue.cpp
     hoursgram/music/music_queue.h
+    hoursgram/music/music_soundcloud.cpp
+    hoursgram/music/music_soundcloud.h
     hoursgram/music/music_sources.cpp
     hoursgram/music/music_sources.h
     hoursgram/music/music_window.cpp
