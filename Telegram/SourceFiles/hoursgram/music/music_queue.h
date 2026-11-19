@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/weak_ptr.h"
 #include "data/data_audio_msg_id.h"
+#include "hoursgram/music/music_soundcloud.h"
 #include "hoursgram/music/music_sources.h"
 
 namespace Main {
@@ -18,11 +19,13 @@ class Session;
 namespace HoursGram::Music {
 
 // One entry of what the music window plays: either an audio file the
-// session already knows, or a chart song that is looked up in Telegram
-// right before it is played.
+// session already knows, a chart song that is looked up in Telegram
+// right before it is played, or a SoundCloud track that is downloaded
+// directly from SoundCloud and played as a local file.
 struct QueueTrack {
 	AudioMsgId audio;
 	ChartTrack chart;
+	std::shared_ptr<ScTrack> soundcloud;
 
 	[[nodiscard]] bool resolved() const {
 		return audio.audio() != nullptr;

@@ -343,6 +343,17 @@ void ActivateTrack(
 	return { .chart = chart };
 }
 
+[[nodiscard]] QueueTrack FromSoundCloud(const ScTrack &sc) {
+	return {
+		.chart = {
+			.title = sc.title,
+			.artist = sc.artist,
+			.artworkUrl = sc.artworkUrl,
+		},
+		.soundcloud = std::make_shared<ScTrack>(sc),
+	};
+}
+
 void PaintEqualizer(
 		QPainter &p,
 		QRect rect,
@@ -2958,7 +2969,7 @@ void FillTracks(
 	struct State {
 		std::optional<std::vector<ChartTrack>> catalog;
 		std::optional<std::vector<AudioMsgId>> telegram;
-		std::optional<std::vector<ChartTrack>> soundcloud;
+		std::optional<std::vector<ScTrack>> soundcloud;
 	};
 	const auto state = std::make_shared<State>();
 	const auto addSection = [=](QString title, QString about) {
@@ -2986,12 +2997,12 @@ void FillTracks(
 			addSection(
 				Tr("SoundCloud", "SoundCloud"),
 				Tr(
-					"Found on SoundCloud, played from Telegram",
-					"Найдено на SoundCloud, играет из Telegram"));
+					"Streams directly from SoundCloud",
+					"Воспроизводится напрямую из SoundCloud"));
 			auto tracks = std::vector<QueueTrack>();
 			tracks.reserve(soundcloud.size());
-			for (const auto &track : soundcloud) {
-				tracks.push_back(FromChart(track));
+			for (const auto &sc : soundcloud) {
+				tracks.push_back(FromSoundCloud(sc));
 			}
 			FillTracks(body, context, std::move(tracks), 0, true);
 			hasPrevious = true;
@@ -3031,7 +3042,7 @@ void FillTracks(
 		}
 		AddSkipTo(body, st::hoursgramMusicPagePadding.bottom());
 	};
-	SearchSoundCloud(query, crl::guard(body, [=](std::vector<ChartTrack> found) {
+	SearchSoundCloud(query, crl::guard(body, [=](std::vector<ScTrack> found) {
 		state->soundcloud = std::move(found);
 		fill();
 	}));

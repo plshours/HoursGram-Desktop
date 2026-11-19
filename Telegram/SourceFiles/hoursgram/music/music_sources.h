@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "hoursgram/music/music_soundcloud.h"
+
 #include <QtCore/QDate>
 #include <QtGui/QImage>
 
@@ -56,12 +58,11 @@ void SearchCatalog(
 	const QString &query,
 	Fn<void(std::vector<ChartTrack>)> done);
 
-// Songs found by name on SoundCloud via the public web API. Like
-// catalog results, each one is looked up among Telegram audio when
-// the user wants to hear it.
+// Songs found by name on SoundCloud via the public web API. Unlike
+// catalog results, these are downloaded from SoundCloud directly.
 void SearchSoundCloud(
 	const QString &query,
-	Fn<void(std::vector<ChartTrack>)> done);
+	Fn<void(std::vector<ScTrack>)> done);
 
 // Audio files the user keeps in Saved Messages, newest first.
 void LoadSavedMusic(

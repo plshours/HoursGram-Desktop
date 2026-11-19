@@ -8,9 +8,14 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_queue.h"
 
 #include "base/random.h"
+#include "base/unixtime.h"
+#include "core/file_location.h"
 #include "data/data_document.h"
+#include "data/data_session.h"
 #include "main/main_session.h"
 #include "media/player/media_player_instance.h"
+
+#include <QtCore/QFileInfo>
 
 namespace HoursGram::Music {
 namespace {
@@ -19,10 +24,53 @@ namespace {
 // them must not turn into an endless chain of searches.
 constexpr auto kSkipAttempts = 5;
 
+// Documents fabricated from downloaded SoundCloud files live under a fixed
+// high prefix of the document id space, away from real Telegram ids.
+constexpr auto kScDocumentPrefix = 0x4852530000000000ULL;
+
 [[nodiscard]] bool SameTrack(const AudioMsgId &a, const AudioMsgId &b) {
 	return a.audio()
 		&& (a.audio() == b.audio())
 		&& (a.contextId() == b.contextId());
+}
+
+[[nodiscard]] DocumentId ScDocumentId(const QString &trackId) {
+	const auto id = trackId.toULongLong();
+	if (!id || id >= (1ULL << 56)) {
+		return 0;
+	}
+	return DocumentId(kScDocumentPrefix + id);
+}
+
+[[nodiscard]] not_null<DocumentData*> MakeScDocument(
+		not_null<Main::Session*> session,
+		const ScTrack &track,
+		const QString &path) {
+	auto attributes = QVector<MTPDocumentAttribute>();
+	attributes.push_back(MTP_documentAttributeAudio(
+		MTP_flags(MTPDdocumentAttributeAudio::Flag::f_title
+			| MTPDdocumentAttributeAudio::Flag::f_performer),
+		MTP_int(track.durationMs / 1000),
+		MTP_string(track.title),
+		MTP_string(track.artist),
+		MTPstring()));
+	attributes.push_back(MTP_documentAttributeFilename(
+		MTP_string(track.title + '.' + track.extension)));
+	const auto document = session->data().document(
+		ScDocumentId(track.id),
+		0,
+		QByteArray(),
+		base::unixtime::now(),
+		attributes,
+		track.extension == u"mp3"_q ? u"audio/mpeg"_q : u"audio/mp4"_q,
+		InlineImageLocation(),
+		ImageWithLocation(),
+		ImageWithLocation(),
+		false,
+		0,
+		QFileInfo(path).size());
+	document->setLocation(Core::FileLocation(path));
+	return document;
 }
 
 } // namespace
@@ -113,6 +161,55 @@ void Queue::playAt(int index, int direction, int attemptsLeft) {
 		prefetchAfter(index);
 		return;
 	}
+	if (track.soundcloud) {
+		_resolving = true;
+		_changes.fire({});
+		const auto sc = track.soundcloud;
+		const auto start = [=](ScTrack resolved) {
+			SoundCloudDownload(resolved, [=](
+					const QString &path,
+					const QString &error) {
+				if (generation != _generation
+					|| index >= int(_tracks.size())) {
+					return;
+				}
+				_resolving = false;
+				const auto session = _session.get();
+				if (!session || !error.isEmpty()) {
+					_notFound.fire_copy(_tracks[index].chart);
+					_changes.fire({});
+					return;
+				}
+				const auto document = MakeScDocument(
+					session,
+					resolved,
+					path);
+				const auto audio = AudioMsgId(document, FullMsgId());
+				_tracks[index].audio = audio;
+				_current = audio;
+				_changes.fire({});
+				Media::Player::instance()->play(audio);
+				prefetchAfter(index);
+			});
+		};
+		if (!sc->transcodingUrl.isEmpty()) {
+			start(*sc);
+		} else {
+			SoundCloudResolve(*sc, [=](ScTrack resolved, const QString &error) {
+				if (generation != _generation) {
+					return;
+				}
+				if (!error.isEmpty()) {
+					_resolving = false;
+					_notFound.fire_copy(_tracks[index].chart);
+					_changes.fire({});
+					return;
+				}
+				start(resolved);
+			});
+		}
+		return;
+	}
 	_resolving = true;
 	_changes.fire({});
 	ResolveChartTrack(session, track.chart, [=](AudioMsgId audio) {
@@ -152,6 +249,9 @@ void Queue::prefetchAfter(int index) {
 	const auto &track = _tracks[next];
 	if (track.resolved()) {
 		Prefetch(track.audio);
+		return;
+	}
+	if (track.soundcloud) {
 		return;
 	}
 	const auto generation = _generation;
