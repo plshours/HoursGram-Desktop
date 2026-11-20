@@ -305,12 +305,43 @@ public:
 	[[nodiscard]] const QString &appIcon() const { return _appIcon.current(); }
 	[[nodiscard]] int clientTheme() const { return _clientTheme.current(); }
 	// 2 and 3 carry the shape of Telegram for macOS with their colours;
-	// 4, Graphite, is a HorusGram theme like 1.
+	// 4, Graphite, is a HorusGram theme like 1. 5, HorusGram WINDOW, keeps
+	// the shape of the usual Telegram client with colors of its own.
+	static constexpr auto kWindowTheme = 5;
+	static constexpr auto kLastTheme = kWindowTheme;
 	[[nodiscard]] static bool IsMacTheme(int theme) {
 		return (theme == 2) || (theme == 3);
 	}
 	[[nodiscard]] bool macTheme() const {
 		return IsMacTheme(_clientTheme.current());
+	}
+	[[nodiscard]] bool windowTheme() const {
+		return (_clientTheme.current() == kWindowTheme);
+	}
+
+	// The look of the login screen: a plain background like Telegram's, a
+	// gradient, or a slow glow. The form can sit on a card, and a title of
+	// the user's choice goes above it. Empty colors follow the theme.
+	enum class IntroBackground {
+		Plain = 0,
+		Gradient = 1,
+		Glow = 2,
+	};
+	[[nodiscard]] IntroBackground introBackground() const {
+		return IntroBackground(_introBackground.current());
+	}
+	[[nodiscard]] bool introCard() const { return _introCard.current(); }
+	[[nodiscard]] const QString &introColor1() const {
+		return _introColor1.current();
+	}
+	[[nodiscard]] const QString &introColor2() const {
+		return _introColor2.current();
+	}
+	[[nodiscard]] const QString &introTitle() const {
+		return _introTitle.current();
+	}
+	[[nodiscard]] rpl::producer<> introLookChanges() const {
+		return _introLookChanges.events();
 	}
 	// Colors the user picked in Customization, keyed by palette slot name.
 	// A slot that is not here keeps the color the shipped palette gives it.
@@ -409,6 +440,12 @@ public:
 	void setShowPrivateChatReactions(bool val);
 	void setAppIcon(const QString &val);
 	void setClientTheme(int val);
+	void setIntroBackground(IntroBackground val);
+	void setIntroCard(bool val);
+	void setIntroColor1(const QString &val);
+	void setIntroColor2(const QString &val);
+	void setIntroTitle(const QString &val);
+	void resetIntroLook();
 	void setPaletteOverride(const QString &slot, const QString &color);
 	void resetPaletteOverrides();
 	[[nodiscard]] bool addLocalGift(uint64 userId, const QString &giftId);
@@ -695,6 +732,12 @@ private:
 	rpl::variable<bool> _showPrivateChatReactions = true;
 	rpl::variable<QString> _appIcon;
 	rpl::variable<int> _clientTheme = -1;
+	rpl::variable<int> _introBackground = int(IntroBackground::Glow);
+	rpl::variable<bool> _introCard = true;
+	rpl::variable<QString> _introColor1;
+	rpl::variable<QString> _introColor2;
+	rpl::variable<QString> _introTitle = QStringLiteral("HorusGram");
+	rpl::event_stream<> _introLookChanges;
 	std::map<QString, QString> _paletteOverrides;
 	rpl::event_stream<> _paletteOverridesChanges;
 	rpl::variable<bool> _simpleQuotesAndReplies = false;

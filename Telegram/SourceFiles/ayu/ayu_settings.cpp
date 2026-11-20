@@ -542,8 +542,13 @@ void AyuSettings::validate() {
 		_appIcon = AyuAssets::DEFAULT_ICON;
 		modified = true;
 	}
-	if (_clientTheme.current() < -1 || _clientTheme.current() > 4) {
+	if (_clientTheme.current() < -1 || _clientTheme.current() > kLastTheme) {
 		_clientTheme = defaults._clientTheme.current();
+		modified = true;
+	}
+	if (_introBackground.current() < int(IntroBackground::Plain)
+		|| _introBackground.current() > int(IntroBackground::Glow)) {
+		_introBackground = defaults._introBackground.current();
 		modified = true;
 	}
 
@@ -763,12 +768,13 @@ void AyuSettings::resetPaletteOverrides() {
 }
 
 void AyuSettings::setClientTheme(int val) {
-	if (val < 0 || val > 4 || _clientTheme.current() == val) {
+	if (val < 0 || val > kLastTheme || _clientTheme.current() == val) {
 		return;
 	}
 	if (val >= 1) {
 		// 1 is HorusGram, 2 and 3 are the dark and the light look of Telegram
-		// for macOS, 4 is HorusGram Graphite. The dark palettes switch the
+		// for macOS, 4 is HorusGram Graphite, 5 is HorusGram WINDOW: the
+		// usual Telegram client in the night colors. The dark palettes switch the
 		// client to night mode with
 		// them: that is what picks the dark default chat background and
 		// keeps the computed colors from staying light. The light one leaves
@@ -779,6 +785,8 @@ void AyuSettings::setClientTheme(int val) {
 			? u":/gui/hoursgram-macos-dark.tdesktop-palette"_q
 			: (val == 4)
 			? u":/gui/hoursgram-graphite.tdesktop-palette"_q
+			: (val == kWindowTheme)
+			? u":/gui/hoursgram-window.tdesktop-palette"_q
 			: u":/gui/hoursgram-macos.tdesktop-palette"_q;
 		const auto night = (val != 3);
 		if (Window::Theme::IsNightMode() != night) {
@@ -807,6 +815,52 @@ void AyuSettings::setClientTheme(int val) {
 	_clientTheme = val;
 	save();
 	HoursGram::Customization::ApplyCustomPalette();
+}
+
+void AyuSettings::setIntroBackground(IntroBackground val) {
+	if (_introBackground.current() == int(val)) return;
+	_introBackground = int(val);
+	save();
+	_introLookChanges.fire({});
+}
+
+void AyuSettings::setIntroCard(bool val) {
+	if (_introCard.current() == val) return;
+	_introCard = val;
+	save();
+	_introLookChanges.fire({});
+}
+
+void AyuSettings::setIntroColor1(const QString &val) {
+	if (_introColor1.current() == val) return;
+	_introColor1 = val;
+	save();
+	_introLookChanges.fire({});
+}
+
+void AyuSettings::setIntroColor2(const QString &val) {
+	if (_introColor2.current() == val) return;
+	_introColor2 = val;
+	save();
+	_introLookChanges.fire({});
+}
+
+void AyuSettings::setIntroTitle(const QString &val) {
+	if (_introTitle.current() == val) return;
+	_introTitle = val;
+	save();
+	_introLookChanges.fire({});
+}
+
+void AyuSettings::resetIntroLook() {
+	const AyuSettings defaults;
+	_introBackground = defaults._introBackground.current();
+	_introCard = defaults._introCard.current();
+	_introColor1 = defaults._introColor1.current();
+	_introColor2 = defaults._introColor2.current();
+	_introTitle = defaults._introTitle.current();
+	save();
+	_introLookChanges.fire({});
 }
 
 LocalProfileCosmetics &AyuSettings::getLocalProfileCosmetics(uint64 userId) {
@@ -1326,6 +1380,11 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"showPrivateChatReactions", s._showPrivateChatReactions.current()},
 		{"appIcon", s._appIcon.current()},
 		{"clientTheme", s._clientTheme.current()},
+		{"introBackground", s._introBackground.current()},
+		{"introCard", s._introCard.current()},
+		{"introColor1", s._introColor1.current()},
+		{"introColor2", s._introColor2.current()},
+		{"introTitle", s._introTitle.current()},
 		{"paletteOverrides", [&] {
 			auto result = nlohmann::json::object();
 			for (const auto &[slot, color] : s._paletteOverrides) {
@@ -1443,6 +1502,11 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._showPrivateChatReactions = j.value("showPrivateChatReactions", defaults._showPrivateChatReactions.current());
 	s._appIcon = j.value("appIcon", defaults._appIcon.current());
 	s._clientTheme = j.value("clientTheme", defaults._clientTheme.current());
+	s._introBackground = j.value("introBackground", defaults._introBackground.current());
+	s._introCard = j.value("introCard", defaults._introCard.current());
+	s._introColor1 = j.value("introColor1", defaults._introColor1.current());
+	s._introColor2 = j.value("introColor2", defaults._introColor2.current());
+	s._introTitle = j.value("introTitle", defaults._introTitle.current());
 	s._paletteOverrides.clear();
 	if (j.contains("paletteOverrides") && j["paletteOverrides"].is_object()) {
 		for (const auto &[key, value] : j["paletteOverrides"].items()) {

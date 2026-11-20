@@ -21,6 +21,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/vertical_list.h"
 #include "lang/lang_keys.h"
 #include "boxes/abstract_box.h"
+#include "hoursgram/customization/intro_look.h"
+#include "hoursgram/music/music_common.h"
+#include "ui/layers/generic_box.h"
 #include "window/window_controller.h"
 #include "styles/style_settings.h"
 #include "styles/style_layers.h"
@@ -93,6 +96,16 @@ object_ptr<Ui::RpWidget> CreateIntroSettings(
 	Ui::AddSkip(result);
 	SetupInterfaceScale(window, result, false);
 	SetupDefaultThemes(window, result);
+	// HorusGram: the look of the login screen can be set before logging in.
+	AddButtonWithIcon(
+		result,
+		rpl::single(HoursGram::Music::Tr(
+			"Login screen look",
+			"Оформление экрана входа")),
+		st::settingsButtonNoIcon
+	)->addClickHandler([=] {
+		window->show(Box(HoursGram::Customization::IntroLookBox));
+	});
 	Ui::AddSkip(result);
 
 	if (anim::Disabled()) {

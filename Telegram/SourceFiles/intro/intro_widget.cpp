@@ -42,6 +42,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_session_controller.h"
 #include "window/section_widget.h"
 #include "base/platform/base_platform_info.h"
+#include "base/timer.h"
+#include "ayu/ayu_settings.h"
+#include "hoursgram/customization/intro_look.h"
 #include "api/api_text_entities.h"
 #include "styles/style_layers.h"
 #include "styles/style_intro.h"
@@ -179,6 +182,26 @@ Widget::Widget(
 	}
 
 	_footer->setText(QString("HoursGram Desktop v%1").arg(currentVersionText()));
+
+	setupLook();
+}
+
+void Widget::setupLook() {
+	// The look of this screen is set in Customization: a gradient or a glow
+	// behind the form, a card under it and a title above it.
+	AyuSettings::getInstance().introLookChanges(
+	) | rpl::on_next([=] {
+		update();
+	}, lifetime());
+	const auto timer = lifetime().make_state<base::Timer>([=] {
+		if (HoursGram::Customization::IntroAnimated()
+			&& !_showAnimation
+			&& isVisible()
+			&& window()->isActiveWindow()) {
+			update();
+		}
+	});
+	timer->callEach(33);
 }
 
 rpl::producer<> Widget::showSettingsRequested() const {
@@ -810,6 +833,14 @@ void Widget::paintEvent(QPaintEvent *e) {
 	}
 	if (_showAnimation) {
 		_showAnimation->paintContents(p);
+		return;
+	}
+	if (!_stepHistory.empty() && HoursGram::Customization::IntroDecorated()) {
+		HoursGram::Customization::PaintIntro(
+			p,
+			size(),
+			getStep()->contentTop(),
+			crl::now());
 		return;
 	}
 	p.fillRect(e->rect(), st::windowBg);

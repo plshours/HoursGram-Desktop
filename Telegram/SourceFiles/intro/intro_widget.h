@@ -124,6 +124,7 @@ protected:
 
 private:
 	void setupStep();
+	void setupLook();
 	void refreshLang();
 	void showFinished();
 	void createLanguageLink();

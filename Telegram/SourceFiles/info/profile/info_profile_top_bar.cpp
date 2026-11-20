@@ -136,6 +136,34 @@ constexpr auto kGraphiteShadePattern = 0.2;
 		ratio);
 }
 
+// HorusGram WINDOW: every profile gets a colored banner, like the covers of
+// the frontend this theme follows. A profile color the user chose is laid
+// toward the black of the theme a little, so it does not glow; without one
+// the colors of the userpic of the same peer make the banner.
+constexpr auto kWindowShadeChosen = 0.25;
+constexpr auto kWindowShadeCenter = 0.40;
+constexpr auto kWindowShadeEdge = 0.62;
+
+[[nodiscard]] Data::ColorProfileSet WindowColorProfile(
+		std::optional<Data::ColorProfileSet> chosen,
+		not_null<PeerData*> peer) {
+	const auto black = QColor(0, 0, 0);
+	if (chosen && !chosen->bg.empty()) {
+		auto result = std::move(*chosen);
+		for (auto &color : result.bg) {
+			color = Ui::BlendColors(color, black, kWindowShadeChosen);
+		}
+		return result;
+	}
+	const auto colors = Ui::EmptyUserpic::UserpicColor(peer->colorIndex());
+	auto result = chosen.value_or(Data::ColorProfileSet());
+	result.bg = {
+		Ui::BlendColors(colors.color1->c, black, kWindowShadeCenter),
+		Ui::BlendColors(colors.color2->c, black, kWindowShadeEdge),
+	};
+	return result;
+}
+
 class Userpic final
 	: public Ui::AbstractButton
 	, public Ui::AbstractTooltipShower {
@@ -1765,6 +1793,11 @@ std::optional<Data::ColorProfileSet> TopBar::effectiveColorProfile() const {
 		for (auto &color : result->bg) {
 			color = GraphiteShade(color, kGraphiteShadeBackground);
 		}
+	}
+	if (AyuSettings::getInstance().windowTheme()
+		&& !_localColorProfileIndex
+		&& _source != Source::Preview) {
+		result = WindowColorProfile(std::move(result), _peer);
 	}
 	return result;
 }

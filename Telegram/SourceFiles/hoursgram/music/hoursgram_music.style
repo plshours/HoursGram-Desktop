@@ -428,3 +428,18 @@ hoursgramKaraokeLine: font(17px semibold);
 hoursgramKaraokeNext: font(13px);
 hoursgramKaraokeSnap: 64px;
 hoursgramKaraokeMargin: 18px;
+
+// HorusGram WINDOW: the monochrome look of the music. Smaller corners, and
+// the cover blurred behind the headers (opacity and height as parts of one).
+hoursgramMonoCardRadius: 8px;
+hoursgramMonoCoverRadius: 8px;
+hoursgramMonoNavRadius: 8px;
+hoursgramMonoHeroRadius: 16px;
+hoursgramMonoRowRadius: 6px;
+hoursgramMonoSmallCoverRadius: 6px;
+hoursgramMonoNowCoverRadius: 12px;
+hoursgramMonoBackdropSize: 48px;
+hoursgramMonoHeroBackdropOpacity: 0.45;
+hoursgramMonoBarBackdropOpacity: 0.14;
+hoursgramMonoNowBackdropOpacity: 0.22;
+hoursgramMonoNowBackdropHeight: 0.7;

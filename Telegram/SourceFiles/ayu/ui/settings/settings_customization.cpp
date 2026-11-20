@@ -19,6 +19,8 @@
 #include "core/file_utilities.h"
 #include "data/data_wall_paper.h"
 #include "hoursgram/customization/customization_palette.h"
+#include "hoursgram/customization/intro_look.h"
+#include "hoursgram/music/music_common.h"
 #include "main/main_session.h"
 #include "settings/sections/settings_main.h"
 #include "settings/settings_builder.h"
@@ -64,6 +66,11 @@ void BuildPalette(SectionBuilder &builder) {
 	for (const auto &slot : PaletteSlots()) {
 		const auto id = slot.id;
 		const auto base = slot.base;
+		if (slot.group) {
+			// HorusGram WINDOW lists its colors by the part they paint.
+			builder.addSkip();
+			builder.addSubsectionTitle(slot.group());
+		}
 		builder.addButton({
 			.id = u"hoursgram/color/"_q + id,
 			.title = slot.title(),
@@ -186,6 +193,29 @@ void BuildBackground(SectionBuilder &builder) {
 			Window::Theme::Background()->set(Data::DefaultWallPaper());
 		},
 	});
+}
+
+void BuildIntroLook(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+	using HoursGram::Music::Tr;
+
+	builder.addSkip();
+	builder.addSubsectionTitle(rpl::single(Tr("Login screen", "Экран входа")));
+	builder.addButton({
+		.id = u"hoursgram/introLook"_q,
+		.title = rpl::single(Tr(
+			"Login screen look",
+			"Оформление экрана входа")),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			controller->show(Box(HoursGram::Customization::IntroLookBox));
+		},
+	});
+	builder.addDividerText(rpl::single(Tr(
+		"The background, the card under the form and the title above it. "
+		"Shown when you log in or add an account.",
+		"Фон, карточка под формой и надпись над ней. Видно при входе "
+		"и при добавлении аккаунта.")));
 }
 
 void BuildMessages(SectionBuilder &builder, AyuSectionBuilder &ayu) {
@@ -332,6 +362,7 @@ const auto kMeta = BuildHelper({
 	BuildPalette(builder);
 	BuildFonts(builder);
 	BuildBackground(builder);
+	BuildIntroLook(builder);
 	BuildMessages(builder, ayu);
 	builder.addSkip();
 });

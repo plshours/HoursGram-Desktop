@@ -90,3 +90,16 @@ hoursgramSideBarCodeActive: icon {{ "hoursgram/sidebar_code", sideBarIconFgActiv
 
 // Motion of HorusGram: how far things travel while they appear.
 hoursgramMessageAppearShift: 34px;
+
+// The login screen of HorusGram: the form sits on a card over a gradient or
+// a slow glow, with a title of the user's choice above it.
+introLookCardWidth: 460px;
+introLookCardTop: 48px;
+introLookCardBottom: 430px;
+introLookCardRadius: 22px;
+introLookCardShadow: 18px;
+introLookTitleFont: font(30px semibold);
+introLookTitleSkip: 22px;
+introLookBoxWidth: 440px;
+introLookPreviewHeight: 220px;
+introLookPreviewRadius: 14px;

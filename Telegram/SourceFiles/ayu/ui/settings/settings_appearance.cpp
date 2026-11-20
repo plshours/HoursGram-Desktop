@@ -201,6 +201,7 @@ void BuildAppearance(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 			tr::hoursgram_ThemeMacOS(tr::now),
 			tr::hoursgram_ThemeMacOSLight(tr::now),
 			tr::hoursgram_ThemeGraphite(tr::now),
+			tr::hoursgram_ThemeWindow(tr::now),
 		},
 		.setter = [=](int value) {
 			const auto font = settings->macTheme()

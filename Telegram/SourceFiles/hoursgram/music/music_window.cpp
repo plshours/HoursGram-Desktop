@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_window.h"
 
 #include "apiwrap.h"
+#include "ayu/ayu_settings.h"
 #include "base/call_delayed.h"
 #include "base/flat_map.h"
 #include "base/flat_set.h"
@@ -101,6 +102,80 @@ constexpr auto kPi = 3.14159265358979323846;
 	return Media::Player::instance();
 }
 
+// HorusGram WINDOW is monochrome: nothing takes the color of the cover,
+// what is active is white with black on it, the corners are smaller, and
+// the cover itself, blurred, sits faintly behind the headers instead of a
+// colored glow.
+[[nodiscard]] bool Monochrome() {
+	return AyuSettings::getInstance().windowTheme();
+}
+
+[[nodiscard]] int MusicRadius(int usual, int monochrome) {
+	return Monochrome() ? monochrome : usual;
+}
+
+// The thin line around the panels of the monochrome look.
+[[nodiscard]] QColor PanelBorder() {
+	auto result = st::windowFg->c;
+	result.setAlphaF(0.065);
+	return result;
+}
+
+// A cover blurred and stretched over a rect, kept until the cover or the
+// size changes. Blurring a small copy is cheap and the result is soft
+// anyway.
+class CoverBackdrop final {
+public:
+	void paint(
+		QPainter &p,
+		QRect rect,
+		const QImage &original,
+		float64 opacity,
+		int radius = 0);
+
+private:
+	qint64 _key = 0;
+	QSize _size;
+	QImage _cache;
+
+};
+
+void CoverBackdrop::paint(
+		QPainter &p,
+		QRect rect,
+		const QImage &original,
+		float64 opacity,
+		int radius) {
+	if (original.isNull() || rect.isEmpty() || opacity <= 0.) {
+		return;
+	}
+	if (_key != original.cacheKey() || _size != rect.size()) {
+		_key = original.cacheKey();
+		_size = rect.size();
+		const auto small = rect.size().scaled(
+			st::hoursgramMonoBackdropSize,
+			st::hoursgramMonoBackdropSize,
+			Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+		const auto scaled = original.size().scaled(
+			small,
+			Qt::KeepAspectRatioByExpanding);
+		_cache = Images::Prepare(
+			original,
+			scaled,
+			Images::PrepareArgs{ .outer = small }.blurred());
+	}
+	p.save();
+	if (radius > 0) {
+		auto clip = QPainterPath();
+		clip.addRoundedRect(QRectF(rect), radius, radius);
+		p.setClipPath(clip, Qt::IntersectClip);
+	}
+	p.setOpacity(p.opacity() * opacity);
+	p.setRenderHint(QPainter::SmoothPixmapTransform);
+	p.drawImage(rect, _cache);
+	p.restore();
+}
+
 // The cards of the music section take a little of the color of the cover
 // that plays, and slide to the next one when the track changes. Never
 // destroyed: an animation must not outlive the animation manager.
@@ -122,7 +197,7 @@ struct TintState {
 // The average color of the cover, weighted to its colorful parts, with a
 // calm saturation and a dark lightness, so white text stays readable.
 [[nodiscard]] QColor CoverTint(const QImage &image) {
-	if (image.isNull()) {
+	if (image.isNull() || Monochrome()) {
 		return QColor(0, 0, 0, 0);
 	}
 	const auto small = image.scaled(
@@ -181,7 +256,7 @@ void SetTintFrom(const QImage &image) {
 
 [[nodiscard]] QColor Tinted(QColor base, float64 strength) {
 	const auto &tint = Tint().shown;
-	if (tint.alpha() == 0) {
+	if (tint.alpha() == 0 || Monochrome()) {
 		return base;
 	}
 	auto opaque = tint;
@@ -202,7 +277,7 @@ void SetTintFrom(const QImage &image) {
 // cards, so it still stands out as the thing to press.
 [[nodiscard]] QColor AccentColor() {
 	const auto &tint = Tint().shown;
-	if (tint.alpha() == 0) {
+	if (tint.alpha() == 0 || Monochrome()) {
 		return st::windowBgActive->c;
 	}
 	auto hue = 0.f, saturation = 0.f, lightness = 0.f;
@@ -662,16 +737,18 @@ void TrackRow::onStateChanged(State was, StateChangeSource source) {
 QImage TrackRow::prepareRippleMask() const {
 	return Ui::RippleAnimation::RoundRectMask(
 		size(),
-		st::hoursgramMusicRowRadius);
+		MusicRadius(st::hoursgramMusicRowRadius, st::hoursgramMonoRowRadius));
 }
 
 void TrackRow::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 	const auto over = _over.value(isOver() ? 1. : 0.);
-	const auto radius = st::hoursgramMusicRowRadius;
+	const auto radius = MusicRadius(st::hoursgramMusicRowRadius, st::hoursgramMonoRowRadius);
 	if (over > 0. || _state.current) {
 		auto hq = PainterHighQualityEnabler(p);
-		auto color = st::windowBgOver->c;
+		auto color = (Monochrome() && _state.current)
+			? st::windowBgRipple->c
+			: st::windowBgOver->c;
 		if (!_state.current) {
 			color.setAlphaF(color.alphaF() * over);
 		}
@@ -709,7 +786,7 @@ void TrackRow::paintEvent(QPaintEvent *e) {
 	_artwork.paint(
 		p,
 		cover,
-		st::hoursgramMusicRowCoverRadius,
+		MusicRadius(st::hoursgramMusicRowCoverRadius, st::hoursgramMonoSmallCoverRadius),
 		st::hoursgramMusicRowCoverIcon,
 		st::windowBgRipple->c);
 	p.setOpacity(1.);
@@ -832,13 +909,13 @@ QRect ChartCard::coverRect() const {
 QImage ChartCard::prepareRippleMask() const {
 	return Ui::RippleAnimation::RoundRectMask(
 		coverRect().size(),
-		st::hoursgramMusicCardRadius2);
+		MusicRadius(st::hoursgramMusicCardRadius2, st::hoursgramMonoCoverRadius));
 }
 
 void ChartCard::paintEvent(QPaintEvent *e) {
 	auto p = Painter(this);
 	const auto over = _over.value(isOver() ? 1. : 0.);
-	const auto radius = st::hoursgramMusicCardRadius2;
+	const auto radius = MusicRadius(st::hoursgramMusicCardRadius2, st::hoursgramMonoCoverRadius);
 	const auto lift = int(base::SafeRound(over * st::hoursgramMusicGap / 2.));
 	const auto cover = coverRect().translated(0, -lift);
 
@@ -1018,8 +1095,8 @@ protected:
 					top + (st::hoursgramMusicRowHeight - cover) / 2,
 					cover,
 					cover),
-				st::hoursgramMusicRowCoverRadius,
-				st::hoursgramMusicRowCoverRadius);
+				MusicRadius(st::hoursgramMusicRowCoverRadius, st::hoursgramMonoSmallCoverRadius),
+				MusicRadius(st::hoursgramMusicRowCoverRadius, st::hoursgramMonoSmallCoverRadius));
 			const auto widthTitle = std::max(width() / 3 - i * 7, line * 4);
 			const auto widthSub = std::max(width() / 5 + i * 5, line * 3);
 			p.drawRoundedRect(
@@ -1125,6 +1202,7 @@ protected:
 
 private:
 	std::vector<std::unique_ptr<Artwork>> _covers;
+	CoverBackdrop _backdrop;
 	object_ptr<Ui::RoundButton> _play;
 	Ui::Animations::Simple _spread;
 	Ui::Animations::Simple _shown;
@@ -1192,14 +1270,39 @@ void HeroBanner::leaveEventHook(QEvent *e) {
 void HeroBanner::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	auto hq = PainterHighQualityEnabler(p);
-	const auto radius = st::hoursgramMusicHeroRadius;
-	auto gradient = QLinearGradient(0, 0, width(), height());
-	const auto accent = AccentColor();
-	gradient.setColorAt(0., accent);
-	gradient.setColorAt(1., anim::color(accent, CardColor(), 0.85));
-	p.setPen(Qt::NoPen);
-	p.setBrush(gradient);
-	p.drawRoundedRect(rect(), radius, radius);
+	const auto radius = MusicRadius(st::hoursgramMusicHeroRadius, st::hoursgramMonoHeroRadius);
+	const auto monochrome = Monochrome();
+	if (monochrome) {
+		p.setPen(QPen(PanelBorder(), st::lineWidth));
+		p.setBrush(CardColor());
+		p.drawRoundedRect(rect(), radius, radius);
+		p.setPen(Qt::NoPen);
+		if (!_covers.empty()) {
+			_backdrop.paint(
+				p,
+				rect(),
+				_covers.front()->original(),
+				st::hoursgramMonoHeroBackdropOpacity,
+				radius);
+		}
+		// Darker where the text is, so it stays readable on any cover.
+		auto shade = QLinearGradient(0, 0, width(), 0);
+		auto dark = CardColor();
+		dark.setAlphaF(0.85);
+		shade.setColorAt(0., dark);
+		dark.setAlphaF(0.2);
+		shade.setColorAt(1., dark);
+		p.setBrush(shade);
+		p.drawRoundedRect(rect(), radius, radius);
+	} else {
+		auto gradient = QLinearGradient(0, 0, width(), height());
+		const auto accent = AccentColor();
+		gradient.setColorAt(0., accent);
+		gradient.setColorAt(1., anim::color(accent, CardColor(), 0.85));
+		p.setPen(Qt::NoPen);
+		p.setBrush(gradient);
+		p.drawRoundedRect(rect(), radius, radius);
+	}
 
 	const auto padding = st::hoursgramMusicHeroPadding;
 	const auto size = st::hoursgramMusicHeroCoverSize;
@@ -1218,7 +1321,7 @@ void HeroBanner::paintEvent(QPaintEvent *e) {
 		0);
 	const auto &titleFont = st::hoursgramMusicHeroTitle;
 	const auto &aboutFont = st::hoursgramMusicHeroAbout;
-	p.setPen(st::activeButtonFg);
+	p.setPen(monochrome ? st::windowBoldFg : st::activeButtonFg);
 	p.setFont(titleFont);
 	p.drawText(
 		padding.left(),
@@ -1263,7 +1366,7 @@ void HeroBanner::paintEvent(QPaintEvent *e) {
 		_covers[i]->paint(
 			p,
 			QRect(-size / 2, -size / 2, size, size),
-			st::hoursgramMusicCardRadius2,
+			MusicRadius(st::hoursgramMusicCardRadius2, st::hoursgramMonoCoverRadius),
 			st::hoursgramPlayerCoverIcon,
 			st::windowBgRipple->c);
 		p.restore();
@@ -1748,7 +1851,7 @@ void NavButton::onStateChanged(State was, StateChangeSource source) {
 QImage NavButton::prepareRippleMask() const {
 	return Ui::RippleAnimation::RoundRectMask(
 		size(),
-		st::hoursgramMusicNavRadius);
+		MusicRadius(st::hoursgramMusicNavRadius, st::hoursgramMonoNavRadius));
 }
 
 void NavButton::paintEvent(QPaintEvent *e) {
@@ -1762,28 +1865,33 @@ void NavButton::paintEvent(QPaintEvent *e) {
 		p.setBrush(color);
 		p.drawRoundedRect(
 			rect(),
-			st::hoursgramMusicNavRadius,
-			st::hoursgramMusicNavRadius);
+			MusicRadius(st::hoursgramMusicNavRadius, st::hoursgramMonoNavRadius),
+			MusicRadius(st::hoursgramMusicNavRadius, st::hoursgramMonoNavRadius));
 	}
 	paintRipple(p, 0, 0);
 
 	const auto iconTop = (height() - _icon.height()) / 2;
 	const auto iconLeft = st::hoursgramMusicNavIconLeft;
-	if (_active < 1.) {
+	const auto monochrome = Monochrome();
+	if (monochrome) {
+		// The chosen item is a gray plate, so its icon stays light.
+		p.setOpacity(0.7 + 0.3 * _active);
+		_icon.paint(p, iconLeft, iconTop, width());
+	} else if (_active < 1.) {
 		p.setOpacity(1. - _active);
 		_icon.paint(p, iconLeft, iconTop, width());
 	}
-	if (_active > 0.) {
+	if (!monochrome && _active > 0.) {
 		p.setOpacity(_active);
 		_iconActive.paint(p, iconLeft, iconTop, width());
 	}
 	p.setOpacity(1.);
 
-	const auto fg = anim::color(st::windowBoldFg, st::activeButtonFg, _active);
-	const auto sub = anim::color(
-		st::windowSubTextFg,
-		st::activeButtonFg,
-		_active);
+	const auto activeFg = monochrome ? st::windowBoldFg : st::activeButtonFg;
+	const auto fg = monochrome
+		? anim::color(st::windowSubTextFg, st::windowBoldFg, _active)
+		: anim::color(st::windowBoldFg, activeFg, _active);
+	const auto sub = anim::color(st::windowSubTextFg, activeFg, _active);
 	const auto left = st::hoursgramMusicNavTextLeft;
 	auto right = st::hoursgramMusicNavIconLeft;
 	if (_playing) {
@@ -2097,15 +2205,15 @@ void SideMenu::paintEvent(QPaintEvent *e) {
 	}
 	auto hq = PainterHighQualityEnabler(p);
 	p.setPen(Qt::NoPen);
-	p.setBrush(AccentColor());
+	p.setBrush(Monochrome() ? st::windowBgRipple->c : AccentColor());
 	p.drawRoundedRect(
 		QRect(
 			padding.left(),
 			top,
 			width() - padding.left() - padding.right(),
 			st::hoursgramMusicNavHeight),
-		st::hoursgramMusicNavRadius,
-		st::hoursgramMusicNavRadius);
+		MusicRadius(st::hoursgramMusicNavRadius, st::hoursgramMonoNavRadius),
+		MusicRadius(st::hoursgramMusicNavRadius, st::hoursgramMonoNavRadius));
 }
 
 // The bar at the bottom of the window: the track, the transport and the
@@ -2138,6 +2246,7 @@ private:
 	void showSpeedMenu();
 
 	Artwork _artwork;
+	CoverBackdrop _backdrop;
 	AudioMsgId _audio;
 	QString _title;
 	QString _performer;
@@ -2522,12 +2631,29 @@ void PlayerBar::layout() {
 void PlayerBar::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	auto hq = PainterHighQualityEnabler(p);
-	p.setPen(Qt::NoPen);
+	const auto monochrome = Monochrome();
+	if (monochrome) {
+		p.setPen(QPen(PanelBorder(), st::lineWidth));
+	} else {
+		p.setPen(Qt::NoPen);
+	}
 	p.setBrush(CardColor());
 	p.drawRoundedRect(
 		rect(),
-		st::hoursgramMusicCardRadius,
-		st::hoursgramMusicCardRadius);
+		MusicRadius(st::hoursgramMusicCardRadius, st::hoursgramMonoCardRadius),
+		MusicRadius(st::hoursgramMusicCardRadius, st::hoursgramMonoCardRadius));
+
+	if (monochrome && _audio) {
+		_backdrop.paint(
+			p,
+			rect(),
+			_artwork.original(),
+			st::hoursgramMonoBarBackdropOpacity,
+			MusicRadius(
+				st::hoursgramMusicCardRadius,
+				st::hoursgramMonoCardRadius));
+	}
+	p.setPen(Qt::NoPen);
 
 	const auto padding = st::hoursgramMusicBarPadding;
 	const auto size = st::hoursgramMusicBarCover;
@@ -2539,7 +2665,7 @@ void PlayerBar::paintEvent(QPaintEvent *e) {
 	_artwork.paint(
 		p,
 		cover,
-		st::hoursgramMusicBarCoverRadius,
+		MusicRadius(st::hoursgramMusicBarCoverRadius, st::hoursgramMonoSmallCoverRadius),
 		st::hoursgramMusicRowCoverIcon,
 		st::windowBgRipple->c);
 
@@ -3259,6 +3385,7 @@ void FillTracks(
 		}
 
 		Artwork artwork;
+		CoverBackdrop backdrop;
 		Ui::Animations::Simple breathe;
 		DocumentId lyricsFor = 0;
 		uint64 lyricsGeneration = 0;
@@ -3268,7 +3395,33 @@ void FillTracks(
 	const auto cover = Ui::CreateChild<Ui::RpWidget>(raw);
 	const auto state = raw->lifetime().make_state<State>([=] {
 		cover->update();
+		if (Monochrome()) {
+			raw->update();
+		}
 	});
+	raw->paintRequest() | rpl::on_next([=] {
+		if (!Monochrome()) {
+			return;
+		}
+		// The cover, blurred, over the top of the page and fading down
+		// into it, the way a cover sits behind the header of an album.
+		auto p = QPainter(raw);
+		const auto height = int(raw->height()
+			* st::hoursgramMonoNowBackdropHeight);
+		const auto area = QRect(0, 0, raw->width(), height);
+		state->backdrop.paint(
+			p,
+			area,
+			state->artwork.original(),
+			st::hoursgramMonoNowBackdropOpacity);
+		auto fade = QLinearGradient(0, 0, 0, height);
+		auto page = PageColor();
+		page.setAlpha(0);
+		fade.setColorAt(0., page);
+		page.setAlpha(255);
+		fade.setColorAt(1., page);
+		p.fillRect(area, fade);
+	}, raw->lifetime());
 	const auto title = Ui::CreateChild<Ui::FlatLabel>(
 		raw,
 		st::hoursgramMusicNowTitle);
@@ -3318,19 +3471,21 @@ void FillTracks(
 			(full - size) / 2,
 			size,
 			size);
+		// A white glow would be a halo on black: the monochrome look keeps
+		// it faint.
 		auto glow = AccentColor();
-		glow.setAlphaF(0.16 * scale);
+		glow.setAlphaF((Monochrome() ? 0.05 : 0.16) * scale);
 		p.setPen(Qt::NoPen);
 		p.setBrush(glow);
 		const auto spread = st::hoursgramMusicGap;
 		p.drawRoundedRect(
 			rect.translated(0, spread),
-			st::hoursgramMusicNowCoverRadius,
-			st::hoursgramMusicNowCoverRadius);
+			MusicRadius(st::hoursgramMusicNowCoverRadius, st::hoursgramMonoNowCoverRadius),
+			MusicRadius(st::hoursgramMusicNowCoverRadius, st::hoursgramMonoNowCoverRadius));
 		state->artwork.paint(
 			p,
 			rect,
-			st::hoursgramMusicNowCoverRadius,
+			MusicRadius(st::hoursgramMusicNowCoverRadius, st::hoursgramMonoNowCoverRadius),
 			st::hoursgramPlayerCoverIcon,
 			st::windowBgOver->c);
 	}, cover->lifetime());
@@ -3705,12 +3860,16 @@ void MusicWindow::setupBody() {
 	_side->paintRequest() | rpl::on_next([=] {
 		auto p = QPainter(_side);
 		auto hq = PainterHighQualityEnabler(p);
-		p.setPen(Qt::NoPen);
+		if (Monochrome()) {
+			p.setPen(QPen(PanelBorder(), st::lineWidth));
+		} else {
+			p.setPen(Qt::NoPen);
+		}
 		p.setBrush(CardColor());
 		p.drawRoundedRect(
 			_side->rect(),
-			st::hoursgramMusicCardRadius,
-			st::hoursgramMusicCardRadius);
+			MusicRadius(st::hoursgramMusicCardRadius, st::hoursgramMonoCardRadius),
+			MusicRadius(st::hoursgramMusicCardRadius, st::hoursgramMonoCardRadius));
 	}, _side->lifetime());
 
 	body->sizeValue() | rpl::on_next([=](QSize size) {
@@ -3720,7 +3879,7 @@ void MusicWindow::setupBody() {
 		const auto top = 0;
 		const auto bottom = size.height() - gap - barHeight;
 		_side->setGeometry(gap, top, sideWidth, bottom - top - gap);
-		const auto radius = st::hoursgramMusicCardRadius;
+		const auto radius = MusicRadius(st::hoursgramMusicCardRadius, st::hoursgramMonoCardRadius);
 		sideScroll->setGeometry(
 			0,
 			radius / 2,
@@ -4104,7 +4263,7 @@ QRect Karaoke::closeRect() const {
 void Karaoke::paintEvent(QPaintEvent *e) {
 	auto p = QPainter(this);
 	auto hq = PainterHighQualityEnabler(p);
-	const auto radius = st::hoursgramKaraokeRadius;
+	const auto radius = MusicRadius(st::hoursgramKaraokeRadius, st::hoursgramMonoHeroRadius);
 	auto bg = Tinted(st::windowBg->c, 0.3);
 	bg.setAlpha(240);
 	p.setPen(QPen(st::windowBgRipple->c, st::lineWidth));
@@ -4124,7 +4283,7 @@ void Karaoke::paintEvent(QPaintEvent *e) {
 	_artwork.paint(
 		p,
 		cover,
-		st::hoursgramKaraokeCoverRadius,
+		MusicRadius(st::hoursgramKaraokeCoverRadius, st::hoursgramMonoCardRadius),
 		st::hoursgramPlayerCoverIcon,
 		st::windowBgOver->c);
 

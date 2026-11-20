@@ -29,6 +29,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_badge.h"
 #include "settings/settings_common.h"
 #include "hoursgram/music/music_window.h"
+#include "hoursgram/music/music_common.h"
+#include "settings/sections/settings_credits.h"
+#include "ui/new_badges.h"
 #include "hoursgram/code/hm_code.h"
 #include "hoursgram/music/music_playlists_box.h"
 #include "info/saved/info_saved_music_widget.h"
@@ -818,6 +821,29 @@ void MainMenu::setupMenu() {
 		)->setClickedCallback([=] {
 			controller->showPeerHistory(controller->session().user());
 		});
+
+		if (settings.windowTheme()) {
+			// HorusGram WINDOW keeps the menu of the usual Telegram client,
+			// Money with its NEW badge included. It opens the balance of
+			// Gram, the currency Telegram keeps in TON.
+			const auto text = HoursGram::Music::Tr("Money", "Деньги");
+			const auto money = addAction(
+				rpl::single(text),
+				{ &st::menuIconTon });
+			money->setClickedCallback([=] {
+				controller->showSettings(Settings::CurrencyId());
+			});
+			const auto badge = Ui::NewBadge::CreateNewBadge(
+				money,
+				tr::lng_premium_summary_new_badge());
+			money->sizeValue() | rpl::on_next([=](QSize size) {
+				badge->move(
+					st::mainMenuButton.padding.left()
+						+ st::mainMenuButton.style.font->width(text)
+						+ st::settingsPremiumNewBadgePosition.x() * 2,
+					(size.height() - badge->height()) / 2);
+			}, badge->lifetime());
+		}
 
 		// One entry for music: the window it opens has the saved music,
 		// the playlists and the player in it.

@@ -1306,6 +1306,8 @@ PRIVATE
     hoursgram/customization/menu_attention.h
     hoursgram/customization/glass_backdrop.cpp
     hoursgram/customization/glass_backdrop.h
+    hoursgram/customization/intro_look.cpp
+    hoursgram/customization/intro_look.h
     hoursgram/customization/custom_cursor.cpp
     hoursgram/customization/custom_cursor.h
     hoursgram/customization/customization_palette.cpp

@@ -11141,14 +11141,14 @@ void HistoryWidget::drawField(Painter &p, const QRect &rect) {
 					radius,
 					radius);
 			}
-			// Graphite rounds the row into a pill: the radius of a single
-			// line, kept when the field grows taller.
+			// Graphite and HorusGram WINDOW round the row into a pill: the
+			// radius of a single line, kept when the field grows taller.
 			const auto pillRadius = (st::historyComposeField.heightMin
 				+ 2 * st::historySendPadding) / 2;
+			const auto pill = Ui::HoursGramGraphite()
+				|| AyuSettings::getInstance().windowTheme();
 			const auto radius = std::min(
-				Ui::HoursGramGraphite()
-					? pillRadius
-					: st::historyComposeFieldRadius,
+				pill ? pillRadius : st::historyComposeFieldRadius,
 				rowHeight / 2);
 			p.setBrush(_field->isHidden()
 				? st::historyReplyBg->c

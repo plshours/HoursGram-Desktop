@@ -9,13 +9,27 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace HoursGram::Customization {
 
-// One editable color of the app palette. Each slot stands for every place
-// the shipped palette uses `base`, so changing a slot moves all of them at
-// once and the palette stays consistent with itself.
+// A named color of the palette a slot sets. `shift` makes the shades that go
+// with it: +8 moves the color 8% away from itself (to white when it is dark,
+// to black when it is light) for a hover, -10 moves it 10% to black.
+struct PaletteKey {
+	QString key;
+	int shift = 0;
+};
+
+// One editable color of the app palette. A slot without `keys` stands for
+// every place the shipped palette uses `base`, so changing it moves all of
+// them at once and the palette stays consistent with itself. A slot with
+// `keys` sets just those palette colors, so one part of the client (the
+// buttons, the input field, the menu) changes and the rest stays.
 struct PaletteSlot {
 	QString id;
 	QString base;
 	Fn<rpl::producer<QString>()> title;
+	std::vector<PaletteKey> keys;
+	// The heading the slot is listed under; a slot without one goes on
+	// under the heading of the slot before it.
+	Fn<rpl::producer<QString>()> group;
 };
 
 [[nodiscard]] const std::vector<PaletteSlot> &PaletteSlots();
