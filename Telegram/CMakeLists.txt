@@ -1338,6 +1338,8 @@ PRIVATE
     hoursgram/music/music_sources.h
     hoursgram/music/music_window.cpp
     hoursgram/music/music_window.h
+    hoursgram/proxy/ws_proxy.cpp
+    hoursgram/proxy/ws_proxy.h
 
     info/bot/earn/info_bot_earn_list.cpp
     info/bot/earn/info_bot_earn_list.h

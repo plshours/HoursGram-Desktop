@@ -113,6 +113,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtGui/QFont>
 #include <QtGui/QFontDatabase>
 #include "ayu/features/streamer_mode/streamer_mode.h"
+#include "hoursgram/proxy/ws_proxy.h"
 
 
 namespace Core {
@@ -253,6 +254,8 @@ void Application::closeAdditionalWindows() {
 }
 
 Application::~Application() {
+	HoursGram::Proxy::StopWsProxy();
+
 	if (_saveSettingsTimer && _saveSettingsTimer->isActive()) {
 		Local::writeSettings();
 	}
@@ -322,6 +325,7 @@ void Application::run() {
 	ValidateScale();
 
 	refreshGlobalProxy(); // Depends on app settings being read.
+	HoursGram::Proxy::StartWsProxy();
 
 	if (const auto old = Local::oldSettingsVersion(); old < AppVersion) {
 		autoRegisterUrlScheme();

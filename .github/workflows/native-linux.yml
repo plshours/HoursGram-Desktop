@@ -86,6 +86,18 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/build.log"
           df -h / /mnt
 
+      - name: Download tg-ws-proxy
+        if: success()
+        run: |
+          tag=$(curl -fsSL https://api.github.com/repos/Flowseal/tg-ws-proxy/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+')
+          asset="TgWsProxy_linux"
+          url="https://github.com/Flowseal/tg-ws-proxy/releases/download/$tag/$asset"
+          dest="out/Release/$asset"
+          echo "Downloading $url -> $dest"
+          curl -fSL "$url" -o "$dest"
+          chmod +x "$dest"
+          ls -la "$dest"
+
       - name: Package for Arch, Manjaro and the rest
         run: |
           chmod +x .github/scripts/package_linux.sh

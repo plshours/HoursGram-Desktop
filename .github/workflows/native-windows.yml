@@ -275,6 +275,18 @@ jobs:
           type "%RUNNER_TEMP%\build.log"
           exit /b %BUILD_RESULT%
 
+      - name: Download tg-ws-proxy
+        if: success()
+        shell: pwsh
+        run: |
+          $tag = (Invoke-RestMethod -Uri 'https://api.github.com/repos/Flowseal/tg-ws-proxy/releases/latest' -ErrorAction Stop).tag_name
+          $asset = "TgWsProxy_windows.exe"
+          $url = "https://github.com/Flowseal/tg-ws-proxy/releases/download/$tag/$asset"
+          $dest = Join-Path "out" $env:BUILD_CONFIGURATION $asset
+          Write-Output "Downloading $url -> $dest"
+          Invoke-WebRequest -Uri $url -OutFile $dest -ErrorAction Stop
+          Write-Output "Downloaded $((Get-Item $dest).Length) bytes"
+
       # Only a build that went through records what it was built from. After a
       # failed one the restored fingerprints stay, so everything changed since
       # the last good build is compiled again next time.

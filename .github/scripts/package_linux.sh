@@ -30,6 +30,9 @@ cp "$build/HoursGram" "$stage/"
 if [ -f "$build/Updater" ]; then
 	cp "$build/Updater" "$stage/"
 fi
+if [ -f "$build/TgWsProxy_linux" ]; then
+	cp "$build/TgWsProxy_linux" "$stage/"
+fi
 cp "$root/lib/xdg/com.hoursgram.desktop.desktop" "$stage/"
 cp "$root/lib/xdg/com.hoursgram.desktop.metainfo.xml" "$stage/"
 cp "$root/lib/xdg/com.hoursgram.desktop.service" "$stage/"
@@ -50,6 +53,9 @@ prefix="${PREFIX:-/usr}"
 install -Dm755 "$here/HoursGram" "$prefix/bin/HoursGram"
 if [ -f "$here/Updater" ]; then
 	install -Dm755 "$here/Updater" "$prefix/bin/HoursGramUpdater"
+fi
+if [ -f "$here/TgWsProxy_linux" ]; then
+	install -Dm755 "$here/TgWsProxy_linux" "$prefix/bin/TgWsProxy_linux"
 fi
 install -Dm644 "$here/com.hoursgram.desktop.desktop" \
 	"$prefix/share/applications/com.hoursgram.desktop.desktop"
@@ -96,6 +102,9 @@ package() {
 	install -Dm755 HoursGram "\$pkgdir/usr/bin/HoursGram"
 	if [ -f Updater ]; then
 		install -Dm755 Updater "\$pkgdir/usr/bin/HoursGramUpdater"
+	fi
+	if [ -f TgWsProxy_linux ]; then
+		install -Dm755 TgWsProxy_linux "\$pkgdir/usr/bin/TgWsProxy_linux"
 	fi
 	install -Dm644 com.hoursgram.desktop.desktop \\
 		"\$pkgdir/usr/share/applications/com.hoursgram.desktop.desktop"
