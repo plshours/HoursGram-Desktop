@@ -399,6 +399,20 @@ hoursgramMusicLyricsActive: TextStyle(defaultTextStyle) {
 }
 hoursgramMusicLyricsPadding: margins(16px, 80px, 16px, 80px);
 hoursgramMusicLyricsLineSkip: 16px;
+// The part of the line already sung, word by word: drawn as a selection in
+// the color of the line in play, with nothing behind it.
+hoursgramMusicLyricsSung: TextPalette(defaultTextPalette) {
+	selectBg: transparent;
+	selectFg: windowBoldFg;
+	selectLinkFg: windowBoldFg;
+	selectOverlay: transparent;
+}
+hoursgramMusicLyricsTranslation: TextStyle(defaultTextStyle) {
+	font: font(15px);
+	lineHeight: 21px;
+}
+hoursgramMusicLyricsTranslationSkip: 4px;
+hoursgramMusicLyricsBackgroundOpacity: 0.6;
 hoursgramMusicSlideShift: 28px;
 
 // The music section inside the main window: the header over it, and the

@@ -37,7 +37,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_playlists_box.h"
 #include "hoursgram/music/music_queue.h"
 #include "hoursgram/music/music_sources.h"
+#include "lang/lang_instance.h"
 #include "lang/lang_keys.h"
+#include "lang/translate_provider.h"
 #include "main/main_session.h"
 #include "media/audio/media_audio.h"
 #include "media/player/media_player_instance.h"
@@ -1386,6 +1388,13 @@ public:
 	void setPosition(crl::time position);
 	void setSeekCallback(Fn<void(crl::time)> callback);
 
+	// Translations of the lines, by their index, for lines that do not
+	// carry one already. An empty list takes them away.
+	void setTranslations(std::vector<QString> translations);
+	[[nodiscard]] const Lyrics &lyrics() const {
+		return _source;
+	}
+
 protected:
 	void paintEvent(QPaintEvent *e) override;
 	void resizeEvent(QResizeEvent *e) override;
@@ -1396,9 +1405,13 @@ protected:
 private:
 	struct Line {
 		Ui::Text::String text;
+		Ui::Text::String translation;
 		crl::time at = -1;
+		int index = 0;
 		int top = 0;
 		int height = 0;
+		int textHeight = 0;
+		bool background = false;
 	};
 
 	void relayout();
@@ -1410,6 +1423,8 @@ private:
 	[[nodiscard]] int lineAt(QPoint point);
 
 	std::vector<Line> _lines;
+	Lyrics _source;
+	crl::time _position = 0;
 	Ui::Text::String _placeholder;
 	Ui::Animations::Simple _scroll;
 	Ui::Animations::Simple _activeChange;
@@ -1442,19 +1457,50 @@ void LyricsView::setSeekCallback(Fn<void(crl::time)> callback) {
 void LyricsView::setLyrics(Lyrics lyrics) {
 	_lines.clear();
 	_lines.reserve(lyrics.lines.size());
+	auto index = 0;
 	for (const auto &line : lyrics.lines) {
 		auto entry = Line();
 		entry.at = line.at;
+		entry.index = index++;
+		entry.background = line.background();
 		entry.text.setText(
 			st::hoursgramMusicLyricsActive,
 			line.text,
 			Ui::NameTextOptions());
+		if (!line.translation.isEmpty()) {
+			entry.translation.setText(
+				st::hoursgramMusicLyricsTranslation,
+				line.translation,
+				Ui::NameTextOptions());
+		}
 		_lines.push_back(std::move(entry));
 	}
+	_source = std::move(lyrics);
 	_active = _previous = -1;
 	_scroll.stop();
 	_scrollTop = 0;
 	_manualUntil = 0;
+	_layoutSize = QSize();
+	relayout();
+	update();
+}
+
+void LyricsView::setTranslations(std::vector<QString> translations) {
+	for (auto &line : _lines) {
+		const auto &own = _source.lines[line.index].translation;
+		const auto other = (line.index < int(translations.size()))
+			? translations[line.index]
+			: QString();
+		const auto text = own.isEmpty() ? other : own;
+		if (text.isEmpty()) {
+			line.translation = Ui::Text::String();
+		} else {
+			line.translation.setText(
+				st::hoursgramMusicLyricsTranslation,
+				text,
+				Ui::NameTextOptions());
+		}
+	}
 	_layoutSize = QSize();
 	relayout();
 	update();
@@ -1485,9 +1531,14 @@ void LyricsView::relayout() {
 	auto top = std::max(padding.top(), height() / 3);
 	for (auto &line : _lines) {
 		line.top = top;
-		line.height = line.text.isEmpty()
+		line.textHeight = line.text.isEmpty()
 			? st::hoursgramMusicLyricsActive.font->height
 			: line.text.countHeight(available);
+		line.height = line.textHeight;
+		if (!line.translation.isEmpty()) {
+			line.height += st::hoursgramMusicLyricsTranslationSkip
+				+ line.translation.countHeight(available);
+		}
 		top += line.height + st::hoursgramMusicLyricsLineSkip;
 	}
 	_contentHeight = top + std::max(padding.bottom(), height() / 2);
@@ -1505,6 +1556,13 @@ void LyricsView::relayout() {
 }
 
 void LyricsView::setPosition(crl::time position) {
+	_position = position;
+	if (_active >= 0
+		&& _active < int(_lines.size())
+		&& !_source.lines[_lines[_active].index].words.empty()) {
+		// The words fill as they are sung.
+		update();
+	}
 	auto index = -1;
 	for (auto i = 0, count = int(_lines.size()); i != count; ++i) {
 		if (_lines[i].at >= 0 && _lines[i].at <= position) {
@@ -1636,18 +1694,55 @@ void LyricsView::paintEvent(QPaintEvent *e) {
 			? (1. - change)
 			: 0.;
 		const auto passed = (_active >= 0 && i < _active);
-		p.setOpacity(0.32 + 0.68 * activeness - (passed ? 0.08 : 0.));
-		p.setPen(anim::color(
-			st::windowSubTextFg,
-			st::windowBoldFg,
-			activeness));
-		line.text.drawLeft(
-			p,
-			padding.left(),
-			top,
-			available,
-			width(),
-			style::al_left);
+		const auto background = line.background
+			? st::hoursgramMusicLyricsBackgroundOpacity
+			: 1.;
+		const auto opacity = (0.32 + 0.68 * activeness - (passed ? 0.08 : 0.))
+			* background;
+		p.setOpacity(opacity);
+		const auto &source = _source.lines[line.index];
+		const auto sung = (i == _active) ? source.sungAt(_position) : -1.;
+		if (sung >= 0.) {
+			// The line in play with its words timed: what is sung is in
+			// the bright color, the rest stays dim until its word comes.
+			p.setOpacity(background);
+			p.setPen(st::windowSubTextFg);
+			const auto chars = std::clamp(
+				int(std::floor(sung)),
+				0,
+				int(source.text.size()));
+			line.text.draw(p, {
+				.position = QPoint(padding.left(), top),
+				.outerWidth = width(),
+				.availableWidth = available,
+				.palette = &st::hoursgramMusicLyricsSung,
+				.now = crl::now(),
+				.selection = { uint16(0), uint16(chars) },
+			});
+		} else {
+			p.setPen(anim::color(
+				st::windowSubTextFg,
+				st::windowBoldFg,
+				activeness));
+			line.text.drawLeft(
+				p,
+				padding.left(),
+				top,
+				available,
+				width(),
+				style::al_left);
+		}
+		if (!line.translation.isEmpty()) {
+			p.setOpacity(opacity * 0.85);
+			p.setPen(st::windowSubTextFg);
+			line.translation.drawLeft(
+				p,
+				padding.left(),
+				top + line.textHeight + st::hoursgramMusicLyricsTranslationSkip,
+				available,
+				width(),
+				style::al_left);
+		}
 	}
 	p.setOpacity(1.);
 
@@ -3387,6 +3482,8 @@ void FillTracks(
 		Artwork artwork;
 		CoverBackdrop backdrop;
 		Ui::Animations::Simple breathe;
+		std::unique_ptr<Ui::TranslateProvider> translator;
+		uint64 translateGeneration = 0;
 		DocumentId lyricsFor = 0;
 		uint64 lyricsGeneration = 0;
 		crl::time durationMs = 0;
@@ -3440,6 +3537,19 @@ void FillTracks(
 		raw,
 		rpl::single(Tr("Karaoke", "Караоке")),
 		st::hoursgramMusicActionSecondary);
+	const auto folder = Ui::CreateChild<Ui::RoundButton>(
+		raw,
+		rpl::single(Tr("Lyrics folder", "Папка с текстами")),
+		st::hoursgramMusicActionSecondary);
+	const auto translateButton = Ui::CreateChild<Ui::RoundButton>(
+		raw,
+		AyuSettings::getInstance().lyricsTranslateValue(
+		) | rpl::map([](bool on) {
+			return on
+				? Tr("Translation: on", "Перевод: вкл")
+				: Tr("Translation: off", "Перевод: выкл");
+		}),
+		st::hoursgramMusicActionSecondary);
 	const auto controller = context.controller;
 	karaoke->setClickedCallback([=] {
 		ToggleKaraoke(controller);
@@ -3447,6 +3557,8 @@ void FillTracks(
 	TintButton(add, true);
 	TintButton(attach, false);
 	TintButton(karaoke, false);
+	TintButton(folder, false);
+	TintButton(translateButton, false);
 	const auto lyrics = Ui::CreateChild<LyricsView>(raw);
 	for (const auto widget : std::initializer_list<QWidget*>{
 			cover,
@@ -3455,6 +3567,8 @@ void FillTracks(
 			add,
 			attach,
 			karaoke,
+			folder,
+			translateButton,
 			lyrics }) {
 		widget->show();
 	}
@@ -3511,13 +3625,22 @@ void FillTracks(
 		attach->moveToLeft(
 			padding.left() + add->width() + st::hoursgramMusicActionSkip,
 			top);
-		// Under the middle of the two buttons above it.
+		// Under the middle of the two buttons above them.
 		const auto row = add->width()
 			+ st::hoursgramMusicActionSkip
 			+ attach->width();
-		karaoke->moveToLeft(
-			padding.left() + (row - karaoke->width()) / 2,
-			top + add->height() + st::hoursgramMusicActionSkip);
+		const auto second = karaoke->width()
+			+ st::hoursgramMusicActionSkip
+			+ folder->width();
+		const auto secondTop = top + add->height() + st::hoursgramMusicActionSkip;
+		const auto secondLeft = padding.left() + (row - second) / 2;
+		karaoke->moveToLeft(secondLeft, secondTop);
+		folder->moveToLeft(
+			secondLeft + karaoke->width() + st::hoursgramMusicActionSkip,
+			secondTop);
+		translateButton->moveToLeft(
+			padding.left() + (row - translateButton->width()) / 2,
+			secondTop + karaoke->height() + st::hoursgramMusicActionSkip);
 		lyrics->setGeometry(
 			padding.left() + leftWidth,
 			0,
@@ -3534,12 +3657,80 @@ void FillTracks(
 		}
 	});
 
+	// Like the frontend this follows: the lines with their translation into
+	// the language of the app under them, through the translator chosen in
+	// the settings. Lines that come back the same are left without one.
+	const auto translate = [=] {
+		const auto generation = ++state->translateGeneration;
+		const auto &source = lyrics->lyrics();
+		if (!AyuSettings::getInstance().lyricsTranslate()
+			|| source.empty()) {
+			lyrics->setTranslations({});
+			return;
+		}
+		const auto to = LanguageId::FromName(Lang::GetInstance().id());
+		if (!to) {
+			return;
+		}
+		auto requests = std::vector<Ui::TranslateProviderRequest>();
+		auto indices = std::vector<int>();
+		auto originals = std::vector<QString>();
+		for (auto i = 0, count = int(source.lines.size()); i != count; ++i) {
+			const auto &line = source.lines[i];
+			if (line.text.trimmed().isEmpty() || !line.translation.isEmpty()) {
+				continue;
+			}
+			requests.push_back({ .text = TextWithEntities{ line.text } });
+			indices.push_back(i);
+			originals.push_back(line.text);
+		}
+		if (requests.empty()) {
+			return;
+		}
+		if (!state->translator) {
+			state->translator = Ui::CreateTranslateProvider(session);
+		}
+		const auto results = std::make_shared<std::vector<QString>>(
+			source.lines.size());
+		state->translator->requestBatch(
+			std::move(requests),
+			to,
+			crl::guard(raw, [=](int index, Ui::TranslateProviderResult result) {
+				if (index < 0
+					|| index >= int(indices.size())
+					|| !result.text) {
+					return;
+				}
+				const auto text = result.text->text.trimmed();
+				const auto same = (text.compare(
+					originals[index].trimmed(),
+					Qt::CaseInsensitive) == 0);
+				if (!same) {
+					(*results)[indices[index]] = text;
+				}
+			}),
+			crl::guard(raw, [=] {
+				if (state->translateGeneration == generation) {
+					lyrics->setTranslations(*results);
+				}
+			}));
+	};
+	AyuSettings::getInstance().lyricsTranslateValue(
+	) | rpl::skip(1) | rpl::on_next([=] {
+		translate();
+	}, raw->lifetime());
+	translateButton->setClickedCallback([=] {
+		auto &settings = AyuSettings::getInstance();
+		settings.setLyricsTranslate(!settings.lyricsTranslate());
+	});
+
 	const auto reloadLyrics = [=](DocumentData *document) {
 		state->lyricsFor = document ? document->id : DocumentId();
 		const auto generation = ++state->lyricsGeneration;
 		auto loaded = document ? LoadLyrics(document) : Lyrics();
 		const auto found = !loaded.empty();
 		lyrics->setLyrics(std::move(loaded));
+		translate();
 		if (!document) {
 			lyrics->setPlaceholder(Tr(
 				"Lyrics of the track that plays show up here.",
@@ -3555,6 +3746,7 @@ void FillTracks(
 		SearchLyricsOnline(document, crl::guard(raw, [=](Lyrics result) {
 			if (state->lyricsFor == id) {
 				lyrics->setLyrics(std::move(result));
+				translate();
 			}
 		}));
 		base::call_delayed(kLyricsWaitOnline, raw, [=] {
@@ -3620,6 +3812,26 @@ void FillTracks(
 			ShowAddToPlaylist(show, session, audio);
 		}
 	});
+	// A folder of "Performer — Title" .lrc and .txt files, looked through
+	// before searching online, such as the one a lyrics finder fills.
+	folder->setClickedCallback([=] {
+		FileDialog::GetFolder(
+			raw,
+			Tr("Folder with lyrics", "Папка с текстами песен"),
+			AyuSettings::getInstance().lyricsFolder(),
+			crl::guard(raw, [=](QString &&path) {
+				if (path.isEmpty()) {
+					return;
+				}
+				AyuSettings::getInstance().setLyricsFolder(path);
+				state->lyricsFor = 0;
+				reloadLyrics(Player()->current(kType).audio());
+				show->showToast(Tr(
+					"Lyrics are now looked for in this folder first.",
+					"Тексты теперь сначала ищутся в этой папке."));
+			}));
+	});
+
 	attach->setClickedCallback([=] {
 		const auto document = Player()->current(kType).audio();
 		if (!document) {
@@ -4175,6 +4387,7 @@ private:
 	QString _title;
 	Lyrics _lyrics;
 	int _line = -1;
+	crl::time _position = 0;
 	uint64 _generation = 0;
 	Fn<void()> _open;
 	QPoint _pressOffset;
@@ -4248,9 +4461,15 @@ void Karaoke::updateTrack() {
 }
 
 void Karaoke::updatePosition(crl::time position) {
+	_position = position;
 	const auto line = _lyrics.lineAt(position);
 	if (_line != line) {
 		_line = line;
+		update();
+	} else if (_line >= 0
+		&& _line < int(_lyrics.lines.size())
+		&& !_lyrics.lines[_line].words.empty()) {
+		// The words of the line fill as they are sung.
 		update();
 	}
 }
@@ -4294,9 +4513,11 @@ void Karaoke::paintEvent(QPaintEvent *e) {
 	const auto &nextFont = st::hoursgramKaraokeNext;
 	auto current = QString();
 	auto next = QString();
+	auto sung = -1.;
 	const auto &lines = _lyrics.lines;
 	if (_line >= 0 && _line < int(lines.size())) {
 		current = lines[_line].text;
+		sung = lines[_line].sungAt(_position);
 		if (_line + 1 < int(lines.size())) {
 			next = lines[_line + 1].text;
 		}
@@ -4316,12 +4537,29 @@ void Karaoke::paintEvent(QPaintEvent *e) {
 		top + titleFont->ascent,
 		titleFont->elided(_title, available));
 	top += titleFont->height + 6;
-	p.setPen(st::windowBoldFg);
 	p.setFont(lineFont);
-	p.drawText(
-		left,
-		top + lineFont->ascent,
-		lineFont->elided(current, available));
+	const auto shown = lineFont->elided(current, available);
+	if (sung >= 0.) {
+		// Sung words bright, the rest dim, filled up to the very letter.
+		const auto whole = int(std::floor(sung));
+		const auto part = sung - whole;
+		const auto upto = std::clamp(whole, 0, int(shown.size()));
+		auto fill = lineFont->width(shown.left(upto));
+		if (upto < shown.size()) {
+			fill += int(base::SafeRound(
+				lineFont->width(shown.mid(upto, 1)) * part));
+		}
+		p.setPen(st::windowSubTextFg);
+		p.drawText(left, top + lineFont->ascent, shown);
+		p.save();
+		p.setClipRect(left, top, fill, lineFont->height);
+		p.setPen(st::windowBoldFg);
+		p.drawText(left, top + lineFont->ascent, shown);
+		p.restore();
+	} else {
+		p.setPen(st::windowBoldFg);
+		p.drawText(left, top + lineFont->ascent, shown);
+	}
 	top += lineFont->height + 4;
 	p.setPen(st::windowSubTextFg);
 	p.setFont(nextFont);

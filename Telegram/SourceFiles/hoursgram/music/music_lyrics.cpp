@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "hoursgram/music/music_lyrics.h"
 
 #include <QtCore/QRegularExpression>
+#include <QtCore/QStringList>
 
 namespace HoursGram::Music {
 namespace {
@@ -21,10 +22,10 @@ constexpr auto kMaxLines = 10000;
 	return result;
 }
 
-// Matches the per-word timings of enhanced LRC, which we drop.
+// Matches the per-word timings of enhanced LRC.
 [[nodiscard]] const QRegularExpression &WordTagExpression() {
 	static const auto result = QRegularExpression(
-		u"<\\d{1,3}:[0-5]?\\d(?:[.:]\\d{1,3})?>"_q);
+		u"<(\\d{1,3}:[0-5]?\\d(?:[.:]\\d{1,3})?)>"_q);
 	return result;
 }
 
@@ -62,7 +63,116 @@ constexpr auto kMaxLines = 10000;
 	return false;
 }
 
+// Splits a line with word timings into its words. The text between two tags
+// is the word of the first; a tag at the very end only closes the last word.
+// Text before the first tag belongs to the line start.
+[[nodiscard]] std::vector<LyricsWord> ParseWords(
+		const QString &content,
+		crl::time lineAt) {
+	auto result = std::vector<LyricsWord>();
+	auto it = WordTagExpression().globalMatch(content);
+	if (!it.hasNext()) {
+		return result;
+	}
+	auto tags = std::vector<std::pair<crl::time, QRegularExpressionMatch>>();
+	while (it.hasNext()) {
+		const auto match = it.next();
+		if (const auto at = ParseTimeTag(match.captured(1))) {
+			tags.emplace_back(*at, match);
+		}
+	}
+	if (tags.empty()) {
+		return result;
+	}
+	const auto before = content.left(tags.front().second.capturedStart());
+	if (!before.trimmed().isEmpty()) {
+		result.push_back({ .at = lineAt, .text = before });
+	}
+	for (auto i = 0, count = int(tags.size()); i != count; ++i) {
+		const auto from = tags[i].second.capturedEnd();
+		const auto till = (i + 1 < count)
+			? tags[i + 1].second.capturedStart()
+			: content.size();
+		const auto text = content.mid(from, till - from);
+		if (text.isEmpty()) {
+			// A closing tag: the end of the word before it.
+			if (!result.empty() && result.back().duration < 0) {
+				result.back().duration = std::max(
+					tags[i].first - result.back().at,
+					crl::time(0));
+			}
+			continue;
+		}
+		if (!result.empty() && result.back().duration < 0) {
+			result.back().duration = std::max(
+				tags[i].first - result.back().at,
+				crl::time(0));
+		}
+		result.push_back({ .at = tags[i].first, .text = text });
+	}
+	// The words give the text of the line: no spaces around it.
+	while (!result.empty() && result.front().text.trimmed().isEmpty()) {
+		result.erase(result.begin());
+	}
+	while (!result.empty() && result.back().text.trimmed().isEmpty()) {
+		result.pop_back();
+	}
+	if (!result.empty()) {
+		auto &first = result.front().text;
+		while (!first.isEmpty() && first.front().isSpace()) {
+			first.remove(0, 1);
+		}
+		auto &last = result.back().text;
+		while (!last.isEmpty() && last.back().isSpace()) {
+			last.chop(1);
+		}
+	}
+	return result;
+}
+
+[[nodiscard]] QString FormatTime(crl::time ms) {
+	ms = std::max(ms, crl::time(0));
+	return u"%1:%2.%3"_q
+		.arg(ms / 60000, 2, 10, QChar('0'))
+		.arg((ms / 1000) % 60, 2, 10, QChar('0'))
+		.arg((ms % 1000) / 10, 2, 10, QChar('0'));
+}
+
 } // namespace
+
+float64 LyricsLine::sungAt(crl::time position) const {
+	if (words.empty()) {
+		return -1.;
+	}
+	auto result = 0.;
+	for (auto i = 0, count = int(words.size()); i != count; ++i) {
+		const auto &word = words[i];
+		const auto length = float64(word.text.size());
+		if (word.at < 0 || position < word.at) {
+			break;
+		}
+		const auto end = (word.duration >= 0)
+			? (word.at + word.duration)
+			: (i + 1 < count && words[i + 1].at >= 0)
+			? words[i + 1].at
+			: (word.at + 400);
+		if (position >= end || end <= word.at) {
+			result += length;
+			continue;
+		}
+		result += length * float64(position - word.at) / (end - word.at);
+		break;
+	}
+	return result;
+}
+
+bool LyricsLine::background() const {
+	const auto trimmed = text.trimmed();
+	return (trimmed.size() > 2)
+		&& (trimmed.front() == '(')
+		&& (trimmed.back() == ')')
+		&& (trimmed.indexOf(')') == trimmed.size() - 1);
+}
 
 bool Lyrics::synced() const {
 	for (const auto &line : lines) {
@@ -90,6 +200,7 @@ int Lyrics::lineAt(crl::time position) const {
 Lyrics ParseLyrics(const QString &text) {
 	auto result = Lyrics();
 	auto entries = std::vector<LyricsLine>();
+	auto translations = std::vector<std::pair<crl::time, QString>>();
 	auto offset = crl::time(0);
 	auto anyTimed = false;
 	for (const auto &raw : text.split('\n')) {
@@ -97,6 +208,7 @@ Lyrics ParseLyrics(const QString &text) {
 		line.remove('\r');
 
 		auto times = std::vector<crl::time>();
+		auto translationAt = std::optional<crl::time>();
 		auto position = 0;
 		while (position < line.size() && line[position] == '[') {
 			const auto close = line.indexOf(']', position + 1);
@@ -115,7 +227,12 @@ Lyrics ParseLyrics(const QString &text) {
 				}
 				const auto name = tag.left(colon).trimmed().toLower();
 				const auto value = tag.mid(colon + 1).trimmed();
-				if (name == u"ti"_q) {
+				if (name == u"tr"_q) {
+					translationAt = ParseTimeTag(value);
+					if (!translationAt) {
+						break;
+					}
+				} else if (name == u"ti"_q) {
 					result.title = value;
 				} else if (name == u"ar"_q) {
 					result.artist = value;
@@ -129,8 +246,27 @@ Lyrics ParseLyrics(const QString &text) {
 		}
 
 		auto content = line.mid(position);
+		if (translationAt) {
+			content.remove(WordTagExpression());
+			content = content.trimmed();
+			if (!content.isEmpty()) {
+				translations.emplace_back(*translationAt, content);
+			}
+			continue;
+		}
+		// Words timed one by one only make sense for a line sung once.
+		auto words = (times.size() == 1)
+			? ParseWords(content, times.front())
+			: std::vector<LyricsWord>();
 		content.remove(WordTagExpression());
 		content = content.trimmed();
+		if (!words.empty()) {
+			auto joined = QString();
+			for (const auto &word : words) {
+				joined += word.text;
+			}
+			content = joined;
+		}
 		if (times.empty()) {
 			if (!content.isEmpty()) {
 				entries.push_back({ .text = content });
@@ -138,7 +274,11 @@ Lyrics ParseLyrics(const QString &text) {
 		} else {
 			anyTimed = true;
 			for (const auto at : times) {
-				entries.push_back({ .at = at, .text = content });
+				entries.push_back({
+					.at = at,
+					.text = content,
+					.words = words,
+				});
 			}
 		}
 		if (int(entries.size()) >= kMaxLines) {
@@ -158,6 +298,9 @@ Lyrics ParseLyrics(const QString &text) {
 	for (auto &entry : entries) {
 		if (entry.at >= 0) {
 			entry.at = std::max(entry.at - offset, crl::time(0));
+			for (auto &word : entry.words) {
+				word.at = std::max(word.at - offset, crl::time(0));
+			}
 			timed.push_back(std::move(entry));
 		}
 	}
@@ -166,8 +309,56 @@ Lyrics ParseLyrics(const QString &text) {
 			const LyricsLine &b) {
 		return a.at < b.at;
 	});
+	// A translation goes to the line starting at its time, or to the
+	// closest one when the times were rounded differently.
+	for (auto &[at, text] : translations) {
+		at = std::max(at - offset, crl::time(0));
+		auto best = (LyricsLine*)nullptr;
+		auto distance = crl::time(300);
+		for (auto &line : timed) {
+			const auto d = std::abs(line.at - at);
+			if (d <= distance && line.translation.isEmpty()) {
+				best = &line;
+				distance = d;
+			}
+		}
+		if (best) {
+			best->translation = text;
+		}
+	}
 	result.lines = std::move(timed);
 	return result;
+}
+
+QString SerializeLyrics(const Lyrics &lyrics) {
+	auto result = QStringList();
+	const auto synced = lyrics.synced();
+	for (const auto &line : lyrics.lines) {
+		if (!synced || line.at < 0) {
+			result.push_back(line.text);
+			continue;
+		}
+		auto text = QString();
+		if (line.words.empty()) {
+			text = line.text;
+		} else {
+			for (const auto &word : line.words) {
+				text += u"<"_q + FormatTime(word.at) + u">"_q + word.text;
+			}
+			const auto &last = line.words.back();
+			if (last.duration >= 0) {
+				text += u"<"_q + FormatTime(last.at + last.duration) + u">"_q;
+			}
+		}
+		result.push_back(u"["_q + FormatTime(line.at) + u"]"_q + text);
+		if (!line.translation.isEmpty()) {
+			result.push_back(u"[tr:"_q
+				+ FormatTime(line.at)
+				+ u"]"_q
+				+ line.translation);
+		}
+	}
+	return result.join('\n');
 }
 
 Lyrics ParseLyrics(const QByteArray &bytes) {

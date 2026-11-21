@@ -24,8 +24,17 @@ namespace {
 	return result;
 }
 
+[[nodiscard]] QString Stamp(qint64 ms) {
+	ms = std::max(ms, qint64(0));
+	return u"%1:%2.%3"_q
+		.arg(ms / 60000, 2, 10, QChar('0'))
+		.arg((ms / 1000) % 60, 2, 10, QChar('0'))
+		.arg((ms % 1000) / 10, 2, 10, QChar('0'));
+}
+
 // Timed lines become an LRC file, plain ones a text file, which the parser
-// of lyrics files reads either way.
+// of lyrics files reads either way. Words timed one by one are written as
+// enhanced LRC, <mm:ss.xx> in front of every word.
 [[nodiscard]] QString ToLrc(const Sources::Lyrics &found) {
 	auto result = QStringList();
 	result.reserve(int(found.lines.size()));
@@ -34,12 +43,21 @@ namespace {
 			result.push_back(line.text);
 			continue;
 		}
-		const auto ms = std::max(line.timeMs, qint64(0));
-		result.push_back(u"[%1:%2.%3]%4"_q
-			.arg(ms / 60000, 2, 10, QChar('0'))
-			.arg((ms / 1000) % 60, 2, 10, QChar('0'))
-			.arg((ms % 1000) / 10, 2, 10, QChar('0'))
-			.arg(line.text));
+		auto text = QString();
+		if (line.words.empty()) {
+			text = line.text;
+		} else {
+			for (const auto &word : line.words) {
+				text += u"<"_q + Stamp(word.timeMs) + u">"_q + word.text;
+			}
+			const auto &last = line.words.back();
+			if (last.durationMs >= 0) {
+				text += u"<"_q
+					+ Stamp(last.timeMs + last.durationMs)
+					+ u">"_q;
+			}
+		}
+		result.push_back(u"["_q + Stamp(line.timeMs) + u"]"_q + text);
 	}
 	return result.join(QChar('\n'));
 }
@@ -66,23 +84,40 @@ void SearchLyricsOnline(
 	// The lookup of mokaGram: LRCLIB, Kugou and NetEase, picking the variant
 	// closest in length. A performer missing from the tags is taken from an
 	// "Artist - Title" title. What is found is kept on disk as an LRC file.
+	const auto duration = document->duration();
+	const auto deliver = [=](const Sources::Lyrics &found) {
+		const auto text = ToLrc(found);
+		auto lyrics = ParseLyrics(text);
+		if (lyrics.empty()) {
+			return;
+		}
+		CacheLyrics(id, text.toUtf8());
+		if (done) {
+			done(std::move(lyrics));
+		}
+	};
 	Sources::FetchLyrics(
 		title,
 		performer,
-		document->duration(),
+		duration,
 		[=](Sources::Lyrics found) {
 			if (!found.found || found.lines.empty()) {
 				return;
 			}
-			const auto text = ToLrc(found);
-			auto lyrics = ParseLyrics(text);
-			if (lyrics.empty()) {
-				return;
-			}
-			CacheLyrics(id, text.toUtf8());
-			if (done) {
-				done(std::move(lyrics));
-			}
+			deliver(found);
+			// HoursGram: lines timed one by one are shown at once; when
+			// Kugou has the same song with every word timed, the lyrics
+			// are replaced with those, so they fill word by word.
+			Sources::FetchWordTimings(
+				title,
+				performer,
+				duration,
+				found,
+				[=](Sources::Lyrics words) {
+					if (words.found && !words.lines.empty()) {
+						deliver(words);
+					}
+				});
 		});
 }
 

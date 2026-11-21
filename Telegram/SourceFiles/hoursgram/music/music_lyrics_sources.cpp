@@ -23,7 +23,9 @@
 #include "logs.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
 #include <vector>
 
 namespace HoursGram::Music::Sources {
@@ -118,6 +120,12 @@ void ScaleTimes(Lyrics &lyrics, double ratio) {
 	}
 	for (auto &line : lyrics.lines) {
 		line.timeMs = qint64(line.timeMs * ratio);
+		for (auto &word : line.words) {
+			word.timeMs = qint64(word.timeMs * ratio);
+			if (word.durationMs > 0) {
+				word.durationMs = qint64(word.durationMs * ratio);
+			}
+		}
 	}
 }
 
@@ -277,6 +285,101 @@ void GetJson(
 	});
 }
 
+// KRC, the lyrics of Kugou with a timing for every word: "krc1" and then a
+// zlib stream XORed with a fixed key. Lines look like
+// [start,duration]<offset,duration,0>word<offset,duration,0>word, with the
+// word offsets counted from the start of the line.
+[[nodiscard]] QString DecodeKrc(const QByteArray &bytes) {
+	if (!bytes.startsWith("krc1")) {
+		return QString();
+	}
+	static const auto key = std::array<uchar, 16>{
+		64, 71, 97, 119, 94, 50, 116, 71,
+		81, 54, 49, 45, 206, 210, 110, 105,
+	};
+	auto data = bytes.mid(4);
+	for (auto i = 0, count = int(data.size()); i != count; ++i) {
+		data[i] = char(uchar(data[i]) ^ key[i % 16]);
+	}
+	// qUncompress wants the size of the result in front, big endian; a
+	// guess is enough, the buffer grows when it is too small.
+	const auto guess = quint32(std::min<qint64>(
+		qint64(data.size()) * 8,
+		kMaxTextBytes));
+	auto sized = QByteArray(4, Qt::Uninitialized);
+	sized[0] = char((guess >> 24) & 0xFF);
+	sized[1] = char((guess >> 16) & 0xFF);
+	sized[2] = char((guess >> 8) & 0xFF);
+	sized[3] = char(guess & 0xFF);
+	sized += data;
+	const auto inflated = qUncompress(sized);
+	if (inflated.isEmpty() || inflated.size() > kMaxTextBytes) {
+		return QString();
+	}
+	auto result = QString::fromUtf8(inflated);
+	if (result.startsWith(QChar(0xFEFF))) {
+		result.remove(0, 1);
+	}
+	return result;
+}
+
+[[nodiscard]] Lyrics ParseKrc(const QString &text) {
+	auto result = Lyrics();
+	static const auto lineExp = QRegularExpression(
+		uR"(^\[(\d+),(\d+)\](.*)$)"_q);
+	static const auto wordExp = QRegularExpression(
+		uR"(<(\d+),(\d+),-?\d+>([^<]*))"_q);
+	for (auto raw : text.split('\n')) {
+		raw.remove('\r');
+		const auto match = lineExp.match(raw);
+		if (!match.hasMatch()) {
+			continue;
+		}
+		auto line = LyricLine{ .timeMs = match.captured(1).toLongLong() };
+		const auto rest = match.captured(3);
+		auto it = wordExp.globalMatch(rest);
+		while (it.hasNext()) {
+			const auto word = it.next();
+			const auto text = word.captured(3);
+			if (text.isEmpty()) {
+				continue;
+			}
+			line.words.push_back({
+				.timeMs = line.timeMs + word.captured(1).toLongLong(),
+				.durationMs = word.captured(2).toLongLong(),
+				.text = text,
+			});
+		}
+		if (line.words.empty()) {
+			line.text = rest.trimmed();
+		} else {
+			auto &first = line.words.front().text;
+			while (!first.isEmpty() && first.front().isSpace()) {
+				first.remove(0, 1);
+			}
+			auto &last = line.words.back().text;
+			while (!last.isEmpty() && last.back().isSpace()) {
+				last.chop(1);
+			}
+			for (const auto &word : line.words) {
+				line.text += word.text;
+			}
+		}
+		if (!line.text.isEmpty()) {
+			result.words |= !line.words.empty();
+			result.lines.push_back(std::move(line));
+		}
+	}
+	std::stable_sort(result.lines.begin(), result.lines.end(), [](
+			const LyricLine &a,
+			const LyricLine &b) {
+		return a.timeMs < b.timeMs;
+	});
+	result.synced = !result.lines.empty();
+	result.found = result.synced;
+	return result;
+}
+
 struct KugouCandidate {
 	QString id;
 	QString accesskey;
@@ -294,27 +397,52 @@ void RequestKugouCandidate(
 		return;
 	}
 	const auto candidate = candidates[index];
-	const auto address = u"https://lyrics.kugou.com/download?ver=1&client=pc&fmt=lrc&charset=utf8&id="_q
-		+ QString::fromLatin1(QUrl::toPercentEncoding(candidate.id))
-		+ u"&accesskey="_q
-		+ QString::fromLatin1(QUrl::toPercentEncoding(candidate.accesskey));
-	GetJson(address, [=](QJsonDocument doc) {
+	const auto addressFor = [=](const QString &format) {
+		return u"https://lyrics.kugou.com/download?ver=1&client=pc&fmt="_q
+			+ format
+			+ u"&charset=utf8&id="_q
+			+ QString::fromLatin1(QUrl::toPercentEncoding(candidate.id))
+			+ u"&accesskey="_q
+			+ QString::fromLatin1(QUrl::toPercentEncoding(candidate.accesskey));
+	};
+	const auto address = addressFor(u"lrc"_q);
+	// HoursGram: KRC first, for the timings of the words; plain LRC when
+	// there is no KRC or it does not decode.
+	const auto lrc = [=] {
+		GetJson(address, [=](QJsonDocument doc) {
+			const auto encoded = doc.object().value("content").toString().toLatin1();
+			const auto decoded = QByteArray::fromBase64Encoding(
+				encoded,
+				QByteArray::AbortOnBase64DecodingErrors);
+			auto result = decoded
+				? ParseLrc(QString::fromUtf8(decoded.decoded))
+				: Lyrics();
+			result.found = result.synced
+				&& std::any_of(result.lines.begin(), result.lines.end(), [](const auto &line) {
+					return !line.text.isEmpty();
+				});
+			if (result.found) {
+				ScaleTimes(result, candidate.ratio);
+				done(std::move(result));
+			} else {
+				RequestKugouCandidate(candidates, index + 1, done, unavailable || doc.isNull());
+			}
+		}, "https://www.kugou.com/");
+	};
+	GetJson(addressFor(u"krc"_q), [=](QJsonDocument doc) {
 		const auto encoded = doc.object().value("content").toString().toLatin1();
 		const auto decoded = QByteArray::fromBase64Encoding(
 			encoded,
 			QByteArray::AbortOnBase64DecodingErrors);
 		auto result = decoded
-			? ParseLrc(QString::fromUtf8(decoded.decoded))
+			? ParseKrc(DecodeKrc(decoded.decoded))
 			: Lyrics();
-		result.found = result.synced
-			&& std::any_of(result.lines.begin(), result.lines.end(), [](const auto &line) {
-				return !line.text.isEmpty();
-			});
-		if (result.found) {
+		if (result.found && result.words) {
+			LOG(("[lyrics] kugou krc with word timings"));
 			ScaleTimes(result, candidate.ratio);
 			done(std::move(result));
 		} else {
-			RequestKugouCandidate(candidates, index + 1, done, unavailable || doc.isNull());
+			lrc();
 		}
 	}, "https://www.kugou.com/");
 }
@@ -585,6 +713,176 @@ void RequestGenius(
 	}, "https://genius.com/");
 }
 
+// tekst-pesni.com: a site of lyrics with many Russian songs, which the
+// other sources often miss. Its WordPress API finds the posts; the lyrics
+// are the part of the post under the "Текст песни" heading, up to the next
+// heading. A post counts only when its title has most of the words asked.
+[[nodiscard]] QString HtmlText(QString html) {
+	static const auto blocks = QRegularExpression(
+		uR"(<(script|style|iframe)\b[^>]*>.*?</\1>)"_q,
+		QRegularExpression::CaseInsensitiveOption
+			| QRegularExpression::DotMatchesEverythingOption);
+	static const auto br = QRegularExpression(
+		uR"(<br\s*/?>)"_q,
+		QRegularExpression::CaseInsensitiveOption);
+	static const auto paragraph = QRegularExpression(
+		uR"(</(?:p|div)>)"_q,
+		QRegularExpression::CaseInsensitiveOption);
+	static const auto tags = QRegularExpression(u"<[^>]*>"_q);
+	static const auto entity = QRegularExpression(
+		uR"(&(#x[0-9a-fA-F]+|#[0-9]+|[A-Za-z]+);)"_q);
+	static const auto spaces = QRegularExpression(uR"([ \t]+\n)"_q);
+	static const auto gaps = QRegularExpression(u"\n{3,}"_q);
+	html.remove(blocks);
+	html.replace(br, u"\n"_q);
+	html.replace(paragraph, u"\n\n"_q);
+	html.remove(tags);
+	auto result = QString();
+	result.reserve(html.size());
+	auto from = qsizetype(0);
+	auto i = entity.globalMatch(html);
+	while (i.hasNext()) {
+		const auto match = i.next();
+		result += html.mid(from, match.capturedStart() - from);
+		from = match.capturedEnd();
+		const auto code = match.captured(1);
+		if (code.startsWith('#')) {
+			auto ok = false;
+			const auto value = code.startsWith(u"#x"_q, Qt::CaseInsensitive)
+				? code.mid(2).toUInt(&ok, 16)
+				: code.mid(1).toUInt(&ok, 10);
+			if (ok && value > 0 && value <= 0x10FFFF) {
+				const auto unicode = char32_t(value);
+				result += QString::fromUcs4(&unicode, 1);
+				continue;
+			}
+		} else {
+			static const auto named = std::map<QString, QString>{
+				{ u"amp"_q, u"&"_q },
+				{ u"lt"_q, u"<"_q },
+				{ u"gt"_q, u">"_q },
+				{ u"quot"_q, u"\""_q },
+				{ u"apos"_q, u"'"_q },
+				{ u"nbsp"_q, u" "_q },
+				{ u"ndash"_q, QString(QChar(0x2013)) },
+				{ u"mdash"_q, QString(QChar(0x2014)) },
+				{ u"hellip"_q, QString(QChar(0x2026)) },
+				{ u"laquo"_q, QString(QChar(0x00AB)) },
+				{ u"raquo"_q, QString(QChar(0x00BB)) },
+			};
+			const auto found = named.find(code.toLower());
+			if (found != named.end()) {
+				result += found->second;
+				continue;
+			}
+		}
+		result += match.captured(0);
+	}
+	result += html.mid(from);
+	result.replace(spaces, u"\n"_q);
+	result.replace(gaps, u"\n\n"_q);
+	return result.trimmed();
+}
+
+[[nodiscard]] QStringList MatchWords(const QString &text) {
+	auto normalized = text.toLower();
+	normalized.replace(QChar(0x0451), QChar(0x0435)); // ё -> е
+	static const auto other = QRegularExpression(uR"([^\p{L}\p{N}]+)"_q);
+	normalized.replace(other, u" "_q);
+	return normalized.split(' ', Qt::SkipEmptyParts);
+}
+
+// 2 when the title holds the whole query, else the part of its words found.
+[[nodiscard]] double Relevance(const QString &title, const QString &query) {
+	const auto name = MatchWords(title);
+	const auto words = MatchWords(query);
+	if (words.isEmpty()) {
+		return 0.;
+	} else if (name.join(' ').contains(words.join(' '))) {
+		return 2.;
+	}
+	auto found = 0;
+	for (const auto &word : words) {
+		if (name.contains(word)) {
+			++found;
+		}
+	}
+	return double(found) / words.size();
+}
+
+constexpr auto kTekstPesniRelevance = 0.6;
+
+void SearchTekstPesni(
+		const QString &search,
+		const QString &wanted,
+		Fn<void(Lyrics)> done) {
+	auto query = QUrlQuery();
+	query.addQueryItem(u"search"_q, search);
+	query.addQueryItem(u"per_page"_q, u"20"_q);
+	query.addQueryItem(u"_fields"_q, u"id,title,link,content"_q);
+	auto url = QUrl(u"https://tekst-pesni.com/wp-json/wp/v2/posts"_q);
+	url.setQuery(query);
+	GetJson(url.toString(QUrl::FullyEncoded), [=](QJsonDocument doc) {
+		static const auto heading = QRegularExpression(
+			uR"(<h[23]\b[^>]*>\s*Текст песни.*?</h[23]>)"_q,
+			QRegularExpression::CaseInsensitiveOption
+				| QRegularExpression::DotMatchesEverythingOption);
+		static const auto next = QRegularExpression(
+			uR"(<h[1-6]\b)"_q,
+			QRegularExpression::CaseInsensitiveOption);
+		auto best = Lyrics();
+		auto bestRelevance = 0.;
+		for (const auto &value : doc.array()) {
+			const auto post = value.toObject();
+			const auto title = HtmlText(post.value(u"title"_q).toObject()
+				.value(u"rendered"_q).toString());
+			const auto relevance = Relevance(title, wanted);
+			if (relevance < kTekstPesniRelevance
+				|| relevance <= bestRelevance) {
+				continue;
+			}
+			const auto html = post.value(u"content"_q).toObject()
+				.value(u"rendered"_q).toString();
+			const auto match = heading.match(html);
+			if (!match.hasMatch()) {
+				continue;
+			}
+			auto section = html.mid(match.capturedEnd());
+			const auto end = next.match(section);
+			if (end.hasMatch()) {
+				section = section.left(end.capturedStart());
+			}
+			const auto text = HtmlText(section);
+			if (text.isEmpty()) {
+				continue;
+			}
+			best = ParsePlain(text);
+			bestRelevance = relevance;
+		}
+		if (best.found) {
+			LOG(("[lyrics] tekst-pesni found (relevance %1)"
+				).arg(bestRelevance));
+		}
+		done(std::move(best));
+	}, "https://tekst-pesni.com/");
+}
+
+void RequestTekstPesni(
+		const QString &trackName,
+		const QString &artistName,
+		Fn<void(Lyrics)> done) {
+	const auto wanted = (artistName.trimmed() + ' ' + trackName).trimmed();
+	SearchTekstPesni(wanted, wanted, [=](Lyrics result) {
+		if (result.found || trackName.size() < 4 || wanted == trackName) {
+			done(std::move(result));
+			return;
+		}
+		// The site names posts its own way: try the title alone, still
+		// asking the post to carry most of the words of both.
+		SearchTekstPesni(trackName, wanted, done);
+	});
+}
+
 void RequestFallback(
 		const QString &trackName,
 		const QString &artistName,
@@ -620,8 +918,17 @@ void RequestFallback(
 			}
 		});
 	};
+	const auto tekstPesni = [=](bool failed) {
+		RequestTekstPesni(trackName, artistName, [=](Lyrics result) {
+			if (result.found) {
+				done(std::move(result));
+			} else {
+				genius(failed);
+			}
+		});
+	};
 	if (durationMs <= 0 || unavailable) {
-		genius(unavailable);
+		tekstPesni(unavailable);
 		return;
 	}
 	auto query = QUrlQuery();
@@ -630,9 +937,45 @@ void RequestFallback(
 		if (result.found) {
 			done(std::move(result));
 		} else {
-			genius(result.unavailable);
+			tekstPesni(result.unavailable);
 		}
 	}, trackName);
+}
+
+} // namespace
+
+namespace {
+
+[[nodiscard]] QString NormalizedLine(const QString &text) {
+	auto result = text.toLower();
+	static const auto other = QRegularExpression(uR"([^\p{L}\p{N}]+)"_q);
+	result.replace(other, u" "_q);
+	return result.simplified();
+}
+
+// The KRC is for the same song when most of its lines are lines of the
+// lyrics found before: Kugou may add a line with the names at the start.
+[[nodiscard]] bool SameLyrics(const Lyrics &base, const Lyrics &words) {
+	auto known = std::vector<QString>();
+	for (const auto &line : base.lines) {
+		const auto text = NormalizedLine(line.text);
+		if (!text.isEmpty()) {
+			known.push_back(text);
+		}
+	}
+	auto total = 0;
+	auto same = 0;
+	for (const auto &line : words.lines) {
+		const auto text = NormalizedLine(line.text);
+		if (text.isEmpty()) {
+			continue;
+		}
+		++total;
+		if (std::find(known.begin(), known.end(), text) != known.end()) {
+			++same;
+		}
+	}
+	return (total > 0) && (same * 2 >= std::min(total, int(known.size())));
 }
 
 } // namespace
@@ -724,6 +1067,27 @@ void RequestLastResort(
 }
 
 } // namespace
+
+void FetchWordTimings(
+		const QString &title,
+		const QString &artist,
+		qint64 durationMs,
+		const Lyrics &base,
+		Fn<void(Lyrics)> done) {
+	if (base.words || !base.synced || durationMs <= 0) {
+		done({});
+		return;
+	}
+	const auto split = SplitName(title, artist);
+	RequestKugou(split.trackName, split.artistName, durationMs, [=](
+			Lyrics result) {
+		if (result.found && result.words && SameLyrics(base, result)) {
+			done(std::move(result));
+		} else {
+			done({});
+		}
+	});
+}
 
 void FetchLyrics(
 		const QString &title,

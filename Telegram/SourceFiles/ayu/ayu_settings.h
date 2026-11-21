@@ -343,6 +343,19 @@ public:
 	[[nodiscard]] rpl::producer<> introLookChanges() const {
 		return _introLookChanges.events();
 	}
+
+	// A folder of lyrics files named "Performer — Title" (.lrc or .txt),
+	// looked through before searching online. Empty when there is none.
+	[[nodiscard]] const QString &lyricsFolder() const {
+		return _lyricsFolder.current();
+	}
+	// Lyrics are shown with a translation into the language of the app.
+	[[nodiscard]] bool lyricsTranslate() const {
+		return _lyricsTranslate.current();
+	}
+	[[nodiscard]] rpl::producer<bool> lyricsTranslateValue() const {
+		return _lyricsTranslate.value();
+	}
 	// Colors the user picked in Customization, keyed by palette slot name.
 	// A slot that is not here keeps the color the shipped palette gives it.
 	[[nodiscard]] QString paletteOverride(const QString &slot) const;
@@ -446,6 +459,8 @@ public:
 	void setIntroColor2(const QString &val);
 	void setIntroTitle(const QString &val);
 	void resetIntroLook();
+	void setLyricsFolder(const QString &val);
+	void setLyricsTranslate(bool val);
 	void setPaletteOverride(const QString &slot, const QString &color);
 	void resetPaletteOverrides();
 	[[nodiscard]] bool addLocalGift(uint64 userId, const QString &giftId);
@@ -738,6 +753,8 @@ private:
 	rpl::variable<QString> _introColor2;
 	rpl::variable<QString> _introTitle = QStringLiteral("HorusGram");
 	rpl::event_stream<> _introLookChanges;
+	rpl::variable<QString> _lyricsFolder;
+	rpl::variable<bool> _lyricsTranslate = false;
 	std::map<QString, QString> _paletteOverrides;
 	rpl::event_stream<> _paletteOverridesChanges;
 	rpl::variable<bool> _simpleQuotesAndReplies = false;

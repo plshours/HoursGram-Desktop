@@ -863,6 +863,18 @@ void AyuSettings::resetIntroLook() {
 	_introLookChanges.fire({});
 }
 
+void AyuSettings::setLyricsTranslate(bool val) {
+	if (_lyricsTranslate.current() == val) return;
+	_lyricsTranslate = val;
+	save();
+}
+
+void AyuSettings::setLyricsFolder(const QString &val) {
+	if (_lyricsFolder.current() == val) return;
+	_lyricsFolder = val;
+	save();
+}
+
 LocalProfileCosmetics &AyuSettings::getLocalProfileCosmetics(uint64 userId) {
 	auto &cosmetics = _localProfileCosmetics[userId];
 	if (!cosmetics) {
@@ -1385,6 +1397,8 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"introColor1", s._introColor1.current()},
 		{"introColor2", s._introColor2.current()},
 		{"introTitle", s._introTitle.current()},
+		{"lyricsFolder", s._lyricsFolder.current()},
+		{"lyricsTranslate", s._lyricsTranslate.current()},
 		{"paletteOverrides", [&] {
 			auto result = nlohmann::json::object();
 			for (const auto &[slot, color] : s._paletteOverrides) {
@@ -1507,6 +1521,8 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._introColor1 = j.value("introColor1", defaults._introColor1.current());
 	s._introColor2 = j.value("introColor2", defaults._introColor2.current());
 	s._introTitle = j.value("introTitle", defaults._introTitle.current());
+	s._lyricsFolder = j.value("lyricsFolder", defaults._lyricsFolder.current());
+	s._lyricsTranslate = j.value("lyricsTranslate", defaults._lyricsTranslate.current());
 	s._paletteOverrides.clear();
 	if (j.contains("paletteOverrides") && j["paletteOverrides"].is_object()) {
 		for (const auto &[key, value] : j["paletteOverrides"].items()) {
